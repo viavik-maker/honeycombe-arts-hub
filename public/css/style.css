@@ -488,6 +488,19 @@ p { margin: 0 0 1em; }
 .logo-wall img { height: 52px; width: auto; max-width: 150px; object-fit: contain; opacity: .9; transition: .2s; }
 .logo-wall img:hover { opacity: 1; transform: scale(1.06); }
 
+/* ---------- main funder ---------- */
+.funder { background: var(--paper); padding: clamp(2.6rem, 6vw, 4.5rem) 0; border-top: 1px solid var(--line); }
+.funder__inner { display: grid; grid-template-columns: auto 1fr; gap: clamp(1.6rem, 4vw, 3.2rem); align-items: center; }
+.funder__plaque { background: var(--navy); border-radius: var(--r-md); padding: 1.4rem 2rem; display: grid; place-items: center; box-shadow: var(--shadow-1); }
+.funder__plaque img { height: 82px; width: auto; }
+.funder__text .eyebrow { color: var(--orange); }
+.funder__text h2 { margin: .12em 0 .35em; }
+.funder__text p { color: var(--muted); max-width: 48em; margin: 0; }
+@media (max-width: 640px) {
+  .funder__inner { grid-template-columns: 1fr; text-align: center; justify-items: center; }
+  .funder__plaque { width: fit-content; }
+}
+
 /* CTA band */
 .cta-band { position: relative; overflow: hidden; background: linear-gradient(120deg, var(--orange) 0%, #ef8a3f 100%); color: #fff; text-align: center; padding: clamp(3.5rem, 7vw, 5.5rem) 0; }
 .cta-band h2 { color: #fff; }
