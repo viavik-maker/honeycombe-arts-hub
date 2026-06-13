@@ -137,7 +137,7 @@ p { margin: 0 0 1em; }
 /* ---------- hero ---------- */
 .hero { position: relative; overflow: hidden; padding: clamp(3rem, 7vw, 6rem) 0 0; }
 .hero__grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(2rem, 5vw, 4.5rem); align-items: center; padding-bottom: clamp(3rem, 6vw, 5.5rem); }
-.hero__eyebrow { font-family: var(--font-hand); font-size: 1.7rem; color: var(--orange); margin-bottom: .4em; display: inline-block; transform: rotate(-2deg); }
+.hero__eyebrow { font-family: var(--font-cut); font-size: 1.25rem; letter-spacing: .04em; color: var(--orange); margin-bottom: .5em; display: inline-block; transform: rotate(-1.5deg); }
 .hero h1 .swap { color: var(--orange); display: inline-block; min-width: 4.2em; }
 .hero h1 .swap .word { display: inline-block; animation: wordIn .5s ease; }
 @keyframes wordIn { from { opacity: 0; transform: translateY(.4em) rotate(2deg); } to { opacity: 1; transform: none; } }
@@ -387,7 +387,7 @@ p { margin: 0 0 1em; }
 .footer__mark { width: 130px; margin-bottom: 1em; }
 .footer__tag { font-size: .97rem; }
 .footer__tag .accent-hand { color: var(--honey); }
-.footer__strap { font-family: var(--font-hand); color: var(--honey); font-size: 1.5rem; line-height: 1; margin: 0 0 .4em; transform: rotate(-1.5deg); display: inline-block; }
+.footer__strap { font-family: var(--font-cut); color: var(--honey); font-size: 1.1rem; letter-spacing: .04em; line-height: 1.1; margin: 0 0 .5em; transform: rotate(-1.5deg); display: inline-block; }
 .footer__col h4 { color: #fff; font-size: 1.05rem; margin-bottom: 1em; }
 .footer__col > a { display: block; padding: .28em 0; font-size: .97rem; }
 .footer__social { display: flex; gap: .7em; margin-top: 1.2em; }
