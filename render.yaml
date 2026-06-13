@@ -1,0 +1,14 @@
+# Render.com blueprint — deploys the Honeycombe Arts Hub site + CMS.
+# In Render: New → Blueprint → point it at this repository.
+services:
+  - type: web
+    name: honeycombe-arts-hub
+    runtime: python
+    plan: starter            # paid tier required for the persistent disk below
+    buildCommand: "echo 'no build needed'"
+    startCommand: "python3 server.py"
+    healthCheckPath: /
+    disk:
+      name: hah-data
+      mountPath: /opt/render/project/src/data
+      sizeGB: 1

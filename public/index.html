@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <title>Honeycombe Arts Hub — Youth-focused community arts centre in Boscombe, Bournemouth</title>
+  <meta name="description" content="Honeycombe Arts Hub is a youth-focused community arts centre in Boscombe, Bournemouth. Holiday arts clubs, Arts Award, home education, cinema and more — inspire, explore, create, share.">
+  <!--#include head.html-->
+  <!--#data-->
+</head>
+<body data-page="home">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!--#include header.html-->
+
+  <main id="main">
+    <!-- ============ HERO ============ -->
+    <section class="hero">
+      <div class="container hero__grid">
+        <div>
+          <span class="hero__eyebrow">Hello! Welcome to Honeycombe Arts Hub…</span>
+          <h1>A home for young people to <span class="swap"><span class="word">imagine</span></span></h1>
+          <p class="hero__lead">Honeycombe Arts Hub is a youth-focused community arts centre in the heart of Boscombe. Art, drama, music, film and friendship — open to every child, whatever their circumstances.</p>
+          <div class="hero__actions">
+            <a class="btn btn--orange btn--lg" data-booking href="#" target="_blank" rel="noopener">Book a session</a>
+            <a class="btn btn--ghost btn--lg" href="/whats-on">See what’s on</a>
+          </div>
+          <div class="hero__meta">
+            <div><strong>3,624</strong> funded places in 2024</div>
+            <div><strong>£15</strong> a year membership</div>
+            <div><strong>5–22</strong> ages we welcome</div>
+          </div>
+        </div>
+        <div class="hero__art">
+          <div class="house"><img src="/img/photos/ukulele-boy.jpg" alt="Boy playing a blue ukulele"></div>
+          <div class="house"><img src="/img/photos/sparkle-smile.jpg" alt="Girl in a princess costume laughing"></div>
+          <div class="house"><img src="/img/photos/apple-drawing.jpg" alt="Child holding up their crayon drawing of an apple"></div>
+          <span class="hero__doodle" style="top:-14px; right:8%">✦</span>
+          <span class="hero__doodle" style="bottom:-6px; left:-26px; animation-delay:1.2s">🎨</span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ MARQUEE ============ -->
+    <div class="marquee" aria-hidden="true">
+      <div class="marquee__track" id="marqueeTrack">
+        <span>Inspire</span><span class="star">✦</span><span>Explore</span><span class="star">✦</span>
+        <span>Create</span><span class="star">✦</span><span>Share</span><span class="star">✦</span>
+        <span>Belong</span><span class="star">✦</span>
+        <span>Inspire</span><span class="star">✦</span><span>Explore</span><span class="star">✦</span>
+        <span>Create</span><span class="star">✦</span><span>Share</span><span class="star">✦</span>
+        <span>Belong</span><span class="star">✦</span>
+      </div>
+    </div>
+
+    <!-- ============ ABOUT THE HUB ============ -->
+    <section class="section section--hex">
+      <div class="container">
+        <div class="feature-row reveal">
+          <div class="feature-row__media"><img src="/img/photos/mural-gang.jpg" alt="Group of young people posing in front of the Hub mural"></div>
+          <div>
+            <span class="eyebrow">This is the Hub</span>
+            <h2>A creative home in the heart of Boscombe</h2>
+            <p><strong>Honeycombe Arts Hub</strong> is a big-hearted charity led with fresh energy and a collaborative spirit. Together with local artists, educators and families, we’re building a positive, creative home for children and young people in BCP.</p>
+            <ul>
+              <li><strong>Media Centre</strong> (in development) — film, audio, photography, design and digital storytelling</li>
+              <li><strong>Project 14–22</strong> — experience, mentoring and routes into study and work for young creatives</li>
+              <li><strong>Youth Advisory Board</strong> — young people shaping our direction, with youth voice at the heart of everything</li>
+              <li><strong>Drawing &amp; Talking Therapies</strong> — expanded 1:1 and small-group creative wellbeing support</li>
+              <li><strong>Home Education</strong> — creative learning days every week</li>
+            </ul>
+            <a class="btn btn--navy" href="/about">Our mission &amp; values</a>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ WHAT'S ON ============ -->
+    <section class="section">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="eyebrow">Pick your adventure</span>
+          <h2>What’s on at the Hub</h2>
+          <p>Holiday clubs, weekly courses, wellbeing sessions and one-off spectaculars — there’s a buzz here all year round.</p>
+        </div>
+        <div class="cards" id="homeEvents"></div>
+        <div class="section__more reveal">
+          <a class="btn btn--honey btn--lg" href="/whats-on">See the full programme</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ IMPACT ============ -->
+    <section class="section section--navy">
+      <div class="container">
+        <div class="section__head reveal">
+          <span class="eyebrow">Why it matters</span>
+          <h2>Demonstrating our impact</h2>
+          <p>We prioritise children with particular need by reason of age, disability or social and economic circumstances — and we measure what matters.</p>
+        </div>
+        <div class="impact-grid" id="homeImpact"></div>
+        <div class="section__more reveal">
+          <a class="btn btn--honey" data-donate href="#" target="_blank" rel="noopener">Sponsor a child — £69 funds a full day ♥</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ GALLERY PREVIEW ============ -->
+    <section class="section section--paper">
+      <div class="container">
+        <div class="section__head section__head--center reveal">
+          <span class="eyebrow">Glitter, glue &amp; grins</span>
+          <h2>Life at the Hub</h2>
+        </div>
+        <div class="masonry" id="homeGallery"></div>
+        <div class="section__more reveal">
+          <a class="btn btn--ghost" href="/gallery">Explore the gallery</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ TESTIMONIALS ============ -->
+    <section class="section">
+      <div class="container">
+        <div class="section__head section__head--center reveal">
+          <span class="eyebrow">Word on the street</span>
+          <h2>What families say</h2>
+        </div>
+        <div class="tslider" id="tslider"></div>
+        <div class="tdots" id="tdots"></div>
+        <div class="section__more reveal">
+          <a class="btn btn--ghost btn--sm" href="/testimonials">Read more testimonials</a>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CTA ============ -->
+    <section class="cta-band">
+      <div class="container reveal">
+        <span class="eyebrow" style="color:#fff">How can I make a difference?</span>
+        <h2>Become part of the magic</h2>
+        <p>Because every child deserves the opportunity to shine — volunteer your time, donate, or simply book your child in for an adventure.</p>
+        <a class="btn btn--white btn--lg" href="/get-involved">Get involved</a>
+        <a class="btn btn--navy btn--lg" data-booking href="#" target="_blank" rel="noopener">Book now</a>
+      </div>
+    </section>
+  </main>
+
+  <!--#include footer.html-->
+</body>
+</html>

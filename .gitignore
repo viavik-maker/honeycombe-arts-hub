@@ -1,0 +1,9 @@
+# runtime state — created automatically, never commit
+data/auth.json
+data/sessions.json
+data/messages.json
+data/subscribers.json
+data/content.backup.json
+data/uploads/
+.DS_Store
+.claude/

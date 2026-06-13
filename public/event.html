@@ -1,0 +1,41 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <title>Event — Honeycombe Arts Hub</title>
+  <meta name="description" content="Event details at Honeycombe Arts Hub, Boscombe.">
+  <!--#include head.html-->
+  <!--#data-->
+</head>
+<body data-page="event">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!--#include header.html-->
+
+  <main id="main">
+    <section class="section" id="eventDetail" style="padding-top:2.5rem">
+      <div class="container">
+        <nav class="breadcrumb"><a href="/whats-on">← Back to What’s On</a></nav>
+        <div class="event-detail">
+          <div class="event-detail__text">
+            <span class="event-card__tag" id="evTag" style="position:static; display:inline-block; margin-bottom:1em"></span>
+            <h1 id="evTitle"></h1>
+            <p style="font-size:1.18rem; color:var(--muted); font-weight:600" id="evSummary"></p>
+            <div class="prose"><p id="evBody"></p></div>
+          </div>
+          <aside class="event-side">
+            <div class="event-side__card reveal in">
+              <img id="evImg" src="" alt="">
+              <div class="event-side__body">
+                <div id="evRows"></div>
+                <a class="btn btn--orange" id="evBook" href="#" rel="noopener">Book now</a>
+                <a class="btn btn--ghost btn--sm" href="/contact" style="width:100%; justify-content:center; margin-top:.6em">Ask us a question</a>
+              </div>
+            </div>
+          </aside>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!--#include footer.html-->
+</body>
+</html>

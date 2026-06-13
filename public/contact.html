@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <title>Contact Us — Honeycombe Arts Hub</title>
+  <meta name="description" content="Contact Honeycombe Arts Hub — Units 4 & 5, The Sovereign Shopping Centre, 600 Christchurch Road, Boscombe BH1 4SX. Send us a message, call or visit.">
+  <!--#include head.html-->
+  <!--#data-->
+</head>
+<body data-page="contact">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!--#include header.html-->
+
+  <main id="main">
+    <section class="page-hero">
+      <div class="container">
+        <span class="eyebrow">We’d love to hear from you</span>
+        <h1>Contact Us</h1>
+        <p style="max-width:36em; color:var(--muted); font-size:1.12rem">Questions about clubs, bookings, funded places or volunteering — drop us a message and it lands straight in the team’s inbox.</p>
+      </div>
+    </section>
+
+    <section class="section" style="padding-top:1rem">
+      <div class="container">
+        <div class="contact-grid">
+          <div>
+            <div class="contact-cards">
+              <div class="contact-card reveal">
+                <span class="ico">✉</span>
+                <div>
+                  <h3>The Hub, Boscombe</h3>
+                  <p>General enquiries &amp; bookings<br><a id="cEmail" href="#"></a></p>
+                </div>
+              </div>
+              <div class="contact-card reveal">
+                <span class="ico">☎</span>
+                <div>
+                  <h3>Poppy — Arts Centre Manager</h3>
+                  <p>Call or text (HAF applications too)<br><a id="cPhone" href="#"></a></p>
+                </div>
+              </div>
+              <div class="contact-card reveal">
+                <span class="ico">★</span>
+                <div>
+                  <h3>Trustees</h3>
+                  <p>Governance, safeguarding &amp; feedback<br><a id="cTrustees" href="#"></a></p>
+                </div>
+              </div>
+              <div class="contact-card reveal">
+                <span class="ico">⌂</span>
+                <div>
+                  <h3>Where to find us</h3>
+                  <p id="cAddress"></p>
+                </div>
+              </div>
+            </div>
+            <div class="event-side__card reveal" style="margin-top:1.1rem">
+              <div class="event-side__body">
+                <h3 style="margin-bottom:.6em">Opening times</h3>
+                <div id="openingTimes"></div>
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <form id="contactForm" class="event-side__card" style="padding:2rem" novalidate>
+              <h2 style="font-size:1.6rem">Send us a message</h2>
+              <p class="form-note">Messages go directly to our team. We aim to reply within two working days.</p>
+              <div class="field">
+                <label for="cfName">Your name *</label>
+                <input id="cfName" name="name" type="text" required autocomplete="name">
+              </div>
+              <div class="field">
+                <label for="cfEmail">Email *</label>
+                <input id="cfEmail" name="email" type="email" required autocomplete="email">
+              </div>
+              <div class="field">
+                <label for="cfPhone">Telephone / mobile</label>
+                <input id="cfPhone" name="phone" type="tel" autocomplete="tel">
+              </div>
+              <div class="field">
+                <label for="cfMsg">Message *</label>
+                <textarea id="cfMsg" name="message" required placeholder="Tell us a little about what you need…"></textarea>
+              </div>
+              <input type="text" name="website" class="hp" tabindex="-1" autocomplete="off" aria-hidden="true">
+              <button class="btn btn--orange btn--lg" type="submit">Send message</button>
+              <div id="contactStatus" class="form-status" role="status"></div>
+            </form>
+          </div>
+        </div>
+
+        <div class="map-frame reveal">
+          <iframe id="mapFrame" title="Map showing Honeycombe Arts Hub at the Sovereign Shopping Centre, Boscombe" loading="lazy" referrerpolicy="no-referrer-when-downgrade"></iframe>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!--#include footer.html-->
+</body>
+</html>

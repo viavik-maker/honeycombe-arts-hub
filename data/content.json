@@ -1,0 +1,564 @@
+{
+  "settings": {
+    "siteName": "Honeycombe Arts Hub",
+    "tagline": "Inspire. Explore. Create. Share.",
+    "strapline": "A youth-focused community arts centre in Boscombe, Bournemouth",
+    "announcement": "Summer Holiday Arts Club bookings are live! HAF funded places available — book early.",
+    "announcementOn": true,
+    "charityNumber": "1127371",
+    "ofstedNumber": "EY496668",
+    "address": "Honeycombe Arts Hub, Units 4 & 5, The Sovereign Shopping Centre, 600 Christchurch Road, Boscombe, Bournemouth BH1 4SX",
+    "phone": "07932 772905",
+    "emailGeneral": "info@honeycombeartshub.org.uk",
+    "emailTrustees": "info@honeycombeartshub.org.uk",
+    "emailSupport": "info@honeycombeartshub.org.uk",
+    "openingTimes": [
+      {
+        "label": "School Holidays (weekdays)",
+        "value": "8am – 6pm"
+      },
+      {
+        "label": "Saturdays",
+        "value": "9am – 7pm"
+      },
+      {
+        "label": "Term-time programmes",
+        "value": "see What's On"
+      }
+    ],
+    "bookingUrl": "https://bookings.creativekids.org.uk/Identity/Account/Login",
+    "donateUrl": "https://www.givey.com/share?charity_id=creativekidsartsedu&client_id=lSaVLTJm5um0uTE2q4VeEIbfxmLAy6x6vHOKfdKU",
+    "volunteerUrl": "https://creativekids.org.uk/volunteer/",
+    "seesawUrl": "https://app.seesaw.me/#/login",
+    "facebook": "https://www.facebook.com/honeycombeartshub",
+    "twitter": "https://x.com/honeycombeartshub",
+    "instagram": "https://www.instagram.com/honeycombeartshub",
+    "youtube": "https://www.youtube.com/@honeycombeartshub",
+    "smtp": {
+      "host": "",
+      "port": 587,
+      "user": "",
+      "password": "",
+      "notifyTo": ""
+    }
+  },
+  "events": [
+    {
+      "id": "summer-holiday-arts-club",
+      "title": "Summer Holiday Arts Club",
+      "summary": "A fun-filled summer of combined arts & crafts, trips and visiting artists. Full days 8am–5pm, HAF funded places 10am–3pm.",
+      "description": "Kid's Club is great fun — members make new friends and build confidence as budding artists. Holiday Arts Club opens weekdays from 8am–5pm. You must be a member to join: £15 per child per year, with free membership for families eligible for Free School Meals.\n\nWe are open Monday 27th July – Friday 28th August 2026. Full-day spaces run 8am–5pm and include breakfast (please pack a lunch). HAF funded hours are 10am–3pm and include breakfast, a hot lunch and two arts activities a day.\n\nWe have been awarded BCP Council HAF funding for any parent in receipt of Free School Meals. To apply, TEXT your child's full name, date of birth and postcode with the heading 'HAF Apply' to 07932 772905.\n\nWeekly planners highlighting daily activities are released three weeks prior on our social media and by direct email to families. If your child has any SEMH, SEND or additional needs, please give us a call so we can chat about how best to support them.\n\nWe are listed on the Voluntary Ofsted Register EY496668 — parents receiving Working Tax Credits or Universal Credit can usually claim back up to 75% of childcare costs via HMRC. Paying with childcare vouchers? Please apply at least two weeks before club starts.",
+      "image": "/img/photos/drawing-showcase.jpg",
+      "dates": "27 July – 28 Aug 2026",
+      "schedule": "Weekdays 8am–5pm · HAF 10am–3pm",
+      "ages": "6 – 12",
+      "price": "£30/day · HAF places free",
+      "tag": "Holiday Club",
+      "featured": true,
+      "bookable": true
+    },
+    {
+      "id": "home-education-programme",
+      "title": "Home Education Programme",
+      "summary": "Creative learning days for home-educated children — fine arts, communication, expression, theatre and media skills.",
+      "description": "Join us every Thursday, 9am–12pm at the Hub in Boscombe for exciting creative sessions per age group, designed for young people who are home educated.\n\nOur programme balances arts & crafts sessions with confidence-building communication and group-skills sessions in a fun, supportive environment. Morning groups welcome ages 5–10, with two sessions and a break.\n\nThe next term runs 4th June – 23rd July 2026. Booking is essential for attendance.\n\nWhy join?\n• Supportive, small group environment\n• Build confidence, creativity & communication\n• Develop practical skills in arts, crafts & media\n\n£5 per session for all attendees. Please email Poppy at info@honeycombeartshub.org.uk for more info and help with bookings — we will purchase a yearly membership for you, and then you'll have access to booking our home ed sessions. For student and financial support contact info@honeycombeartshub.org.uk.",
+      "image": "/img/photos/drawing-club.jpg",
+      "dates": "Term: 4 Jun – 23 Jul 2026",
+      "schedule": "Thursdays 9am–12pm",
+      "ages": "5 – 10",
+      "price": "£5 per session",
+      "tag": "Term Time",
+      "featured": true,
+      "bookable": true
+    },
+    {
+      "id": "cosplay-sewing-course",
+      "title": "Cosplay Sewing Course",
+      "summary": "Learn the art of sewing in relaxed weekly workshops — fabrics, materials and machine skills for budding cosplay builders.",
+      "description": "Get creative and learn the art of sewing in our relaxed weekly workshops for ages 12+. Explore fabrics, materials and sewing-machine skills while building confidence and developing your own creative style.\n\nWhether you're a complete beginner or looking to grow your skills, these hands-on sessions are the perfect place to learn, make and create. Bring your own fabrics, and feel free to bring your own sewing machine — some machines are also available to use.\n\nEvery Thursday, 5:00pm–6:30pm. £10 per session (cash). Please RSVP via Facebook @Hand-Made.co.",
+      "image": "/img/photos/paper-weaving.jpg",
+      "dates": "Weekly",
+      "schedule": "Thursdays 5pm–6:30pm",
+      "ages": "12+",
+      "price": "£10 per session",
+      "tag": "Course",
+      "featured": true,
+      "bookable": false
+    },
+    {
+      "id": "creative-youth-committee",
+      "title": "Creative Youth Committee — Project 14–22",
+      "summary": "Portfolio building, paid arts work, mentoring and a real say in how the Hub is run — for young creatives aged 14–22.",
+      "description": "The 14–22 Project gives young people chances to develop their portfolio, creative skills, work opportunities and community engagement — as well as communication and group skills with like-minded young people in your community.\n\nVolunteer: enrich our growing community — volunteer at arts events and exhibitions, gain experience working with children and young people, try new things and gain new skills.\n\nPaid work: support special events — gain freelance arts work at events, work with young people at our Holiday Arts Club, sell your artwork to the community, programme and lead workshops and community events.\n\nSupport: help with artistic portfolios and professional development, free use of our space and equipment for your own projects, university references and monthly group meetings.\n\nGet in touch today for more information for you or your teenager to get involved in the next meeting.",
+      "image": "/img/photos/young-volunteers.jpg",
+      "dates": "Monthly meetings",
+      "schedule": "Plus weekly opportunities",
+      "ages": "14 – 22",
+      "price": "Free",
+      "tag": "Youth Voice",
+      "featured": true,
+      "bookable": false
+    },
+    {
+      "id": "drawing-talking-therapy",
+      "title": "Drawing & Talking Therapy",
+      "summary": "Gentle 1:1 and small-group creative wellbeing support, helping children process feelings through art.",
+      "description": "Our expanded Drawing & Talking programme offers 1:1 and small-group creative wellbeing support in a safe, calm space at the Hub.\n\nDrawing & Talking is a gentle, child-led therapeutic approach: children draw with a trusted practitioner and talk about their drawing if they wish, helping them process feelings that are hard to put into words.\n\nSessions run weekly in blocks of 12. Places are limited and allocated based on need — fully funded places are available for families who need them most.\n\nTo make a referral or find out more, contact info@honeycombeartshub.org.uk or speak to a member of the team.",
+      "image": "/img/photos/apple-drawing.jpg",
+      "dates": "Rolling 12-week blocks",
+      "schedule": "Weekly sessions",
+      "ages": "5 – 14",
+      "price": "Funded places available",
+      "tag": "Wellbeing",
+      "featured": false,
+      "bookable": false
+    },
+    {
+      "id": "saturday-art-club",
+      "title": "Saturday Art Club",
+      "summary": "Drop in on Saturdays for open-studio making — painting, craft, clay, collage and more with our friendly team.",
+      "description": "Our Hub is open Saturdays 9am–7pm for open-studio creative sessions. Drop in and explore painting, craft, clay, collage, printing and more, supported by our friendly team of artists and volunteers.\n\nAll materials are provided. Annual membership (£15 per child) gives families access to all our arts programmes and events throughout the year.\n\nCheck availability before you travel — Saturdays can get busy! Call, text or email the team to confirm.",
+      "image": "/img/photos/painting-aprons.jpg",
+      "dates": "Every Saturday",
+      "schedule": "9am – 7pm",
+      "ages": "5 – 14",
+      "price": "Members · materials included",
+      "tag": "Weekly Club",
+      "featured": false,
+      "bookable": true
+    },
+    {
+      "id": "kids-cinema-parties",
+      "title": "Kids' Cinema & Parties",
+      "summary": "Birthday parties in our studio cinema — huge screen, beanbags, popcorn and party bags for up to 30 kids.",
+      "description": "We host cinema parties and screenings in our state-of-the-art studios in Boscombe. The 1,350 sq ft space boasts a huge 4 × 3.5 metre cinema screen and a laser projector with high-definition 1080p resolution — complemented by a hair-raising soundbar and trouser-flapping bass. Children kick back and relax in uber-comfortable beanbag chairs.\n\nThe birthday girl or boy chooses a film from our extensive catalogue. We cater for children aged 6–15, and you don't need to be a member to book. All party guests receive a special party bag including a drink, popcorn, sweets, notepad, stickers and crayons.\n\nParents leave their children in our capable hands for the duration of the film, freeing up some special time for mums and dads to have a break. The venue accommodates up to 30 kids per party — all this for £250! Booking enquiries by phone or at reception. We can adapt the booking to your needs — ask us about add-ons.",
+      "image": "/img/photos/cinema-beanbags.jpg",
+      "dates": "Bookable year-round",
+      "schedule": "Weekends & holidays",
+      "ages": "6 – 15",
+      "price": "£250 per party",
+      "tag": "Parties",
+      "featured": false,
+      "bookable": true
+    },
+    {
+      "id": "youth-advisory-board",
+      "title": "Youth Advisory Board",
+      "summary": "A new group of young creatives shaping the Hub's direction — youth voice at the heart of everything we do.",
+      "description": "Our Youth Advisory Board is a new group of young creatives who help shape our direction, influence programming and make sure youth voice is at the heart of everything we do at Honeycombe Arts Hub.\n\nBoard members meet monthly, work alongside our trustees and team, and lead on projects that matter to young people — from programming new workshops to shaping our Media Centre.\n\nInterested in joining? We'd love to hear from you. Email info@honeycombeartshub.org.uk or speak to any member of the team.",
+      "image": "/img/photos/mural-gang.jpg",
+      "dates": "Monthly",
+      "schedule": "After school",
+      "ages": "12 – 22",
+      "price": "Free",
+      "tag": "Youth Voice",
+      "featured": false,
+      "bookable": false
+    },
+    {
+      "id": "summer-exhibition-2026",
+      "title": "Summer Exhibition 2026",
+      "summary": "Our end-of-summer celebration — young artists exhibit their work to family, friends and the community.",
+      "description": "Every holiday ends with a joyful celebration of creativity, and this summer we're going big: a public exhibition of work made by young people across our Summer Holiday Arts Club, courses and clubs.\n\nExpect painting, sculpture, textiles, film, photography and live performance — all made by young artists aged 5 to 22. Family, friends and the whole community are warmly invited.\n\nFree entry. Refreshments available. Keep an eye on our social media for the full programme.",
+      "image": "/img/photos/painted-star.jpg",
+      "dates": "29 August 2026",
+      "schedule": "2pm – 6pm",
+      "ages": "Everyone welcome",
+      "price": "Free entry",
+      "tag": "Exhibition",
+      "featured": false,
+      "bookable": false
+    }
+  ],
+  "pastEvents": [
+    {
+      "id": "spring-drama-2026",
+      "title": "Under the Sea — Drama Showcase",
+      "date": "2026-04",
+      "dateLabel": "April 2026",
+      "description": "Our drama group dived deep for a mermaid-themed showcase, with costumes, sets and songs all made by the cast at the Hub.",
+      "image": "/img/photos/drama-show.jpg"
+    },
+    {
+      "id": "easter-club-2026",
+      "title": "Easter Holiday Arts Club",
+      "date": "2026-04",
+      "dateLabel": "Easter 2026",
+      "description": "Two weeks of spring crafts, clay crowns, flower wreaths and a grand Easter bonnet parade through the Sovereign Centre.",
+      "image": "/img/photos/clay-crown.jpg"
+    },
+    {
+      "id": "christmas-club-2025",
+      "title": "Christmas Holiday Club",
+      "date": "2025-12",
+      "dateLabel": "December 2025",
+      "description": "Festive painting, ornament making and our annual Christmas party — including hand-painted decorations for the community tree.",
+      "image": "/img/photos/festive-painting.jpg"
+    },
+    {
+      "id": "halloween-2025",
+      "title": "Halloween Costume Spectacular",
+      "date": "2025-10",
+      "dateLabel": "October 2025",
+      "description": "A day of dressing up, plate spinning, circus skills and spooky crafts — with prizes for the most creative homemade costume.",
+      "image": "/img/photos/costume-day.jpg"
+    },
+    {
+      "id": "summer-club-2025",
+      "title": "Summer Holiday Arts Club 2025",
+      "date": "2025-08",
+      "dateLabel": "Summer 2025",
+      "description": "Six weeks of art, music, drama, trips and new friendships — ending in a showcase where every young artist presented their portfolio.",
+      "image": "/img/photos/drawing-showcase.jpg"
+    },
+    {
+      "id": "ukulele-course-2025",
+      "title": "Ukulele Course & Concert",
+      "date": "2025-05",
+      "dateLabel": "May 2025",
+      "description": "Families learned ukulele together over six weeks, finishing with a concert and certificates for every performer.",
+      "image": "/img/photos/ukulele-certificates.jpg"
+    },
+    {
+      "id": "pizza-awards-2025",
+      "title": "Members' Pizza Awards Day",
+      "date": "2025-02",
+      "dateLabel": "February 2025",
+      "description": "We celebrated our members' achievements with a pizza-making day out — certificates, weaving crafts and a lot of cheese.",
+      "image": "/img/photos/pizza-party.jpg"
+    },
+    {
+      "id": "multicultural-summer",
+      "title": "Multi-Cultural Arts Summer",
+      "date": "2021-08",
+      "dateLabel": "Summer 2021",
+      "description": "A summer celebrating arts from around the world, with visiting practitioners leading dance, drumming, textiles and food art.",
+      "image": "/img/photos/studio-workshop.jpg"
+    },
+    {
+      "id": "flying-seagulls",
+      "title": "Flying Seagulls Project",
+      "date": "2021-07",
+      "dateLabel": "July 2021",
+      "description": "The legendary Flying Seagulls brought circus, clowning and chaos — plate spinning, wigs and all — to Boscombe.",
+      "image": "/img/photos/circus-costumes.jpg"
+    },
+    {
+      "id": "cabinet-living-cinema",
+      "title": "Cabinet of Living Cinema",
+      "date": "2021-04",
+      "dateLabel": "April 2021",
+      "description": "Live music meets film: our young people scored and performed a soundtrack to silent cinema with the Cabinet of Living Cinema.",
+      "image": "/img/photos/cinema-beanbags.jpg"
+    },
+    {
+      "id": "beside-the-seaside",
+      "title": "Beside the Seaside!",
+      "date": "2020-08",
+      "dateLabel": "August 2020",
+      "description": "Willow weaving, beach art and outdoor making — a socially-distanced summer of fresh-air creativity.",
+      "image": "/img/photos/willow-weaving.jpg"
+    },
+    {
+      "id": "digital-arts-workshops",
+      "title": "Digital Arts Workshops",
+      "date": "2020-02",
+      "dateLabel": "2020",
+      "description": "Film, animation and digital design workshops in partnership with local studios — the seed of our new Media Centre.",
+      "image": "/img/photos/clay-tiles.jpg"
+    }
+  ],
+  "gallery": [
+    {
+      "src": "/img/photos/drawing-showcase.jpg",
+      "caption": "Show and tell at Holiday Arts Club",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/costume-day.jpg",
+      "caption": "Costume day at the Hub",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/drama-show.jpg",
+      "caption": "Under the Sea drama showcase",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/painting-aprons.jpg",
+      "caption": "Morning painting session",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/music-joy.jpg",
+      "caption": "Ukulele jam on the beanbags",
+      "category": "Music"
+    },
+    {
+      "src": "/img/photos/ukulele-boy.jpg",
+      "caption": "Strumming up a storm",
+      "category": "Music"
+    },
+    {
+      "src": "/img/photos/painted-star.jpg",
+      "caption": "Hand-painted star, ready to hang",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/festive-painting.jpg",
+      "caption": "Painting festive decorations",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/flower-crown.jpg",
+      "caption": "Spring flower crowns",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/clay-crown.jpg",
+      "caption": "Tiny clay crowns",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/headdress-craft.jpg",
+      "caption": "Sparkly headdress workshop",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/paper-weaving.jpg",
+      "caption": "Paper weaving in reds and golds",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/apple-drawing.jpg",
+      "caption": "Still life, crayon on paper",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/drawing-club.jpg",
+      "caption": "Drawing club concentration",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/family-craft-table.jpg",
+      "caption": "Family craft morning",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/busy-workshop.jpg",
+      "caption": "A full house at the workshop",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/ukulele-certificates.jpg",
+      "caption": "Ukulele course graduation",
+      "category": "Music"
+    },
+    {
+      "src": "/img/photos/cinema-beanbags.jpg",
+      "caption": "Movie time in the studio cinema",
+      "category": "Cinema"
+    },
+    {
+      "src": "/img/photos/dressing-up.jpg",
+      "caption": "World Book Day looks",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/princess-dance.jpg",
+      "caption": "Ballroom moves at the party",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/ringmaster.jpg",
+      "caption": "The greatest showman in town",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/sparkle-smile.jpg",
+      "caption": "All dressed up and laughing",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/circus-skills.jpg",
+      "caption": "Plate spinning practice",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/circus-costumes.jpg",
+      "caption": "Circus day with the Flying Seagulls",
+      "category": "Performance"
+    },
+    {
+      "src": "/img/photos/mural-gang.jpg",
+      "caption": "The gang in front of our mural",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/young-volunteers.jpg",
+      "caption": "Our brilliant young volunteers",
+      "category": "Youth Voice"
+    },
+    {
+      "src": "/img/photos/pizza-party.jpg",
+      "caption": "Pizza awards day",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/bubbles-outdoors.jpg",
+      "caption": "Bubble play in the sunshine",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/willow-weaving.jpg",
+      "caption": "Willow weaving workshop",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/willow-craft.jpg",
+      "caption": "Weaving with willow",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/willow-focus.jpg",
+      "caption": "Focused on the craft",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/clay-tiles.jpg",
+      "caption": "Clay relief tiles drying",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/collage-making.jpg",
+      "caption": "Collage in the studio",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/story-time.jpg",
+      "caption": "Story time at the Hub",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/hard-hat-wonder.jpg",
+      "caption": "Watching the show",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/lunch-friends.jpg",
+      "caption": "Lunch with friends",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/studio-workshop.jpg",
+      "caption": "Making together in the studio",
+      "category": "Arts Club"
+    }
+  ],
+  "testimonials": [
+    {
+      "quote": "This is the first time the kids have been anywhere like this... and the point is, there is nowhere else like this! They had such a wonderful time they are going twice next week too. Great staff, great activities, GREAT IDEA! 5 stars!",
+      "author": "Kirsty Sharples",
+      "role": "Parent"
+    },
+    {
+      "quote": "A fantastic charity doing wonderful work within our community. We have seen first-hand the commitment and dedication of both staff and volunteers. They make a difference in our very deprived community.",
+      "author": "Patsy Hallmey",
+      "role": "Founder, The Dorset Children's Foundation"
+    },
+    {
+      "quote": "Your service and set up for the children has literally been a lifeline for me. It has given me structure and respite — I feel very grateful and thankful for how you have helped me and my daughter.",
+      "author": "Parent",
+      "role": "Holiday Arts Club"
+    },
+    {
+      "quote": "The activities are so imaginative and diverse, and it's great that real-life creative practitioners come in to work with the children. We've been blown away by what our daughter has produced — her sense of pride, achievement and growing confidence.",
+      "author": "Catherine Clarke",
+      "role": "Parent"
+    },
+    {
+      "quote": "It's fun because you can use your imagination!",
+      "author": "Blake",
+      "role": "Member"
+    },
+    {
+      "quote": "I love being a staff member here. It's an awesome place to work and I always have a brilliant time making and creating art with the kids.",
+      "author": "Emma",
+      "role": "Staff"
+    },
+    {
+      "quote": "My daughter has MLD and it is fantastic that she has been so well included in the activities.",
+      "author": "Member's parent",
+      "role": "Holiday Arts Club"
+    },
+    {
+      "quote": "I really had a good time and I made a best friend. I had a really good summer.",
+      "author": "Abie",
+      "role": "Alumni"
+    },
+    {
+      "quote": "Amazing staff, amazing opportunity for children to get creative and learn. Can't wait to book in for more activities.",
+      "author": "Lydia Harris",
+      "role": "Parent"
+    },
+    {
+      "quote": "The kids were inspirational — it fuelled creativity and confidence.",
+      "author": "Caine",
+      "role": "Visiting Artist"
+    },
+    {
+      "quote": "I love it because there is lots to do, something new every day. You make loads of friends. If you are bored at home, come here — there's always something to do.",
+      "author": "Ellie",
+      "role": "Member"
+    },
+    {
+      "quote": "Both of my daughters loved the varied activities and going out. Great effort from all the staff, and the early start really helps.",
+      "author": "Anita",
+      "role": "Parent"
+    }
+  ],
+  "impact": [
+    {
+      "number": "3,624",
+      "label": "fully funded arts education places & 1:1 therapy sessions",
+      "detail": "Offered to local children in need at our Hub in Boscombe and at national festivals in 2024 — giving respite to parents struggling financially, emotionally or physically."
+    },
+    {
+      "number": "1,449",
+      "label": "subscribed members accessed the Hub",
+      "detail": "84% of whom identify as living in poverty — accessing high-quality arts activities and working towards national Arts Award qualifications."
+    },
+    {
+      "number": "128",
+      "label": "national arts qualifications achieved in 2024",
+      "detail": "60 Discover, 30 Explore, 7 Bronze and 1 Silver Arts Awards — evidencing creativity, critical thinking, collaboration and leadership. Moderated by Trinity College London."
+    },
+    {
+      "number": "26",
+      "label": "volunteers supporting live projects",
+      "detail": "College, university and international students, parents, grandparents, business professionals and our own alumni returning as Ambassadors of the Arts."
+    }
+  ],
+  "values": [
+    {
+      "title": "Radical Inclusion",
+      "text": "Open, welcoming spaces for every child — prioritising those with particular need by reason of age, disability or social and economic circumstances.",
+      "color": "orange"
+    },
+    {
+      "title": "Imagination First",
+      "text": "Spaces that spark imagination and build confidence, blending traditional arts with new media and emerging technologies.",
+      "color": "honey"
+    },
+    {
+      "title": "Youth Voice",
+      "text": "Young people shape what we do through voice, choice and collaboration — from our Youth Advisory Board to Project 14–22.",
+      "color": "sage"
+    },
+    {
+      "title": "Wellbeing & Belonging",
+      "text": "Safe spaces where young people thrive socially and artistically, with a focus on self-expression, resilience and community.",
+      "color": "navy"
+    }
+  ]
+}

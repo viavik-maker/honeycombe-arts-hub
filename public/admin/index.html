@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Hub Admin — Honeycombe Arts Hub</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,600;0,700;0,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body>
+
+  <!-- ============ LOGIN ============ -->
+  <div id="loginView" class="login" hidden>
+    <form id="loginForm" class="login__card">
+      <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="login__logo">
+      <h1>Staff sign in</h1>
+      <p>Welcome back! Enter the team password to manage the website.</p>
+      <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
+      <button class="abtn abtn--primary" type="submit">Sign in</button>
+      <p id="loginErr" class="login__err" hidden></p>
+    </form>
+  </div>
+
+  <!-- ============ APP ============ -->
+  <div id="appView" class="app" hidden>
+    <aside class="side">
+      <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="side__logo">
+      <nav class="side__nav" id="sideNav">
+        <button data-tab="dashboard" class="active"><span>🏠</span> Dashboard</button>
+        <button data-tab="events"><span>🎟️</span> What’s On</button>
+        <button data-tab="past"><span>📜</span> Past Events</button>
+        <button data-tab="gallery"><span>🖼️</span> Gallery</button>
+        <button data-tab="testimonials"><span>💬</span> Testimonials</button>
+        <button data-tab="mission"><span>🌟</span> Impact &amp; Values</button>
+        <button data-tab="messages"><span>📥</span> Inbox <em id="msgBadge" hidden></em></button>
+        <button data-tab="subscribers"><span>📣</span> Newsletter</button>
+        <button data-tab="settings"><span>⚙️</span> Settings</button>
+      </nav>
+      <div class="side__foot">
+        <a href="/" target="_blank" rel="noopener">↗ View live site</a>
+        <button id="logoutBtn">Sign out</button>
+      </div>
+    </aside>
+
+    <main class="panel">
+      <div id="tab-dashboard" class="tab"></div>
+      <div id="tab-events" class="tab" hidden></div>
+      <div id="tab-past" class="tab" hidden></div>
+      <div id="tab-gallery" class="tab" hidden></div>
+      <div id="tab-testimonials" class="tab" hidden></div>
+      <div id="tab-mission" class="tab" hidden></div>
+      <div id="tab-messages" class="tab" hidden></div>
+      <div id="tab-subscribers" class="tab" hidden></div>
+      <div id="tab-settings" class="tab" hidden></div>
+    </main>
+
+    <div class="savebar" id="saveBar" hidden>
+      <span>You have unsaved changes</span>
+      <button class="abtn abtn--ghost" id="discardBtn">Discard</button>
+      <button class="abtn abtn--primary" id="saveBtn">Save &amp; publish</button>
+    </div>
+  </div>
+
+  <div id="toast" class="toast" hidden></div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>
