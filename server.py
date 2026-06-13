@@ -16,6 +16,7 @@ import mimetypes
 import os
 import re
 import secrets
+import shutil
 import smtplib
 import sys
 import threading
@@ -28,6 +29,7 @@ ROOT = os.path.dirname(os.path.abspath(__file__))
 PUBLIC = os.path.join(ROOT, "public")
 DATA = os.path.join(ROOT, "data")
 UPLOADS = os.path.join(DATA, "uploads")  # all editable state lives under data/
+SEED = os.path.join(ROOT, "seed")  # bundled defaults, copied into DATA on first boot
 PARTIALS = os.path.join(ROOT, "partials")
 
 # Initial admin password for the very first login. Set ADMIN_PASSWORD in the
@@ -488,10 +490,20 @@ class Handler(BaseHTTPRequestHandler):
         return self._json({"ok": True, "subscribers": subs})
 
 
+def bootstrap_seed():
+    """On a fresh persistent disk the committed data/ files are shadowed by the
+    mount, so copy bundled defaults from seed/ into DATA when they're missing."""
+    for name in ("content.json",):
+        dest, src = _path(name), os.path.join(SEED, name)
+        if not os.path.exists(dest) and os.path.exists(src):
+            shutil.copy(src, dest)
+
+
 def main():
     port = int(sys.argv[1] if len(sys.argv) > 1 else os.environ.get("PORT", 8000))
     os.makedirs(DATA, exist_ok=True)
     os.makedirs(UPLOADS, exist_ok=True)
+    bootstrap_seed()
     init_auth()
     server = ThreadingHTTPServer(("0.0.0.0", port), Handler)
     print(f"""
