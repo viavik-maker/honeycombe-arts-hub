@@ -149,6 +149,7 @@ PRETTY = {
     "/get-involved": "get-involved.html",
     "/holiday-club": "holiday-club.html",
     "/arts-award": "arts-award.html",
+    "/artist-support": "artist-support.html",
     "/testimonials": "testimonials.html",
     "/contact": "contact.html",
     "/policies": "policies.html",
