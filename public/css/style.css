@@ -38,7 +38,7 @@
 
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
-html { scroll-behavior: smooth; }
+html { scroll-behavior: smooth; color-scheme: only light; }
 body {
   margin: 0;
   font-family: var(--font-body);
