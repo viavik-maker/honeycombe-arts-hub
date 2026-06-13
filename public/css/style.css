@@ -3,6 +3,13 @@
    Paper-craft warmth + bold modern layout
    ============================================================ */
 
+@font-face {
+  font-family: 'Papercutting';
+  src: url('/fonts/papercutting-webfont.woff2') format('woff2'),
+       url('/fonts/papercutting-webfont.woff') format('woff');
+  font-weight: normal; font-style: normal; font-display: swap;
+}
+
 :root {
   --orange: #e2702a;
   --orange-d: #c05a1c;
@@ -25,6 +32,7 @@
   --font-display: "Fredoka", system-ui, sans-serif;
   --font-body: "Nunito", system-ui, sans-serif;
   --font-hand: "Caveat", cursive;
+  --font-cut: "Papercutting", "Fredoka", system-ui, sans-serif;
   --header-h: 84px;
 }
 
@@ -59,6 +67,8 @@ p { margin: 0 0 1em; }
 
 .container { width: min(1180px, 92vw); margin: 0 auto; }
 .accent-hand { font-family: var(--font-hand); font-size: 1.35em; color: var(--orange); font-weight: 500; }
+/* Papercutting display accent — use sparingly on short statement headings */
+.display-cut { font-family: var(--font-cut); font-weight: 400; letter-spacing: .015em; line-height: 1.05; }
 
 /* ---------- buttons ---------- */
 .btn {
