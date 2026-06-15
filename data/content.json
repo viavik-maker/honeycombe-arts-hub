@@ -270,14 +270,39 @@
   ],
   "gallery": [
     {
-      "src": "/img/photos/drawing-showcase.jpg",
-      "caption": "Show and tell at Holiday Arts Club",
+      "src": "/img/photos/radio-studio.jpg",
+      "caption": "On air at our radio & podcast studio",
+      "category": "Youth Voice"
+    },
+    {
+      "src": "/img/photos/certificates-day.jpg",
+      "caption": "Celebrating our young artists' achievements",
       "category": "Arts Club"
     },
     {
-      "src": "/img/photos/costume-day.jpg",
-      "caption": "Costume day at the Hub",
-      "category": "Performance"
+      "src": "/img/photos/rainbow-weaving.jpg",
+      "caption": "A giant collaborative weaving",
+      "category": "Crafts"
+    },
+    {
+      "src": "/img/photos/chalk-art.jpg",
+      "caption": "Outdoor chalk art in the courtyard",
+      "category": "Trips & Outdoors"
+    },
+    {
+      "src": "/img/photos/proud-painter.jpg",
+      "caption": "Proud of a finished painting",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/confetti-joy.jpg",
+      "caption": "Joy at our end-of-summer celebration",
+      "category": "Arts Club"
+    },
+    {
+      "src": "/img/photos/drawing-showcase.jpg",
+      "caption": "Show and tell at Holiday Arts Club",
+      "category": "Arts Club"
     },
     {
       "src": "/img/photos/drama-show.jpg",
@@ -342,11 +367,6 @@
     {
       "src": "/img/photos/family-craft-table.jpg",
       "caption": "Family craft morning",
-      "category": "Arts Club"
-    },
-    {
-      "src": "/img/photos/busy-workshop.jpg",
-      "caption": "A full house at the workshop",
       "category": "Arts Club"
     },
     {
