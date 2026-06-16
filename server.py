@@ -161,7 +161,69 @@ PRETTY = {
 INCLUDE_RE = re.compile(r"<!--#include\s+([\w.-]+)\s*-->")
 
 
-def render_page(filename):
+SITE = "https://honeycombeartshub.org.uk"
+SHARE_IMG = SITE + "/img/og-image.jpg"
+TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
+DESC_RE = re.compile(r'<meta\s+name="description"\s+content="(.*?)"', re.S | re.I)
+
+
+def public_content():
+    """content.json with sensitive settings (SMTP credentials) stripped, for public use."""
+    c = dict(load_json("content.json", {}))
+    s = dict(c.get("settings", {}))
+    s.pop("smtp", None)
+    c["settings"] = s
+    return c
+
+
+def _attr(s):
+    return (s or "").replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+def _org_jsonld(s):
+    data = {
+        "@context": "https://schema.org", "@type": ["NGO", "LocalBusiness"],
+        "name": "Honeycombe Arts Hub", "url": SITE,
+        "logo": SITE + "/img/logo.png", "image": SHARE_IMG,
+        "description": "A youth-focused community arts centre in Boscombe, Bournemouth — art, drama, music, film and friendship for children and young people aged 5–25.",
+        "email": s.get("emailGeneral", "info@honeycombeartshub.org.uk"),
+        "telephone": "+447932772905",
+        "address": {"@type": "PostalAddress",
+                    "streetAddress": "Units 4 & 5, The Sovereign Shopping Centre, 600 Christchurch Road",
+                    "addressLocality": "Boscombe", "addressRegion": "Bournemouth",
+                    "postalCode": "BH1 4SX", "addressCountry": "GB"},
+        "sameAs": [s[k] for k in ("facebook", "instagram", "twitter", "youtube") if s.get(k)],
+        "identifier": {"@type": "PropertyValue", "propertyID": "UK Registered Charity Number",
+                       "value": s.get("charityNumber", "1127371")},
+    }
+    return json.dumps(data, ensure_ascii=False).replace("</", "<\\/")
+
+
+def _seo_head(html, canonical, settings):
+    tm = TITLE_RE.search(html); title = tm.group(1).strip() if tm else "Honeycombe Arts Hub"
+    dm = DESC_RE.search(html); desc = dm.group(1).strip() if dm else ""
+    url = _attr(SITE + (canonical or "/"))
+    t, d = _attr(title), _attr(desc)
+    return "\n".join([
+        f'<link rel="canonical" href="{url}">',
+        '<meta property="og:type" content="website">',
+        '<meta property="og:site_name" content="Honeycombe Arts Hub">',
+        f'<meta property="og:title" content="{t}">',
+        f'<meta property="og:description" content="{d}">',
+        f'<meta property="og:url" content="{url}">',
+        f'<meta property="og:image" content="{SHARE_IMG}">',
+        '<meta property="og:image:width" content="1200">',
+        '<meta property="og:image:height" content="630">',
+        '<meta property="og:image:alt" content="Honeycombe Arts Hub — supporting young and emerging creatives">',
+        '<meta name="twitter:card" content="summary_large_image">',
+        f'<meta name="twitter:title" content="{t}">',
+        f'<meta name="twitter:description" content="{d}">',
+        f'<meta name="twitter:image" content="{SHARE_IMG}">',
+        f'<script type="application/ld+json">{_org_jsonld(settings)}</script>',
+    ])
+
+
+def render_page(filename, canonical=None):
     path = os.path.join(PUBLIC, filename)
     with open(path, encoding="utf-8") as f:
         html = f.read()
@@ -175,8 +237,10 @@ def render_page(filename):
             return ""
 
     html = INCLUDE_RE.sub(inc, html)
+    content = public_content()
+    if "</head>" in html:
+        html = html.replace("</head>", _seo_head(html, canonical, content.get("settings", {})) + "\n</head>", 1)
     if "<!--#data-->" in html:
-        content = load_json("content.json", {})
         payload = json.dumps(content, ensure_ascii=False).replace("</", "<\\/")
         html = html.replace("<!--#data-->", f"<script>window.HAH={payload}</script>")
     return html.encode("utf-8")
@@ -243,7 +307,7 @@ class Handler(BaseHTTPRequestHandler):
             path = path.rstrip("/")
 
         if path == "/api/content":
-            return self._json(load_json("content.json", {}))
+            return self._json(public_content())
 
         if path == "/api/admin/overview":
             if not self._is_admin():
@@ -279,20 +343,20 @@ class Handler(BaseHTTPRequestHandler):
 
         # event detail pretty url
         if path.startswith("/whats-on/") and path.count("/") == 2:
-            return self._page("event.html")
+            return self._page("event.html", canonical=path)
 
         if path in PRETTY:
-            return self._page(PRETTY[path])
+            return self._page(PRETTY[path], canonical=path)
 
         # static files
         return self._static(path)
 
-    def _page(self, filename):
+    def _page(self, filename, canonical=None, status=200):
         try:
-            body = render_page(filename)
+            body = render_page(filename, canonical)
         except OSError:
             return self._send(404, b"Not found", "text/plain")
-        return self._send(200, body, "text/html; charset=utf-8",
+        return self._send(status, body, "text/html; charset=utf-8",
                           {"Cache-Control": "no-store"})
 
     def _static(self, path):
@@ -306,8 +370,9 @@ class Handler(BaseHTTPRequestHandler):
             # html fallback: /foo -> foo.html
             alt = full + ".html"
             if os.path.isfile(alt):
-                return self._page(safe + ".html")
-            return self._page("404.html") if os.path.isfile(os.path.join(PUBLIC, "404.html")) \
+                return self._page(safe + ".html", canonical="/" + safe)
+            # genuine miss: serve the 404 page with a real 404 status (no soft-404)
+            return self._page("404.html", status=404) if os.path.isfile(os.path.join(PUBLIC, "404.html")) \
                 else self._send(404, b"Not found", "text/plain")
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
         cache = "public, max-age=86400" if safe.startswith(("img/", "uploads/", "docs/")) \
@@ -315,7 +380,7 @@ class Handler(BaseHTTPRequestHandler):
         with open(full, "rb") as f:
             body = f.read()
         if full.endswith(".html"):
-            return self._page(safe)
+            return self._page(safe, canonical="/" + safe[:-5])
         return self._send(200, body, ctype, {"Cache-Control": cache})
 
     def do_HEAD(self):
