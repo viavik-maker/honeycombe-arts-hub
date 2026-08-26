@@ -315,19 +315,11 @@
       }
       btn.disabled = false; btn.textContent = "Send message";
     });
-    // contact info
-    const ce = $("#cEmail"); if (ce) { ce.textContent = S.emailGeneral; ce.href = "mailto:" + S.emailGeneral; }
-    const ct = $("#cTrustees"); if (ct) { ct.textContent = S.emailTrustees; ct.href = "mailto:" + S.emailTrustees; }
-    const cp = $("#cPhone"); if (cp) { cp.textContent = S.phone; cp.href = "tel:" + String(S.phone || "").replace(/\s/g, ""); }
-    const ca = $("#cAddress"); if (ca) ca.textContent = S.address;
-    const ot = $("#openingTimes");
-    if (ot) ot.innerHTML = (S.openingTimes || []).map(o =>
-      `<div class="event-side__row"><span>${esc(o.label)}</span><strong>${esc(o.value)}</strong></div>`).join("");
-    const map = $("#mapFrame");
-    if (map) map.src = "https://www.google.com/maps?q=" + encodeURIComponent(S.address || "Sovereign Shopping Centre Boscombe") + "&output=embed";
+    // the contact cards, opening times and map are rendered server-side from
+    // the editable page copy (admin -> Page text) — nothing to fill in here.
   }
 
-  if (page === "get-involved" || page === "arts-award" || page === "holiday-club") {
+  if (page === "arts-award" || page === "holiday-club") {
     const sw = $("[data-seesaw]"); if (sw) sw.href = S.seesawUrl || "#";
     const vol = $$("[data-volunteer]"); vol.forEach(a => a.href = S.volunteerUrl || "/contact");
     const fb = $$("[data-facebook]"); fb.forEach(a => a.href = S.facebook || "#");

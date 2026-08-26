@@ -29,10 +29,17 @@ as soon as you log in.
 - **Gallery** — upload photos, captions and categories
 - **Testimonials** — quotes shown on the homepage slider and testimonials page
 - **Impact & Values** — the statistics and value cards
+- **Page text** — every word and photo on the **Contact** and **Get Involved**
+  pages: headings, intro, the contact cards, the "ways to get involved" rows
+  (photo, text, button) and how each page appears in Google
 - **Inbox** — messages sent from the contact form (reply by email in one click)
 - **Newsletter** — subscriber list, CSV download, copy-all-emails
 - **Settings** — announcement bar, contact details, booking/donate/social links,
   charity numbers, optional email notifications, admin password
+
+In the Get Involved text boxes, a blank line starts a new paragraph,
+`**stars**` make words bold and `[label](https://…)` makes a link — everything
+else is shown exactly as typed.
 
 Nothing goes live until you press **Save & publish**. **Discard** reverts to the
 last published version. A backup of the previous version is kept automatically
@@ -78,8 +85,10 @@ appear in the admin Inbox regardless.
 
 ## Notes
 
-- Contact emails, social links and the booking portal URL are all editable in
-  admin → Settings — update them there when the new domain email addresses
+- Contact details (email, phone, address, opening times), social links and the
+  booking portal URL live in admin → Settings; the Contact and Get Involved
+  pages pick which of them each card and button shows, so they can never drift
+  out of step. Update them in Settings — update them there when the new domain email addresses
   and social accounts are ready.
 - The Policy Handbook PDF at `public/docs/HAH-Policy-Handbook.pdf` is the
   HAH-branded edition; replace the file when trustees issue a new revision.
