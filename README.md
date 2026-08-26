@@ -75,6 +75,13 @@ Recommended: **Render.com** (a `render.yaml` blueprint is included):
 4. Open `https://honeycombeartshub.org.uk/admin`, log in, and immediately
    change the password in Settings.
 
+Every merge to `main` deploys automatically. Render does this itself when
+Auto-Deploy is on; the included `.github/workflows/deploy.yml` can do it
+instead (or as a backstop) once you add a `RENDER_DEPLOY_HOOK_URL` repository
+secret — Render dashboard → the service → *Settings → Deploy Hook*. To check
+what the live domain is actually serving, run the **Live site check** workflow
+from the repo's Actions tab.
+
 Alternatives that work the same way: Railway, PythonAnywhere, or any small VPS
 (`python3 server.py 8000` behind the host's HTTPS proxy). Keep `data/` backed up.
 

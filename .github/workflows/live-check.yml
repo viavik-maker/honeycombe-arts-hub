@@ -1,0 +1,46 @@
+# Reports which version of the site honeycombeartshub.org.uk is currently
+# serving. Run it from the Actions tab (or ask Claude to) after a deploy.
+name: Live site check
+
+on:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: What is the live site serving?
+        run: |
+          set -uo pipefail
+          base=https://honeycombeartshub.org.uk
+          say() { echo "$1"; echo "$1" >> "$GITHUB_STEP_SUMMARY"; }
+
+          admin_code=$(curl -sS -o /tmp/admin.html -w '%{http_code}' --max-time 30 "$base/admin" || echo 000)
+          contact_code=$(curl -sS -o /tmp/contact.html -w '%{http_code}' --max-time 30 "$base/contact" || echo 000)
+          say "### Live site check"
+          say ""
+          say "\`$base/admin\` → HTTP $admin_code"
+          say "\`$base/contact\` → HTTP $contact_code"
+          say ""
+
+          if [ "$admin_code" != "200" ]; then
+            say "**Site unreachable** — could not read the admin page, so the version is unknown."
+            exit 1
+          fi
+
+          # The Page text tab only exists in the editable-pages release.
+          if grep -q 'data-tab="pages"' /tmp/admin.html; then
+            say "**LIVE** — the admin has the 📄 Page text tab, so the deploy landed."
+          else
+            say "**STALE** — no Page text tab in the admin; Render has not deployed the merge yet."
+          fi
+
+          # Old contact page filled the email in with JavaScript (id="cEmail");
+          # the editable version renders it server-side.
+          if grep -q 'id="cEmail"' /tmp/contact.html; then
+            say "Contact page: **old** markup (details filled in by JavaScript)."
+          elif grep -q 'mailto:' /tmp/contact.html; then
+            say "Contact page: **new** markup (details rendered server-side)."
+          else
+            say "Contact page: could not tell — no contact details found in the HTML."
+          fi
