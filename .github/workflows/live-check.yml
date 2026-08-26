@@ -9,6 +9,18 @@ jobs:
   check:
     runs-on: ubuntu-latest
     steps:
+      - name: Where is the site hosted?
+        run: |
+          set -uo pipefail
+          base=https://honeycombeartshub.org.uk
+          echo "### Hosting" >> "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+          { dig +short honeycombeartshub.org.uk
+            dig +short www.honeycombeartshub.org.uk
+            curl -sSI --max-time 30 "$base/" | grep -iE '^(server|via|x-render|cf-|x-powered|x-vercel|x-nf|fly-|date|age|cache)' 
+          } 2>&1 | tee -a "$GITHUB_STEP_SUMMARY"
+          echo '```' >> "$GITHUB_STEP_SUMMARY"
+
       - name: What is the live site serving?
         run: |
           set -uo pipefail
