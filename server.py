@@ -159,6 +159,8 @@ PRETTY = {
 }
 
 INCLUDE_RE = re.compile(r"<!--#include\s+([\w.-]+)\s*-->")
+# <!--#block name--> markers are filled from the editable page copy in content.json
+BLOCK_RE = re.compile(r"<!--#block\s+([\w-]+)\s*-->")
 
 
 SITE = "https://honeycombeartshub.org.uk"
@@ -167,9 +169,43 @@ TITLE_RE = re.compile(r"<title>(.*?)</title>", re.S)
 DESC_RE = re.compile(r'<meta\s+name="description"\s+content="(.*?)"', re.S | re.I)
 
 
+_seed_cache = {}
+
+
+def seed_content():
+    """The bundled defaults (seed/content.json), read once."""
+    if not _seed_cache:
+        try:
+            with open(os.path.join(SEED, "content.json"), encoding="utf-8") as f:
+                _seed_cache.update(json.load(f))
+        except (OSError, ValueError):
+            _seed_cache["pages"] = {}
+    return _seed_cache
+
+
+def with_page_defaults(c):
+    """Fill in any page copy the stored content.json doesn't have yet.
+
+    Sites that went live before the Contact / Get Involved pages became
+    editable keep their content.json on a persistent disk, so it has no
+    "pages" section — fall back to the bundled copy until staff save."""
+    pages = c.get("pages")
+    pages = dict(pages) if isinstance(pages, dict) else {}
+    for key, default in (seed_content().get("pages") or {}).items():
+        if not isinstance(pages.get(key), dict):
+            pages[key] = default
+    c["pages"] = pages
+    return c
+
+
+def site_content():
+    """content.json as the site and the admin see it (page defaults filled in)."""
+    return with_page_defaults(dict(load_json("content.json", {})))
+
+
 def public_content():
     """content.json with sensitive settings (SMTP credentials) stripped, for public use."""
-    c = dict(load_json("content.json", {}))
+    c = site_content()
     s = dict(c.get("settings", {}))
     s.pop("smtp", None)
     c["settings"] = s
@@ -178,6 +214,217 @@ def public_content():
 
 def _attr(s):
     return (s or "").replace("&", "&amp;").replace('"', "&quot;").replace("<", "&lt;").replace(">", "&gt;")
+
+
+_html = _attr  # same escaping; separate name for readability at call sites
+
+BOLD_RE = re.compile(r"\*\*(.+?)\*\*", re.S)
+LINK_RE = re.compile(r"\[([^\]\n]+)\]\(([^)\s]+)\)")
+
+
+def _safe_url(url):
+    """Only let staff copy link to places a link can sensibly go."""
+    u = (url or "").strip()
+    return u if u.startswith(("https://", "http://", "mailto:", "tel:", "/", "#")) else ""
+
+
+def _ext(url):
+    return ' target="_blank" rel="noopener"' if url.startswith(("http://", "https://")) else ""
+
+
+def _rich(text):
+    """Staff copy -> HTML paragraphs.
+
+    Everything is escaped first; only a tiny, safe subset is then allowed:
+    a blank line starts a new paragraph, **bold**, and [label](link)."""
+    out = []
+    for para in re.split(r"\n\s*\n", (text or "").strip()):
+        if not para.strip():
+            continue
+        body = _html(para.strip()).replace("\n", "<br>")
+        body = BOLD_RE.sub(lambda m: "<strong>%s</strong>" % m.group(1), body)
+
+        def link(m):
+            url = _safe_url(m.group(2))
+            # a link we can't allow is left exactly as typed, so staff can see why
+            return '<a href="%s"%s>%s</a>' % (url, _ext(url), m.group(1)) if url else m.group(0)
+
+        out.append("<p>%s</p>" % LINK_RE.sub(link, body))
+    return "\n".join(out)
+
+
+def _page(content, name):
+    p = (content.get("pages") or {}).get(name)
+    return p if isinstance(p, dict) else (seed_content().get("pages") or {}).get(name, {})
+
+
+def _meta_block(name, fallback_title):
+    """<title> + description for a page whose copy staff can edit."""
+    def build(content):
+        p = _page(content, name)
+        return '<title>%s</title>\n  <meta name="description" content="%s">' % (
+            _html(p.get("metaTitle") or fallback_title), _attr(p.get("metaDescription") or ""))
+    return build
+
+
+def _hero(eyebrow, heading, intro, intro_style=""):
+    style = ' style="%s"' % intro_style if intro_style else ""
+    return "\n        ".join(bit for bit in (
+        '<span class="eyebrow">%s</span>' % _html(eyebrow) if eyebrow else "",
+        "<h1>%s</h1>" % _html(heading) if heading else "",
+        "<p%s>%s</p>" % (style, _html(intro)) if intro else "",
+    ) if bit)
+
+
+# ---------------- contact page
+
+def _contact_link(card, settings):
+    """The email / phone / address a contact card points at — taken from
+    Settings so the cards can never drift out of step with the real details."""
+    kind = card.get("link") or "none"
+    if kind in ("emailGeneral", "emailTrustees", "emailSupport"):
+        v = settings.get(kind, "")
+        return '<a href="mailto:%s">%s</a>' % (_attr(v), _html(v)) if v else ""
+    if kind == "phone":
+        v = settings.get("phone", "")
+        return '<a href="tel:%s">%s</a>' % (_attr(v.replace(" ", "")), _html(v)) if v else ""
+    if kind == "address":
+        return _html(settings.get("address", ""))
+    if kind == "custom":
+        url = _safe_url(card.get("linkUrl"))
+        if url:
+            return '<a href="%s"%s>%s</a>' % (_attr(url), _ext(url), _html(card.get("linkLabel") or url))
+    return ""
+
+
+def _b_contact_hero(content):
+    p = _page(content, "contact")
+    return _hero(p.get("eyebrow"), p.get("heading"), p.get("intro"),
+                 "max-width:36em; color:var(--muted); font-size:1.12rem")
+
+
+def _b_contact_cards(content):
+    settings = content.get("settings", {})
+    cards = []
+    for card in _page(content, "contact").get("cards", []):
+        body = "<br>".join(bit for bit in (_html(card.get("text", "")),
+                                           _contact_link(card, settings)) if bit)
+        cards.append("""<div class="contact-card reveal">
+                <span class="ico">%s</span>
+                <div>
+                  <h3>%s</h3>
+                  <p>%s</p>
+                </div>
+              </div>""" % (_html(card.get("icon", "")), _html(card.get("title", "")), body))
+    return "\n              ".join(cards)
+
+
+def _b_contact_opening(content):
+    p = _page(content, "contact")
+    heading = p.get("openingHeading") or ""
+    rows = "".join(
+        '<div class="event-side__row"><span>%s</span><strong>%s</strong></div>'
+        % (_html(o.get("label", "")), _html(o.get("value", "")))
+        for o in content.get("settings", {}).get("openingTimes", []))
+    if not heading and not rows:
+        return ""
+    return """<div class="event-side__card reveal" style="margin-top:1.1rem">
+              <div class="event-side__body">
+                %s
+                <div id="openingTimes">%s</div>
+              </div>
+            </div>""" % ('<h3 style="margin-bottom:.6em">%s</h3>' % _html(heading) if heading else "", rows)
+
+
+def _b_contact_form_head(content):
+    p = _page(content, "contact")
+    return "\n              ".join(bit for bit in (
+        '<h2 style="font-size:1.6rem">%s</h2>' % _html(p.get("formHeading")) if p.get("formHeading") else "",
+        '<p class="form-note">%s</p>' % _html(p.get("formNote")) if p.get("formNote") else "",
+    ) if bit)
+
+
+def _b_contact_map(content):
+    p = _page(content, "contact")
+    settings = content.get("settings", {})
+    address = settings.get("address") or ""
+    if not p.get("showMap", True) or not address:
+        return ""
+    return """<div class="map-frame reveal">
+          <iframe title="Map showing where to find %s" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
+                  src="https://www.google.com/maps?q=%s&amp;output=embed"></iframe>
+        </div>""" % (_html(settings.get("siteName") or "us"),
+                     urllib.parse.quote(address, safe=""))
+
+
+# ---------------- get involved page
+
+SETTING_LINKS = ("bookingUrl", "donateUrl", "volunteerUrl", "seesawUrl",
+                 "facebook", "instagram", "twitter", "youtube")
+
+
+def _section_href(section, settings):
+    kind = section.get("buttonLink") or ""
+    if kind == "custom":
+        return _safe_url(section.get("buttonUrl"))
+    if kind == "contact":
+        return "/contact"
+    if kind in SETTING_LINKS:
+        return _safe_url(settings.get(kind))
+    return ""
+
+
+def _b_get_involved_hero(content):
+    p = _page(content, "getInvolved")
+    img = _safe_url(p.get("heroImage"))
+    style = ' style="--ph-img:url(\'%s\')"' % _attr(img) if img else ""
+    return """<section class="page-hero%s"%s>
+      <div class="container">
+        %s
+      </div>
+    </section>""" % (" page-hero--img" if img else "", style,
+                     _hero(p.get("eyebrow"), p.get("heading"), p.get("intro")))
+
+
+def _b_get_involved_sections(content):
+    settings = content.get("settings", {})
+    out = []
+    for sec in _page(content, "getInvolved").get("sections", []):
+        anchor = re.sub(r"[^a-z0-9-]+", "-", (sec.get("id") or "").lower()).strip("-")
+        img = _safe_url(sec.get("image"))
+        href = _section_href(sec, settings)
+        label = sec.get("buttonLabel") or ""
+        style = sec.get("buttonStyle") or "orange"
+        if style not in ("orange", "honey", "navy", "ghost"):
+            style = "orange"
+        body = "\n            ".join(bit for bit in (
+            '<span class="eyebrow">%s</span>' % _html(sec.get("eyebrow")) if sec.get("eyebrow") else "",
+            "<h2>%s</h2>" % _html(sec.get("heading")) if sec.get("heading") else "",
+            _rich(sec.get("body")),
+            '<a class="btn btn--%s" href="%s"%s>%s</a>' % (style, _attr(href), _ext(href), _html(label))
+            if href and label else "",
+        ) if bit)
+        out.append("""<div class="feature-row reveal"%s>
+          <div class="feature-row__media"><img src="%s" alt="%s"></div>
+          <div>
+            %s
+          </div>
+        </div>""" % (' id="%s"' % anchor if anchor else "", _attr(img),
+                     _attr(sec.get("imageAlt", "")), body))
+    return "\n\n        ".join(out)
+
+
+BLOCKS = {
+    "contact-meta": _meta_block("contact", "Contact Us — Honeycombe Arts Hub"),
+    "contact-hero": _b_contact_hero,
+    "contact-cards": _b_contact_cards,
+    "contact-opening": _b_contact_opening,
+    "contact-form-head": _b_contact_form_head,
+    "contact-map": _b_contact_map,
+    "get-involved-meta": _meta_block("getInvolved", "Get Involved — Honeycombe Arts Hub"),
+    "get-involved-hero": _b_get_involved_hero,
+    "get-involved-sections": _b_get_involved_sections,
+}
 
 
 def _org_jsonld(s):
@@ -238,6 +485,8 @@ def render_page(filename, canonical=None):
 
     html = INCLUDE_RE.sub(inc, html)
     content = public_content()
+    if "<!--#block" in html:
+        html = BLOCK_RE.sub(lambda m: BLOCKS.get(m.group(1), lambda _c: "")(content), html)
     if "</head>" in html:
         html = html.replace("</head>", _seo_head(html, canonical, content.get("settings", {})) + "\n</head>", 1)
     if "<!--#data-->" in html:
@@ -313,7 +562,7 @@ class Handler(BaseHTTPRequestHandler):
             if not self._is_admin():
                 return self._json({"error": "unauthorised"}, 401)
             return self._json({
-                "content": load_json("content.json", {}),
+                "content": site_content(),
                 "messages": load_json("messages.json", []),
                 "subscribers": load_json("subscribers.json", []),
             })
@@ -485,6 +734,8 @@ class Handler(BaseHTTPRequestHandler):
         for key in ("events", "pastEvents", "gallery", "testimonials", "impact", "values"):
             if not isinstance(d.get(key), list):
                 return self._json({"error": f"invalid content: {key}"}, 400)
+        if "pages" in d and not isinstance(d["pages"], dict):
+            return self._json({"error": "invalid content: pages"}, 400)
         # keep a rolling backup before overwrite
         cur = load_json("content.json", None)
         if cur:

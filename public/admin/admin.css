@@ -88,6 +88,12 @@ img { max-width: 100%; }
 /* ---------- cards & lists ---------- */
 .acard { background: #fff; border-radius: 18px; box-shadow: var(--shadow); padding: 1.5rem 1.6rem; margin-bottom: 1.2rem; }
 .acard h2 { margin: 0 0 1em; font-size: 1.25rem; }
+.acard h2 .viewlink { font-size: .8rem; font-weight: 700; color: var(--muted); margin-left: .6em; }
+.acard h2 .viewlink:hover { color: var(--orange); }
+.acard h3 { margin: 1.8em 0 .9em; font-size: 1rem; color: var(--navy); }
+.prow { border-top: 1.5px dashed var(--line); padding: 1.1em 0 .1em; }
+.prow__top { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: .7em; }
+.prow__name { font-weight: 800; color: var(--navy); }
 
 .item-list { display: flex; flex-direction: column; gap: .9rem; }
 .item {

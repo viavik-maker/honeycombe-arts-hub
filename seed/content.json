@@ -42,6 +42,123 @@
       "notifyTo": ""
     }
   },
+  "pages": {
+    "contact": {
+      "metaTitle": "Contact Us — Honeycombe Arts Hub",
+      "metaDescription": "Contact Honeycombe Arts Hub — Units 4 & 5, The Sovereign Shopping Centre, 600 Christchurch Road, Boscombe BH1 4SX. Send us a message, call or visit.",
+      "eyebrow": "We’d love to hear from you",
+      "heading": "Contact Us",
+      "intro": "Questions about clubs, bookings, funded places or volunteering — drop us a message and it lands straight in the team’s inbox.",
+      "cards": [
+        {
+          "icon": "✉",
+          "title": "The Hub, Boscombe",
+          "text": "General enquiries & bookings",
+          "link": "emailGeneral",
+          "linkLabel": "",
+          "linkUrl": ""
+        },
+        {
+          "icon": "☎",
+          "title": "Poppy — Arts Centre Manager",
+          "text": "Call or text (HAF applications too)",
+          "link": "phone",
+          "linkLabel": "",
+          "linkUrl": ""
+        },
+        {
+          "icon": "★",
+          "title": "Trustees",
+          "text": "Governance, safeguarding & feedback",
+          "link": "emailTrustees",
+          "linkLabel": "",
+          "linkUrl": ""
+        },
+        {
+          "icon": "⌂",
+          "title": "Where to find us",
+          "text": "",
+          "link": "address",
+          "linkLabel": "",
+          "linkUrl": ""
+        }
+      ],
+      "openingHeading": "Opening times",
+      "formHeading": "Send us a message",
+      "formNote": "Messages go directly to our team. We aim to reply within two working days.",
+      "showMap": true
+    },
+    "getInvolved": {
+      "metaTitle": "Get Involved — Honeycombe Arts Hub",
+      "metaDescription": "Volunteer, donate, join the Youth Committee or become a member — become part of the magic at Honeycombe Arts Hub, Boscombe.",
+      "eyebrow": "Become part of the magic…",
+      "heading": "Get Involved",
+      "intro": "Because every child deserves the opportunity to shine! Here’s how you can help make it happen.",
+      "heroImage": "/img/photos/young-volunteers.jpg",
+      "sections": [
+        {
+          "id": "volunteer",
+          "eyebrow": "Give your time",
+          "heading": "Volunteer",
+          "body": "Volunteering your services to help others is not just hugely satisfying — it can teach you skills that are invaluable to potential employers. Joining our team is an opportunity to continue your professional development, and we offer access to **free training in return for your time**.\n\nAlternatively, you may be interested in joining the Management Team or becoming a Trustee? Let us know when you’re free and what skills you have to share — contact Poppy, our Arts Centre Manager, on [07932 772905](tel:07932772905).",
+          "image": "/img/photos/family-craft-table.jpg",
+          "imageAlt": "Volunteers helping children at a craft table",
+          "buttonLabel": "Complete a volunteer application",
+          "buttonLink": "volunteerUrl",
+          "buttonUrl": "",
+          "buttonStyle": "orange"
+        },
+        {
+          "id": "donate",
+          "eyebrow": "Fund a place",
+          "heading": "Donate",
+          "body": "100% of public donations go towards funding free arts activities for local children in need in the school holidays — a lifeline for parents needing urgent respite. It costs **£69 per day per child**, including breakfast and a hot meal, to sponsor a child to attend.",
+          "image": "/img/photos/lunch-friends.jpg",
+          "imageAlt": "Children enjoying lunch together at holiday club",
+          "buttonLabel": "Donate via Givey ♥",
+          "buttonLink": "donateUrl",
+          "buttonUrl": "",
+          "buttonStyle": "honey"
+        },
+        {
+          "id": "youth",
+          "eyebrow": "Aged 14–22?",
+          "heading": "Join the Creative Youth Committee",
+          "body": "Develop your portfolio, gain freelance arts work, volunteer at events, sell your artwork and help programme what happens at the Hub. We support members with portfolios, university references and monthly group meetings.",
+          "image": "/img/photos/mural-gang.jpg",
+          "imageAlt": "Young people in front of the Hub mural",
+          "buttonLabel": "About Project 14–22",
+          "buttonLink": "custom",
+          "buttonUrl": "/whats-on/creative-youth-committee",
+          "buttonStyle": "navy"
+        },
+        {
+          "id": "like",
+          "eyebrow": "Spread the word",
+          "heading": "Follow & share",
+          "body": "Become a follower on social media and keep track of our events, photos, videos and fundraising! A like, share or kind review genuinely helps more families find us.",
+          "image": "/img/photos/bubbles-outdoors.jpg",
+          "imageAlt": "Girl playing with bubbles outdoors",
+          "buttonLabel": "Follow us on Facebook",
+          "buttonLink": "facebook",
+          "buttonUrl": "",
+          "buttonStyle": "ghost"
+        },
+        {
+          "id": "login",
+          "eyebrow": "Already a member?",
+          "heading": "Members area",
+          "body": "Log in to our members area to book sessions and pay for activities, see your account history, update personal and medical information for your child, and download invoices.",
+          "image": "/img/photos/drawing-club.jpg",
+          "imageAlt": "Children drawing together at the Hub",
+          "buttonLabel": "Log in to members area",
+          "buttonLink": "bookingUrl",
+          "buttonUrl": "",
+          "buttonStyle": "orange"
+        }
+      ]
+    }
+  },
   "events": [
     {
       "id": "summer-holiday-arts-club",
