@@ -1,0 +1,38 @@
+# Deploys to Render on every merge to main.
+#
+# Needs one repository secret: RENDER_DEPLOY_HOOK_URL
+#   Render dashboard → the service → Settings → Deploy Hook → copy the URL
+#   GitHub → Settings → Secrets and variables → Actions → New repository secret
+#
+# Without the secret this workflow does nothing, so Render's own auto-deploy
+# (if it is switched on) stays in charge.
+name: Deploy to Render
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger the Render deploy hook
+        env:
+          HOOK: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+        run: |
+          set -uo pipefail
+          if [ -z "${HOOK:-}" ]; then
+            echo "No RENDER_DEPLOY_HOOK_URL secret set — skipping."
+            echo "No \`RENDER_DEPLOY_HOOK_URL\` secret set, so nothing was deployed. Add it under Settings → Secrets and variables → Actions." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          code=$(curl -sS -X POST -o /tmp/render.out -w '%{http_code}' --max-time 30 "$HOOK")
+          echo "Render responded HTTP $code"
+          cat /tmp/render.out || true
+          if [ "$code" = "200" ]; then
+            echo "Deploy triggered on Render." >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Render deploy hook returned HTTP $code." >> "$GITHUB_STEP_SUMMARY"
+            exit 1
+          fi
