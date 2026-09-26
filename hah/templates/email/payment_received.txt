@@ -1,0 +1,4 @@
+Subject: Payment received for invoice {{number}}
+Hello {{name}},
+
+Thank you — we've received your payment of {{amount}} for invoice {{number}}. The balance is now {{balance}}.

@@ -8,6 +8,7 @@ Every response carries the security headers below; HTML pages also get a
 Content-Security-Policy with a per-request nonce (see csp())."""
 import hmac
 import json
+import os
 import re
 import secrets
 import sys
@@ -95,6 +96,16 @@ def set_get_fallback(fn):
 
 
 # ---------------------------------------------------------------- helpers
+
+
+def site_url(h=None):
+    """Absolute base for links in emails: SITE_URL, else (local development)
+    the address this request came to."""
+    if config.SITE_URL:
+        return config.SITE_URL
+    if h is None:
+        return "http://localhost:%s" % os.environ.get("PORT", "8000")
+    return "%s://%s" % ("https" if h.is_https() else "http", h.headers.get("Host") or "localhost")
 
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
@@ -218,6 +229,15 @@ class Handler(BaseHTTPRequestHandler):
         super().end_headers()
 
     def send(self, code, body=b"", ctype="text/html; charset=utf-8", headers=None):
+        """Send a response. While a route runs, the response is held back until
+        the route returns (see _run): a route that answers from inside
+        `with db.tx()` must not tell the browser "done" before the commit."""
+        if getattr(self, "_holding", False):
+            self._held = (code, body, ctype, headers)
+            return
+        self._write(code, body, ctype, headers)
+
+    def _write(self, code, body, ctype, headers):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -230,6 +250,24 @@ class Handler(BaseHTTPRequestHandler):
     def json(self, obj, code=200, headers=None):
         headers = {"Cache-Control": "no-store", **(headers or {})}
         self.send(code, json.dumps(obj).encode(), "application/json; charset=utf-8", headers)
+
+    def csv(self, filename, header, rows):
+        """A spreadsheet download; every cell goes through csv_safe()."""
+        import csv
+        import io
+        from .markup import csv_safe
+        out = io.StringIO()
+        w = csv.writer(out, lineterminator="\r\n")
+        w.writerow(header)
+        for row in rows:
+            w.writerow([csv_safe(v) for v in row])
+        self.send(200, ("﻿" + out.getvalue()).encode(), "text/csv; charset=utf-8",
+                  {"Content-Disposition": 'attachment; filename="%s"' % re.sub(r"[^\w.-]", "-", filename),
+                   "Cache-Control": "no-store"})
+
+    def query(self):
+        """The query string as {name: first value}."""
+        return {k: v[0] for k, v in urllib.parse.parse_qs(urllib.parse.urlparse(self.path).query).items()}
 
     def body(self):
         if self.headers.get("Transfer-Encoding"):
@@ -331,7 +369,38 @@ class Handler(BaseHTTPRequestHandler):
             return _get_fallback(self, path)
         if not self._allowed(r):
             return
-        return r.fn(self, **params)
+        try:
+            return self._run(r, params)
+        except LookupError:
+            return self.json({"error": "not found"}, 404)
+        except Invalid as e:
+            return self.json({"error": "Please check the highlighted boxes.", "errors": e.errors}, 422)
+        except ValueError as e:
+            return self.json({"error": str(e)}, 400)
+        except Exception:
+            return self._crashed()
+
+    def _run(self, r, params):
+        """Call the route, then send what it answered. If it raises (including
+        a failed commit), its answer is dropped and the error is sent instead."""
+        self._holding, self._held = True, None
+        try:
+            r.fn(self, **params)
+        finally:
+            self._holding = False
+        held, self._held = self._held, None
+        if held:
+            self._write(*held)
+
+    def _crashed(self):
+        """An unexpected error: log it with a reference and tell the visitor."""
+        import traceback
+        ref = secrets.token_hex(4)
+        sys.stderr.write("[error %s] %s %s\n%s" % (ref, self.command, redact_path(self.path), traceback.format_exc()))
+        try:
+            return self.json({"error": "Something went wrong on our side — please try again. (ref %s)" % ref}, 500)
+        except OSError:
+            return None
 
     def do_HEAD(self):
         self.do_GET()
@@ -351,8 +420,12 @@ class Handler(BaseHTTPRequestHandler):
             if not self._allowed(r):
                 return
             self.body_limit = r.body_limit
-            return r.fn(self, **params)
+            return self._run(r, params)
         except Invalid as e:
             return self.json({"error": "Please check the highlighted boxes.", "errors": e.errors}, 422)
         except ValueError as e:
             return self.json({"error": str(e)}, 400)
+        except LookupError:
+            return self.json({"error": "not found"}, 404)
+        except Exception:
+            return self._crashed()

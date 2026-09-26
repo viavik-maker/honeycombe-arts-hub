@@ -7,7 +7,8 @@ import threading
 from http.server import ThreadingHTTPServer
 
 # importing these modules registers their routes and jobs
-from . import accounts, cms, config, db, family_api, outbox, pages, portal_pages, staff, system  # noqa: F401
+from . import (accounts, activities, book_api, booking_settings, bookings_staff, cms, config, db,  # noqa: F401
+               family_api, outbox, pages, payments_stripe, portal_pages, staff, system, waitlist)
 from .content import bootstrap_seed
 from .web import Handler
 from .worker import Worker

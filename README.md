@@ -196,6 +196,29 @@ Settings still works until `SMTP_HOST` is set, then it's ignored. Emails never
 contain health or safeguarding details, and one-time links (password set-up,
 invites) are never stored in the message archive.
 
+## Online booking and card payments
+
+Booking is managed in the admin: **Activities** (sessions, prices, publishing),
+**Bookings** (approvals, cancellations, the waiting list) and **Booking
+settings** (policies, invoice details, and the switch that turns online booking
+on). Until *Online booking is live* is ticked, the Book page tells families
+booking opens soon; signed-in staff can preview it.
+
+Card payments use **Stripe Checkout**. In the charity's Stripe account:
+
+1. *Developers → API keys*: copy the secret key into the Render environment
+   variable `STRIPE_SECRET_KEY` (use a `sk_test_…` key on staging).
+2. *Developers → Webhooks → Add endpoint*: `{SITE_URL}/api/stripe/webhook`,
+   with the events `checkout.session.completed`,
+   `checkout.session.async_payment_succeeded`, `checkout.session.expired`,
+   `checkout.session.async_payment_failed`, `charge.refunded` and
+   `charge.dispute.created`. Copy its signing secret into
+   `STRIPE_WEBHOOK_SECRET`.
+
+Without Stripe, families can still book free sessions, and paid ones where
+*pay later* or *vouchers / Tax-Free Childcare* apply. Only booking references
+(never children's names or health details) are sent to Stripe.
+
 ## Security settings
 
 The site sets strict security headers on every response and a
@@ -209,6 +232,7 @@ Content-Security-Policy on every page. Optional environment variables (Render
 | `TRUSTED_PROXY_HOPS` | `1` on Render | How many proxies add to `X-Forwarded-For`; used to find the visitor's IP for rate limits. After deploying, log in to the admin and open `/api/admin/request-info`: `ip` should be your own public IP address |
 | `HAH_MAX_CONCURRENT` | `64` | Requests handled at once before the site answers "busy" |
 | `HAH_DATA_DIR` | `data/` | Where editable state lives (tests and staging point it elsewhere) |
+| `SITE_URL` | — | The site's address, e.g. `https://honeycombeartshub.org.uk`. **Set this in production**: every link in emails and texts (password resets, invoices, waiting-list offers) and Stripe's return address use it |
 
 Uploads in the admin are for **public website photos only**: JPEG, PNG, GIF
 or WebP, checked from the file's contents. Location and camera details are

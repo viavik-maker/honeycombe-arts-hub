@@ -186,6 +186,13 @@
       panel.id = "tab-" + t.id; panel.className = "tab"; panel.hidden = true;
       $("main.panel").appendChild(panel);
     },
+    /* openTab("bookings", {session: 12}) — switch area, handing it options to start from */
+    openTab(id, opts) {
+      const mt = moduleTabs[id];
+      if (mt) mt.options = opts || null;
+      const b = $(`#sideNav button[data-tab="${id}"]`);
+      if (b) b.click();
+    },
   };
 
   /* ---------------- dirty tracking ---------------- */

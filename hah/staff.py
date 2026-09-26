@@ -10,7 +10,7 @@ import datetime
 import json
 
 from . import audit, auth, config, db, mail, outbox, permissions, ratelimit, security
-from .web import authenticator, route
+from .web import authenticator, route, site_url
 
 COOKIE = "hah_staff"
 INVITE_HOURS = 72
@@ -324,8 +324,7 @@ def _new_link(c, h, staff_id, purpose):
 
 
 def _site(h):
-    scheme = "https" if h.is_https() else "http"
-    return "%s://%s" % (scheme, h.headers.get("Host") or "localhost")
+    return site_url(h)
 
 
 def _valid_link(c, token):
@@ -432,10 +431,12 @@ def _target(c, h, staff_id):
     """The staff member being managed, if the current user may manage them."""
     row = c.execute("SELECT * FROM staff_users WHERE id=?", (staff_id,)).fetchone()
     if not row:
-        return None, h.json({"error": "No such staff member."}, 404)
+        h.json({"error": "No such staff member."}, 404)
+        return None, True
     if "owner" in _roles(c, row["id"]) and "owner" not in h.staff()["roles"]:
-        return None, h.json({"error": "Only an owner can change an owner's account."}, 403)
-    return row, None
+        h.json({"error": "Only an owner can change an owner's account."}, 403)
+        return None, True
+    return row, False
 
 
 @route("POST", "/api/staff/users/<int_id>/update", auth="staff", perm="staff.manage")
@@ -444,7 +445,7 @@ def update_user(h, int_id):
     with db.tx() as c:
         row, err = _target(c, h, int(int_id))
         if err:
-            return err
+            return
         before = _roles(c, row["id"])
         if "roles" in d:
             roles = sorted(set(d["roles"] or []))
@@ -475,7 +476,7 @@ def set_status(h, int_id):
     with db.tx() as c:
         row, err = _target(c, h, int(int_id))
         if err:
-            return err
+            return
         if row["id"] == h.staff()["id"]:
             return h.json({"error": "You can't disable your own account."}, 400)
         if status == "disabled" and _owners(c) == {row["id"]}:
@@ -496,7 +497,7 @@ def reset_user(h, int_id):
     with db.tx() as c:
         row, err = _target(c, h, int(int_id))
         if err:
-            return err
+            return
         if row["status"] == "disabled":
             return h.json({"error": "Re-enable the account first."}, 400)
         c.execute("DELETE FROM staff_sessions WHERE staff_id=?", (row["id"],))

@@ -17,6 +17,10 @@ PAGES = {
     "/account": ("account", "My account"),
     "/account/family/new": ("child-new", "Add a child"),
     "/account/details": ("details", "Your details"),
+    "/account/bookings": ("bookings", "My bookings"),
+    "/book": ("book", "Book activities"),
+    "/book/review": ("book-review", "Your booking"),
+    "/book/done": ("book-done", "Booking complete"),
 }
 
 

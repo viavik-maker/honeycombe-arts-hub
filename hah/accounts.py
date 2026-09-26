@@ -10,7 +10,7 @@ import secrets as _secrets
 
 from . import audit, db, family, formspec, intray, outbox, ratelimit, security, validate
 from .validate import Invalid
-from .web import authenticator, route
+from .web import authenticator, route, site_url
 
 COOKIE = "hah_acct"
 SESSION_DAYS = 30
@@ -39,7 +39,7 @@ def _utc(**kw):
 
 
 def _site(h):
-    return "%s://%s" % ("https" if h.is_https() else "http", h.headers.get("Host") or "localhost")
+    return site_url(h)
 
 
 # ---------------------------------------------------------------- sessions

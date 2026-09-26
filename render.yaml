@@ -12,3 +12,6 @@ services:
       name: hah-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
+    envVars:
+      - key: SITE_URL            # e.g. https://honeycombeartshub.org.uk — every emailed link uses it
+        sync: false

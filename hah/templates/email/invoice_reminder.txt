@@ -1,0 +1,8 @@
+Subject: Invoice {{number}} is {{when}}
+Hello {{name}},
+
+A friendly reminder that invoice {{number}} ({{balance}} to pay) is {{when}}.
+
+You can pay by card from [your account]({{invoice_url}}), by bank transfer, or with childcare vouchers or Tax-Free Childcare — please quote {{number}} as the reference.
+
+If you've already paid, thank you — please ignore this email. If you'd like to talk about paying, just reply or call us on 07932 772905.

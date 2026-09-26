@@ -310,6 +310,11 @@ export async function childPage() {
   let data;
   try { data = await api("/api/account/participants/" + encodeURIComponent(ref)); }
   catch (e) { return fail(e); }
+  // arriving from the Book page for something that needs the full form
+  if (params.get("for") === "full" && data.summary.target_level === "short" && !data.summary.is_account_holder) {
+    await api(`/api/account/participants/${encodeURIComponent(ref)}/target`, { target_level: "full" });
+    data = await api("/api/account/participants/" + encodeURIComponent(ref));
+  }
   const draw = () => renderChild(spec, data);
   const refresh = async () => { await loadMe(); data = await api("/api/account/participants/" + encodeURIComponent(ref)); draw(); };
   state.refreshChild = refresh;

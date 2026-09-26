@@ -28,6 +28,12 @@ REQUEST_TIMEOUT = 30  # seconds a client may take to send its request
 # check nothing legitimate breaks, then "enforce".
 CSP_MODE = os.environ.get("HAH_CSP", "report")
 
+# The site's public address, used for every link in emails and texts (and by
+# Stripe to send people back). Set it on Render (e.g. https://honeycombeartshub.org.uk):
+# without it, links fall back to the Host header of the request, which is fine
+# for local development but must not be trusted in production.
+SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
+
 # Staging copies set HAH_NOINDEX=1 so search engines never index them.
 NOINDEX = os.environ.get("HAH_NOINDEX") == "1"
 

@@ -1,0 +1,10 @@
+Subject: Booking cancelled
+Hello {{first_name}},
+
+This booking has been cancelled:
+
+{{lines}}
+
+{{money}}
+
+If you didn't expect this, please reply to this email or call us on 07932 772905.

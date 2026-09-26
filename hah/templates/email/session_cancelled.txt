@@ -1,0 +1,10 @@
+Subject: Session cancelled: {{activity}}, {{when}}
+Hello {{first_name}},
+
+We're very sorry, but we've had to cancel {{activity}} on {{when}}.
+
+{{reason}}
+
+Your booking has been cancelled and anything you paid for it is being refunded (to your card if you paid online, otherwise as credit on your account). [See your bookings]({{bookings_url}})
+
+We're sorry for the inconvenience. If you have any questions, please call us on 07932 772905.

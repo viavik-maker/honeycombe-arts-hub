@@ -1,0 +1,14 @@
+Subject: Your Honeycombe Arts Hub booking
+Hello {{first_name}},
+
+Thank you for booking with us. Here's where each place stands:
+
+{{lines}}
+
+{{invoice}}
+
+{{notes}}
+
+You can see and manage your bookings at any time: [My bookings]({{bookings_url}})
+
+If anything needs changing, just reply to this email or call us on 07932 772905.

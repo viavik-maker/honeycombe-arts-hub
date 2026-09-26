@@ -1,0 +1,6 @@
+Subject: A place has come up for {{activity}}
+Hello {{first_name}},
+
+A place has come up on {{activity}} on {{when}} ({{time}}) for {{names}}. {{partial}}
+
+We're holding it for you until {{until}}. To take it, go to [My bookings]({{bookings_url}}) and choose **Accept**. If you no longer need it, please choose **Decline** so we can offer it to the next family.
