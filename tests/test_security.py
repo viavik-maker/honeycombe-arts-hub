@@ -66,6 +66,14 @@ class HeadersTest(ServerTestCase):
                           "base-uri 'self'", "font-src 'self'"):
             self.assertIn(directive, policy)
 
+    def test_staging_noindex(self):
+        self.assertIsNone(self.client().get("/").header("X-Robots-Tag"))
+        config.NOINDEX = True
+        try:
+            self.assertEqual(self.client().get("/").header("X-Robots-Tag"), "noindex, nofollow")
+        finally:
+            config.NOINDEX = False
+
     def test_csp_can_be_enforced(self):
         old, config.CSP_MODE = config.CSP_MODE, "enforce"
         try:

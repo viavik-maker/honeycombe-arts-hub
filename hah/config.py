@@ -28,6 +28,9 @@ REQUEST_TIMEOUT = 30  # seconds a client may take to send its request
 # check nothing legitimate breaks, then "enforce".
 CSP_MODE = os.environ.get("HAH_CSP", "report")
 
+# Staging copies set HAH_NOINDEX=1 so search engines never index them.
+NOINDEX = os.environ.get("HAH_NOINDEX") == "1"
+
 # ---------------------------------------------------------------- booking system
 
 DB_PATH = os.path.join(DATA, "booking.db")  # SQLite; never inside content.json

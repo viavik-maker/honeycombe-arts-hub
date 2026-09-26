@@ -70,16 +70,16 @@ last published version. A backup of the previous version is kept automatically
 server.py            — start the site: python3 server.py
 hah/                 — the web server + CMS API (zero dependencies)
 data/content.json    — all editable website content
-data/booking.db also holds the contact-form inbox (moved from messages.json)
 data/subscribers.json— newsletter signups
 data/uploads/        — images uploaded through the admin
-data/booking.db      — booking system database (SQLite)
+data/booking.db      — booking database (SQLite): staff, contact-form inbox, bookings…
 data/backups/        — nightly backups (kept a week)
 public/              — the website (pages, css, js, images)
 public/docs/         — Policy Handbook PDF
 partials/            — shared header/footer used by every page
 tests/               — automated checks (see below)
-docs/booking/        — design of the new booking system (replacing MagicBooking)
+docs/booking/        — design of the new booking system (replacing MagicBooking),
+                       staging set-up, and the data protection pack (governance/)
 ```
 
 ## Tests

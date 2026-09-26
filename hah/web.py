@@ -212,6 +212,8 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header(k, v)
         if self.is_https():
             self.send_header("Strict-Transport-Security", "max-age=31536000")
+        if config.NOINDEX:
+            self.send_header("X-Robots-Tag", "noindex, nofollow")
         super().end_headers()
 
     def send(self, code, body=b"", ctype="text/html; charset=utf-8", headers=None):
