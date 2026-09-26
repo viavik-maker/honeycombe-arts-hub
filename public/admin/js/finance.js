@@ -1,8 +1,8 @@
 /* Finance (invoices, delayed payments, takings, refunds, exports) and the In-tray. */
-import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, post, qs, table, toast, when } from "./ui.js";
+import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, post, qs, table, toast, when, ukNowLocal, ukToday } from "./ui.js";
 
 const A = window.HAHAdmin;
-const isoToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const isoToday = ukToday;
 
 function paymentForm(meta, balance) {
   return `<div class="frow"><div class="fgroup"><label>Paid by</label><select name="method">${Object.entries(meta.methods)

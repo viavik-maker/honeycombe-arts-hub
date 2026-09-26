@@ -222,8 +222,10 @@ it, and every PR that changes the design updates this file in the same change.
     - database overrides for all 28 templates (Phase 1 keeps file templates plus editable intro text for 3–4 key emails)
     - staff digest email and disk alerts
     - automatic late-Stripe-payment handling (Phase 1 raises an in-tray item instead)
-44. **The CMS tabs are not ported in Phase 0.** The old `admin.js` gets the new login and CSRF handling; only the new
-    back-office areas are built as ES modules. Porting the CMS tabs is Phase 2.
+44. **The CMS tabs were ported in Phase 2.** `admin.js` is now just the shell: sign-in, the module bridge, and
+    Save & publish/Discard for the website copy. Each website-editing tab is an ES module under
+    `public/admin/js/cms/`, sharing the copy through `HAHAdmin.cms`. Behaviour is unchanged: the same browser test was
+    run against the old and new code and gave identical results.
 45. **Region.** Moving hosting to Render Frankfurt is recommended but is the charity's decision (question 11). Either
     way, transfers to Render Inc, Twilio and the email provider need the UK Addendum or the UK–US data bridge.
 

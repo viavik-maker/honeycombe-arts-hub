@@ -1,5 +1,5 @@
 /* Registers (sign in/out, collection checks, print) and the incident log. */
-import { $, $$, api, can, chip, day, esc, modal, post, qs, table, toast, when } from "./ui.js";
+import { $, $$, api, can, chip, day, esc, modal, post, qs, table, toast, when, ukNowLocal, ukToday } from "./ui.js";
 import * as bodymap from "/js/bodymap.js";
 
 const A = window.HAHAdmin;
@@ -7,7 +7,7 @@ const FLAG_TEXT = { allergy: "Allergy", anaphylaxis: "ANAPHYLAXIS", medical: "Me
   semh: "SEMH", religious: "Religious/cultural" };
 const STATUS = { expected: ["Expected", "muted"], present: ["In", "ok"], absent: ["Absent", "bad"], absent_notified: ["Absent (told us)", "warn"] };
 const PHOTO = { online: ["Photos OK", "ok"], internal: ["Photos: internal only", "warn"], none: ["NO PHOTOS", "bad"] };
-const isoToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const isoToday = ukToday;
 const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
 
 A.addTab({
@@ -142,7 +142,7 @@ async function logIncident(pre) {
   const meta = { kinds: { injury: "Injury / accident", illness: "Illness", behaviour: "Behaviour", safeguarding: "Safeguarding concern",
     near_miss: "Near miss", other: "Other" }, notify: { now: "Tell the parent now (email)", at_collection: "Talk it through at collection",
     not_notified: "Don't tell the parent (give a reason)" } };
-  const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
+  const now = ukNowLocal();
   let marks = () => [];
   const done = modal("Log an incident" + (pre && pre.label ? " — " + pre.label : ""), `
     <div class="frow"><div class="fgroup"><label>What kind?</label><select name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>

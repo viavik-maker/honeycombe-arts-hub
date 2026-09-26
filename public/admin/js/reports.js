@@ -1,9 +1,9 @@
 /* Reports: the attendance dashboard (inline SVG chart with a table behind it). */
-import { $, $$, api, can, confirmBox, esc, post, qs, table, toast } from "./ui.js";
+import { $, $$, api, can, confirmBox, esc, post, qs, table, toast, ukNowLocal, ukToday } from "./ui.js";
 
 const A = window.HAHAdmin;
 const COLOURS = ["#2e7d32", "#f57c00", "#6a1b9a", "#1565c0", "#ad1457", "#00838f", "#4e342e", "#78909c"];
-const isoToday = () => new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 10);
+const isoToday = ukToday;
 
 function label(key, bucket) {
   const d = new Date((bucket === "month" ? key + "-01" : key) + "T12:00:00");

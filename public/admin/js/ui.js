@@ -10,6 +10,10 @@ export function when(iso, opts) {
   const d = new Date(iso.length === 10 ? iso + "T12:00:00" : iso);
   return d.toLocaleString("en-GB", opts || { dateStyle: "medium", timeStyle: "short" });
 }
+/* the charity's date and time (UK), whatever the device's clock is set to */
+export const ukToday = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
+export const ukNowLocal = () => new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/London", dateStyle: "short", timeStyle: "short" })
+  .format(new Date()).replace(" ", "T");
 export const day = (iso) => when(iso, { weekday: "short", day: "numeric", month: "short", year: "numeric" });
 export const money = (pence) => (pence < 0 ? "−" : "") + "£" + (Math.abs(pence || 0) / 100).toFixed(2);
 
