@@ -187,3 +187,136 @@ def trials_api(h):
         first, last, label, _ = period_range(period, day, booking_settings.get("reporting_year_start_month", c))
         data = trials(c, first, last)
     return h.json(dict(data, label=label, first=first.isoformat(), last=last.isoformat(), convert_days=CONVERT_DAYS))
+
+
+# ---------------------------------------------------------------- year on year (with MagicBooking history)
+
+MAX_HISTORIC_ROWS = 2000
+
+
+def _groups(c):
+    return [r[0] for r in c.execute("SELECT DISTINCT report_group FROM activity_categories ORDER BY sort")] + ["Other"]
+
+
+def parse_historic(c, text):
+    """CSV text (month, category, attendances[, children]) → (rows, errors). Months as YYYY-MM or MM/YYYY."""
+    import csv
+    import io
+    import re
+    groups = {g.lower(): g for g in _groups(c)}
+    rows, errors = [], []
+    for n, rec in enumerate(csv.reader(io.StringIO(text or "")), 1):
+        rec = [x.strip() for x in rec]
+        if not any(rec):
+            continue
+        if n == 1 and rec[0].lower() in ("month", "date"):
+            continue  # a header row
+        if len(rec) < 3:
+            errors.append("Line %d: needs month, category and attendances." % n)
+            continue
+        m = re.match(r"^(\d{4})-(\d{1,2})$", rec[0]) or re.match(r"^(\d{1,2})/(\d{4})$", rec[0])
+        if not m:
+            errors.append("Line %d: “%s” isn't a month (use 2025-08 or 08/2025)." % (n, rec[0][:20]))
+            continue
+        y, mo = (m.group(1), m.group(2)) if len(m.group(1)) == 4 else (m.group(2), m.group(1))
+        if not 1 <= int(mo) <= 12 or not 2000 <= int(y) <= catalogue.uk_today().year:
+            errors.append("Line %d: “%s” isn't a month we can use." % (n, rec[0][:20]))
+            continue
+        cat = groups.get(rec[1].lower())
+        if not cat:
+            errors.append("Line %d: “%s” isn't a category. Use one of: %s." % (n, rec[1][:40], ", ".join(groups.values())))
+            continue
+        try:
+            att = int(rec[2])
+            kids = int(rec[3]) if len(rec) > 3 and rec[3] != "" else None
+            if att < 0 or (kids is not None and kids < 0):
+                raise ValueError
+        except ValueError:
+            errors.append("Line %d: attendances (and children) must be whole numbers." % n)
+            continue
+        rows.append({"month": "%s-%02d" % (y, int(mo)), "category": cat, "attendances": att, "children": kids})
+        if len(rows) > MAX_HISTORIC_ROWS:
+            errors.append("That's more than %d rows — split it up." % MAX_HISTORIC_ROWS)
+            break
+    return rows, errors
+
+
+@route("GET", "/api/staff/reports/historic", auth="staff", perm="reports.view")
+def historic_list(h):
+    with db.read() as c:
+        rows = [dict(r) for r in c.execute("SELECT id, month, category, attendances, children, source FROM"
+                                           " historic_attendance ORDER BY month DESC, category")]
+        return h.json({"rows": rows, "categories": _groups(c)})
+
+
+@route("POST", "/api/staff/reports/historic/import", auth="staff", perm="import.run", body_limit=512 * 1024)
+def historic_import(h):
+    d = h.json_body() or {}
+    with db.tx() as c:
+        rows, errors = parse_historic(c, d.get("csv"))
+        if errors or not rows:
+            return h.json({"error": "Nothing was saved — fix these first." if errors else "There's nothing to import.",
+                           "problems": errors[:30]}, 422)
+        existing = {(r[0], r[1]) for r in c.execute("SELECT month, category FROM historic_attendance")}
+        replaced = sum(1 for r in rows if (r["month"], r["category"]) in existing)
+        if not d.get("commit"):
+            return h.json({"ok": True, "preview": rows[:24], "count": len(rows), "replaces": replaced,
+                           "total": sum(r["attendances"] for r in rows)})
+        for r in rows:
+            c.execute("INSERT INTO historic_attendance(month, category, attendances, children, created_by, created_at)"
+                      " VALUES (?,?,?,?,?,?) ON CONFLICT(month, category) DO UPDATE SET attendances=excluded.attendances,"
+                      " children=excluded.children", (r["month"], r["category"], r["attendances"], r["children"],
+                                                      h.staff()["id"], db.now()))
+        audit.record(c, h, "report.historic_import", details={"rows": len(rows), "replaced": replaced})
+    return h.json({"ok": True, "saved": len(rows), "replaced": replaced})
+
+
+@route("POST", "/api/staff/reports/historic/<hid>/delete", auth="staff", perm="import.run")
+def historic_delete(h, hid):
+    with db.tx() as c:
+        if not c.execute("DELETE FROM historic_attendance WHERE id=?", (int(hid) if hid.isdigit() else 0,)).rowcount:
+            raise LookupError
+        audit.record(c, h, "report.historic_delete", entity_type="historic_attendance", entity_id=int(hid))
+    return h.json({"ok": True})
+
+
+def year_on_year(c, years=3, today=None):
+    """Attendances per month of each reporting year: registers plus MagicBooking history."""
+    today = today or catalogue.uk_today()
+    start_month = booking_settings.get("reporting_year_start_month", c)
+    first, _, _, _ = period_range("year", today, start_month)
+    out = []
+    for i in range(years - 1, -1, -1):
+        ystart = _add_months(first, -12 * i)
+        yend = _add_months(ystart, 12) - datetime.timedelta(days=1)
+        _, _, label, _ = period_range("year", ystart, start_month)
+        keys = [_add_months(ystart, m).isoformat()[:7] for m in range(12)]
+        live = dict(c.execute(
+            "SELECT substr(s.date,1,7), SUM(CASE WHEN b.kind='party' THEN COALESCE(NULLIF(b.party_children,0), b.places)"
+            " ELSE 1 END) FROM attendance a JOIN bookings b ON b.id=a.booking_id JOIN activity_sessions s"
+            " ON s.id=a.session_id WHERE a.status='present' AND b.status='confirmed' AND s.date BETWEEN ? AND ?"
+            " GROUP BY 1", (ystart.isoformat(), yend.isoformat())).fetchall())
+        old = dict(c.execute("SELECT month, SUM(attendances) FROM historic_attendance WHERE month BETWEEN ? AND ?"
+                             " GROUP BY month", (keys[0], keys[-1])).fetchall())
+        months = [{"key": k, "registers": live.get(k, 0) or 0, "historic": old.get(k, 0) or 0} for k in keys]
+        for m in months:
+            m["total"] = m["registers"] + m["historic"]
+            # months still to come aren't plotted; nor is this month until something's been recorded
+            m["future"] = k_future(m["key"], today) or (m["key"] == today.isoformat()[:7] and not m["total"])
+        out.append({"label": label, "start": ystart.isoformat(), "months": months,
+                    "total": sum(m["total"] for m in months), "has_historic": any(m["historic"] for m in months)})
+    return out
+
+
+def k_future(key, today):
+    return key > today.isoformat()[:7]
+
+
+@route("GET", "/api/staff/reports/year-on-year", auth="staff", perm="reports.view")
+def year_on_year_api(h):
+    try:
+        years = max(2, min(int(h.query().get("years") or 3), 6))
+    except ValueError:
+        years = 3
+    with db.read() as c:
+        return h.json({"years": year_on_year(c, years)})

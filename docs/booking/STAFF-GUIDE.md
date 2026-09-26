@@ -132,6 +132,17 @@ see the areas your role uses.
   - Scheduled messages wait at the top of **Sent**, where you can **Cancel** them.
   - If a message can't go (for example, its session was deleted), the in-tray tells you.
 
+## Reports
+
+- **Attendance** comes from registers, for a day, week, month, quarter or reporting year. The *Daily breakdown CSV*
+  splits it by type of session.
+- **Year on year** plots each month of the last three reporting years.
+- **MagicBooking history.** To include years before the switch-over, paste monthly totals exported from MagicBooking
+  as CSV lines: `month,category,attendances,children`, e.g. `2025-08,Holiday club,412,96`.
+  - **Check** first, then **Save**.
+  - Saving a month and category again replaces the old figure.
+  - Only the owner and admins can change these totals. They're numbers only, with no names.
+
 ## Families' data
 
 - Families change their own details, contacts, health information, permissions and collection password in their

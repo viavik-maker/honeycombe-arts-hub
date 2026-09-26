@@ -1,5 +1,5 @@
 /* Reports: the attendance dashboard (inline SVG chart with a table behind it). */
-import { $, $$, api, can, esc, qs, table } from "./ui.js";
+import { $, $$, api, can, confirmBox, esc, post, qs, table, toast } from "./ui.js";
 
 const A = window.HAHAdmin;
 const COLOURS = ["#2e7d32", "#f57c00", "#6a1b9a", "#1565c0", "#ad1457", "#00838f", "#4e342e", "#78909c"];
@@ -33,14 +33,63 @@ function chart(d) {
     <p class="legend">${cats.map(c => `<span><i style="background:${colour(c)}"></i>${esc(c)}</span>`).join("")}</p>`;
 }
 
+function yoyChart(years) {
+  const W = 760, H = 240, pad = 34, n = 12, step = (W - pad - 10) / (n - 1);
+  const vals = years.flatMap(y => y.months.filter(m => !m.future).map(m => m.total));
+  const max = Math.max(1, ...vals);
+  const y = (v) => (H - 22 - (v / max) * (H - 44)).toFixed(1);
+  const colours = ["#b0bec5", "#f57c00", "#2e7d32", "#6a1b9a", "#1565c0", "#ad1457"];
+  const lines = years.map((yr, i) => {
+    const pts = yr.months.map((m, j) => m.future ? null : `${(pad + j * step).toFixed(1)},${y(m.total)}`).filter(Boolean);
+    const c = colours[(colours.length - years.length + i) % colours.length];
+    return `<polyline fill="none" stroke="${c}" stroke-width="${i === years.length - 1 ? 3 : 2}" points="${pts.join(" ")}"/>` +
+      yr.months.map((m, j) => m.future ? "" : `<circle cx="${(pad + j * step).toFixed(1)}" cy="${y(m.total)}" r="3" fill="${c}"><title>${esc(yr.label)} ${esc(m.key)}: ${m.total}</title></circle>`).join("");
+  }).join("");
+  const labels = years[0].months.map((m, j) => `<text x="${(pad + j * step).toFixed(1)}" y="${H - 5}" font-size="10" text-anchor="middle" fill="#555">${new Date(m.key + "-01T12:00:00").toLocaleDateString("en-GB", { month: "short" })}</text>`).join("");
+  const grid = [0, .5, 1].map(f => `<line x1="${pad}" x2="${W}" y1="${y(f * max)}" y2="${y(f * max)}" stroke="#e5e0d5"/><text x="${pad - 4}" y="${(+y(f * max) + 4).toFixed(1)}" font-size="10" text-anchor="end" fill="#777">${Math.round(f * max)}</text>`).join("");
+  return `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Attendances per month, year on year" class="chart">${grid}${lines}${labels}</svg>
+    <p class="legend">${years.map((yr, i) => `<span><i style="background:${colours[(colours.length - years.length + i) % colours.length]}"></i>${esc(yr.label)} (${yr.total})</span>`).join("")}</p>`;
+}
+
+async function historyCard(root, rerender) {
+  const box = $("#histBox", root);
+  const d = await api("/api/staff/reports/historic");
+  const edit = can("import.run");
+  box.innerHTML = `<p class="fhint">Monthly totals from MagicBooking, so the year-on-year chart reaches back before the switch-over. Categories: ${esc(d.categories.join(", "))}.</p>
+    ${edit ? `<div class="fgroup"><label for="histCsv">Paste CSV: month, category, attendances, different children (optional)</label>
+      <textarea id="histCsv" class="tall" placeholder="month,category,attendances,children&#10;2025-08,Holiday club,412,96&#10;2025-08,HAF,230,61"></textarea></div>
+      <p><button class="abtn abtn--ghost abtn--sm" id="histPrev">Check</button> <button class="abtn abtn--primary abtn--sm" id="histSave" disabled>Save</button></p><div id="histMsg"></div>` : ""}
+    <details><summary>${d.rows.length} month/category total(s) held</summary>${table([{ label: "Month", get: r => esc(r.month) }, { label: "Category", get: r => esc(r.category) },
+      { label: "Attendances", get: r => r.attendances }, { label: "Children", get: r => r.children ?? "—" },
+      { label: "", get: r => edit ? `<button class="abtn abtn--ghost abtn--sm" data-hdel="${r.id}">Delete</button>` : "" }], d.rows, { empty: "None yet." })}</details>`;
+  if (!edit) return;
+  const send = (commit) => post("/api/staff/reports/historic/import", { csv: $("#histCsv", root).value, commit });
+  const show = (x) => { $("#histMsg", root).innerHTML = x.problems ? `<ul class="errlist">${x.problems.map(p => `<li>${esc(p)}</li>`).join("")}</ul>` : ""; };
+  $("#histCsv", root).oninput = () => { $("#histSave", root).disabled = true; };
+  $("#histPrev", root).onclick = async () => {
+    try {
+      const r = await send(false);
+      $("#histMsg", root).innerHTML = `<p>${r.count} row(s), ${r.total} attendances${r.replaces ? ` · replaces ${r.replaces} already held` : ""}.</p>`;
+      $("#histSave", root).disabled = false;
+    } catch (x) { toast(x.message, true); show(x.data || {}); }
+  };
+  $("#histSave", root).onclick = async () => {
+    try { const r = await send(true); toast(`Saved ${r.saved}`); rerender(); } catch (x) { toast(x.message, true); show(x.data || {}); }
+  };
+  $$("[data-hdel]", root).forEach(b => b.onclick = async () => {
+    if (!await confirmBox("Delete this total?", "Delete")) return;
+    await post(`/api/staff/reports/historic/${b.dataset.hdel}/delete`, {}); rerender();
+  });
+}
+
 A.addTab({
   id: "reports", label: "Reports", icon: "📊", perm: "reports.view",
   state: { period: "month", date: null },
   async render(root) {
     const st = this.state;
     st.date = st.date || isoToday();
-    const [d, tr] = await Promise.all([api("/api/staff/reports/attendance?" + qs({ period: st.period, date: st.date })),
-      api("/api/staff/reports/trials?" + qs({ period: st.period, date: st.date }))]);
+    const [d, tr, yoy] = await Promise.all([api("/api/staff/reports/attendance?" + qs({ period: st.period, date: st.date })),
+      api("/api/staff/reports/trials?" + qs({ period: st.period, date: st.date })), api("/api/staff/reports/year-on-year?years=3")]);
     const tt = tr.totals;
     const t = d.totals;
     const rate = t.present + t.absent + t.absent_notified ? Math.round(100 * t.present / (t.present + t.absent + t.absent_notified)) : null;
@@ -73,9 +122,17 @@ A.addTab({
         ${table([{ label: "Activity", get: a => esc(a.title) }, { label: "Trials", get: a => a.trials }, { label: "Came", get: a => a.attended },
           { label: "Booked again", get: a => a.converted }], tr.activities, { empty: "No trial sessions in this period." })}
         ${can("bookings.view") ? `<p><a href="#" id="trialList">See trial bookings →</a></p>` : ""}</div>
+      <div class="acard"><h2>Year on year</h2>
+        <p class="fhint">Attendances each month of the reporting year${yoy.years.some(y => y.has_historic) ? ", including totals carried over from MagicBooking" : ""}.</p>
+        ${yoyChart(yoy.years)}
+        <details><summary>Show as a table</summary>${table([{ label: "Month", get: (m, i) => esc(new Date(m.key + "-01T12:00:00").toLocaleDateString("en-GB", { month: "short" })) },
+          ...yoy.years.map((y, i) => ({ label: y.label, get: m => { const v = y.months[yoy.years[0].months.indexOf(m)]; return v.future ? "" : v.total + (v.historic ? "*" : ""); } }))],
+          yoy.years[0].months)}<p class="fhint">* includes MagicBooking figures.</p></details></div>
+      <div class="acard"><h2>MagicBooking history</h2><div id="histBox"></div></div>
       <div class="acard"><h2>Top activities</h2>${table([{ label: "Activity", get: a => esc(a.title) }, { label: "Attended", get: a => a.present },
         { label: "Absent", get: a => a.absent }], d.activities, { empty: "—" })}</div>`;
     $$("[data-p]", root).forEach(b => b.onclick = () => { st.period = b.dataset.p; this.render(root); });
+    historyCard(root, () => this.render(root));
     if ($("#trialList", root)) $("#trialList", root).onclick = (e) => { e.preventDefault(); A.openTab("bookings", { quick: "trials" }); };
     $("#rDate", root).onchange = (e) => { st.date = e.target.value || isoToday(); this.render(root); };
   },
