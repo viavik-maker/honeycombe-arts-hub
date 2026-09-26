@@ -6,9 +6,10 @@
 
 | Record | Keep for | Then | Enforced by |
 |---|---|---|---|
-| Parent / young adult account (inactive) | 3 years after last booking or sign-in | Warning email, then anonymised after 30 days | Nightly job (phase 2 automation; manual review until then) |
+| Parent / young adult account (inactive) | 3 years after last booking or sign-in | Warning email, then closed after 30 days and erased | Nightly job (`retention_long`) |
 | Account closed by the family ("delete my account") | 14-day cooling-off period | Erased, except records under a hold below | Nightly job |
 | Unverified registrations | 7 days | Deleted | Nightly job |
+| A child who turns 18 in a parent's account | Parent told on the birthday | Handed to their own account if the parent asks; otherwise archived from the parent's account after 90 days (setting) | Daily job (`turning_18`) |
 | Imported MagicBooking accounts never activated | 12 months | Deleted | Nightly job |
 | Guest (one-off event) contact details | 12 months after their last event | Deleted | Nightly job |
 | Child's health, GP, consents and collection details | While the account is open | Deleted with the account, unless part of an incident record | With account erasure |
@@ -16,7 +17,7 @@
 | Accident and injury records (children) | Until the child's date of birth + 25 years | Deleted after review | Legal hold on the child's minimal record |
 | Safeguarding concerns and family information | At least until the child's 25th birthday | DSL review; **never deleted automatically** | Legal hold; DSL in-tray |
 | Invoices, payments, credit notes, refunds | 6 years after the end of the financial year | Deleted (bill-to name snapshots kept until then) | Nightly job |
-| Message archive (bodies) | 24 months | Body removed; delivery record kept | Nightly job |
+| Message archive (bodies) | 24 months (setting) | Body removed; delivery record kept | Nightly job |
 | Marketing unsubscribes | Indefinitely (the email address only, as a suppression list) | — | — |
 | Consent history | While the account exists, plus 6 years | Deleted | With account erasure |
 | Audit log | 6 years | Deleted (the database blocks earlier deletion) | Database trigger + nightly job |

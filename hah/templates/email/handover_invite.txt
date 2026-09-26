@@ -1,0 +1,12 @@
+Subject: Your own Honeycombe Arts Hub account
+Hello {{first_name}},
+
+{{parent}} has asked us to give you your own Honeycombe Arts Hub account, now you're 18. Your details will move from their account to yours, and only you will be able to see and change them.
+
+Choose a password here (the link works for {{days}} days):
+
+{{SECRET}}
+
+Please check your details when you first sign in: some things (like who to contact in an emergency) are now yours to fill in.
+
+Questions? Just reply to this email or call us on 07932 772905.

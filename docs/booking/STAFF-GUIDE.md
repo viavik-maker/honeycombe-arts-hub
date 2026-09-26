@@ -159,6 +159,19 @@ see the areas your role uses.
 - **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
   **Restore** it before then.
 - Only the DSL sees family safeguarding information. Viewing health details is logged.
+- **Turning 18.** On a child's 18th birthday the parent is emailed and you get an in-tray item.
+  - The parent can choose *Give them their own account* on their family page. The young person gets an email, sets a
+    password, and their record moves into their own account; the parent's answers for them are cleared for them to
+    give their own.
+  - If nothing happens within 90 days (Booking settings → Data retention), they're archived from the parent's account.
+- **What's cleared automatically** (the nightly retention job, with periods in Booking settings → Data retention):
+  - unused accounts: warned, then deleted 30 days later;
+  - accident records after the child's 25th birthday (safeguarding records go to the DSL instead);
+  - names on old registers, keeping the counts;
+  - old message text;
+  - the audit log after 6 years;
+  - imported families who never activated after a year;
+  - one-off guests' details a year after their event.
 - **Other carers.** In *My details*, an account holder can invite up to 3 carers (a partner or grandparent, say) to
   sign in with their own email and password.
   - Carers can see the children's details, book, pay, cancel and report absences.

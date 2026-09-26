@@ -46,6 +46,12 @@ DEFAULTS = {
     "sibling_discount_percent": 0,         # 2nd and later child of a family on the same session
     "multi_day_discount_percent": 0,       # the same child booked on several sessions of one activity at once
     "multi_day_min_sessions": 5,
+    # data retention (families are told these in the privacy notice)
+    "retention_inactive_years": 3,         # unused accounts: warned, then deleted 30 days later
+    "retention_register_years": 3,         # who collected whom is cleared from registers after this
+    "retention_message_years": 2,          # the message archive
+    "retention_audit_years": 6,            # the audit log (never less than 6)
+    "turned_18_days": 90,                  # a child who turns 18 leaves the parent's account after this
     # messages
     "sms_segment_pence": 4,                # what one text (160 characters) costs, for estimates
 }
@@ -55,7 +61,8 @@ LIMITS = {"hold_minutes": (31, 120), "cancel_cutoff_hours": (0, 720), "refund_da
           "manual_waitlist_release_hours": (1, 336), "payment_terms_days": (0, 90), "go_home_alone_min_age": (8, 18),
           "reporting_year_start_month": (1, 12), "send_response_days": (1, 30),
           "sms_segment_pence": (0, 100), "sibling_discount_percent": (0, 75), "multi_day_discount_percent": (0, 75),
-          "multi_day_min_sessions": (2, 60)}
+          "multi_day_min_sessions": (2, 60), "retention_inactive_years": (1, 10), "retention_register_years": (1, 10),
+          "retention_message_years": (1, 10), "retention_audit_years": (6, 20), "turned_18_days": (14, 365)}
 
 
 def get_all(c=None):

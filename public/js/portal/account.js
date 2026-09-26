@@ -270,6 +270,8 @@ export async function accountHome() {
       <p>${p.is_account_holder ? "You" : "Age " + p.age}</p>
       <p>${levelStatus(p)}</p>
       <p style="margin-top:.8em"><a class="btn btn--sm ${p.missing.length ? "btn--orange" : "btn--ghost"}" href="/account/family/${esc(p.ref)}">${p.missing.length ? "Complete details" : "View & edit"}</a></p>
+      ${!p.is_account_holder && p.age >= 18 && p.status === "active" ? `<p class="hint">${esc(p.first_name)} is 18 now.</p>
+        <button class="linklike" data-handover="${esc(p.ref)}" data-name="${esc(p.first_name)}">Give them their own account</button>` : ""}
     </div>`).join("")}
     ${me.account.kind === "family" ? `<div class="person" style="display:grid;place-items:center;text-align:center">
       <p><a class="btn btn--honey" href="/account/family/new">＋ Add a child</a></p></div>` : ""}</div>
@@ -277,6 +279,53 @@ export async function accountHome() {
       <a class="btn btn--ghost" href="/account/privacy">Your data & messages</a></p>
     <div class="send-callout"><span aria-hidden="true">💬</span><div><strong>Does a child need extra support (SEND)?</strong>
       <p>Tell our SEND lead and we'll plan it together. <a href="/send-support">Plan their support</a></p></div></div>`;
+  $$("[data-handover]").forEach(b => b.onclick = () => {
+    const d = document.createElement("dialog"); d.className = "pcard";
+    d.innerHTML = `<form method="dialog" novalidate><h2>Give ${esc(b.dataset.name)} their own account</h2>
+      <p>We'll email ${esc(b.dataset.name)} a link to set up their own account. When they do, their details move out of yours and only they can see or change them. Bookings you've already made stay on your account.</p>
+      <div class="field"><label for="ho-email">${esc(b.dataset.name)}'s own email address</label><input type="email" id="ho-email" name="email" required></div>
+      <p class="field__error" hidden></p>
+      <div class="btn-row"><button type="button" class="btn btn--ghost" value="cancel">Cancel</button><button class="btn btn--orange" type="submit">Send the link</button></div></form>`;
+    document.body.appendChild(d);
+    const f = $("form", d);
+    $("[value=cancel]", d).onclick = () => { d.close(); d.remove(); };
+    f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await busy($("button[type=submit]", f), () => api(`/api/account/handover/${encodeURIComponent(b.dataset.handover)}/start`, { email: f.email.value }));
+        d.close(); d.remove();
+        b.replaceWith(Object.assign(document.createElement("p"), { className: "hint", textContent: "Link sent ✓" }));
+      } catch (x) { const er = $(".field__error", d); er.textContent = (x.data && x.data.errors && x.data.errors.email) || x.message; er.hidden = false; }
+    };
+    d.showModal();
+  });
+}
+
+/* ---------------- an 18-year-old takes over their own record ---------------- */
+export async function handover() {
+  const token = hashToken();
+  if (!token) return go("/login");
+  let check;
+  try { check = await api("/api/account/handover/check", { token }); }
+  catch (x) { root().innerHTML = `<div class="portal__narrow"><h1>Your own account</h1>${notice(esc(x.message), "err")}</div>`; return; }
+  root().innerHTML = `<div class="portal__narrow"><h1>Welcome, ${esc(check.first_name)}</h1>
+    <p class="lead">Set up your own Honeycombe Arts Hub account. Your details will move into it from your parent's account.</p>
+    <form id="hoForm" class="pcard" novalidate>
+      <p>You'll sign in as <strong>${esc(check.email)}</strong>.</p>
+      <div class="field"><label for="ho-mobile">Your mobile (optional)</label><input type="tel" id="ho-mobile" name="mobile" autocomplete="tel"></div>
+      <div class="field"><label for="ho-password">Choose a password</label>
+        <span class="hint">At least 10 characters — three random words works well.</span>
+        <input type="password" id="ho-password" name="password" autocomplete="new-password" required></div>
+      <div class="btn-row"><span></span><button class="btn btn--orange" type="submit">Set up my account</button></div></form></div>`;
+  const form = $("#hoForm");
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await busy($("button[type=submit]", form), () => api("/api/account/handover/accept", { token, password: form.password.value, mobile: form.mobile.value }));
+      history.replaceState(null, "", location.pathname);
+      go("/account?welcome=1");
+    } catch (x) { showErrors(form, (x.data && x.data.errors) || {}, "ho", x.message); }
+  };
 }
 
 export async function childNew() {

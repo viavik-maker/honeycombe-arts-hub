@@ -27,6 +27,7 @@ const PAGES = {
   "unsubscribe": privacy.unsubscribe,
   "send": send.sendSupport,
   "carer-invite": account.carerInvite,
+  "handover": account.handover,
 };
 
 const page = document.body.dataset.portal;

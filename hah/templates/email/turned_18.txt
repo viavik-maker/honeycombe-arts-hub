@@ -1,0 +1,10 @@
+Subject: {{child}} is 18 now
+Hello {{first_name}},
+
+Happy birthday to {{child}}! Now they're 18, their details should be in an account of their own.
+
+Sign in and choose "Give them their own account" on your family page. They'll get an email to set it up, and their details (and anything they've booked with us) will move across. After that, only they can see and change their details.
+
+If you don't do anything, we'll take {{child}} off your account in {{days}} days. They can register themselves at any time.
+
+Questions? Just reply to this email or call us on 07932 772905.
