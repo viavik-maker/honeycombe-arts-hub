@@ -107,6 +107,17 @@ def site_url(h=None):
         return "http://localhost:%s" % os.environ.get("PORT", "8000")
     return "%s://%s" % ("https" if h.is_https() else "http", h.headers.get("Host") or "localhost")
 
+def staff_url(h=None):
+    """Base for links staff open (invites, alerts): the staff address if there is one."""
+    if config.STAFF_HOST:
+        return "https://" + config.STAFF_HOST
+    return site_url(h)
+
+
+def is_staff_path(path):
+    return path == "/admin" or path.startswith(("/admin/", "/api/staff/", "/api/admin/"))
+
+
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
@@ -363,12 +374,31 @@ class Handler(BaseHTTPRequestHandler):
         sys.stderr.write("[%s] %s\n" % (time.strftime("%H:%M:%S"), fmt % args))
 
     # ------------------------------------------------ dispatch
+    def _staff_host_gate(self, path):
+        """With a separate staff address (config.STAFF_HOST), keep the admin there. True if the request was answered."""
+        if not config.STAFF_HOST:
+            return False
+        on_staff = (self.headers.get("Host") or "").split(":")[0].lower() == config.STAFF_HOST
+        if is_staff_path(path) and not on_staff:
+            if self.command in ("GET", "HEAD") and not path.startswith("/api/"):
+                query = urllib.parse.urlparse(self.path).query
+                self.send(302, b"", "text/plain", {"Location": staff_url() + path + ("?" + query if query else "")})
+            else:
+                self.json({"error": "not found"}, 404)
+            return True
+        if on_staff and path == "/":
+            self.send(302, b"", "text/plain", {"Location": "/admin"})
+            return True
+        return False
+
     def do_GET(self):
         path = urllib.parse.urlparse(self.path).path
         path = urllib.parse.unquote(path)
         if path != "/" and path.endswith("/"):
             path = path.rstrip("/")
         self._principals = {}
+        if self._staff_host_gate(path):
+            return
         r, params = match("GET", path)
         if r is None:
             return _get_fallback(self, path)
@@ -415,6 +445,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.json({"error": "bad origin"}, 403)
         path = urllib.parse.urlparse(self.path).path
         self._principals = {}
+        if self._staff_host_gate(path):
+            return
         try:
             r, params = match("POST", path)
             if r is None:

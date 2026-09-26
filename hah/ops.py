@@ -13,7 +13,7 @@ import os
 import shutil
 
 from . import audit, catalogue, config, db, intray, outbox, permissions, templating, validate, worker
-from .web import route, site_url
+from .web import route, site_url, staff_url
 
 NOT_EDITABLE = ("_layout", "staff_invite", "staff_reset", "test_email", "contact_notification", "send_intake_staff",
                 "staff_digest", "disk_low")
@@ -118,7 +118,7 @@ def send_digests(today=None):
             body, _ = digest_for(c, {"roles": roles}, today)
             outbox.email(c, s["email"], "staff_digest", {"first_name": s["name"].split(" ")[0], "day":
                                                          today.strftime("%A %-d %B"), "summary": body,
-                                                         "admin_url": site_url(None) + "/admin"},
+                                                         "admin_url": staff_url(None) + "/admin"},
                          kind="staff", staff_id=s["id"])
             sent += 1
     return "sent %d" % sent if sent else None

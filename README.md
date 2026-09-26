@@ -246,6 +246,19 @@ Content-Security-Policy on every page. Optional environment variables (Render
 | `HAH_MAX_CONCURRENT` | `64` | Requests handled at once before the site answers "busy" |
 | `HAH_DATA_DIR` | `data/` | Where editable state lives (tests and staging point it elsewhere) |
 | `SITE_URL` | — | The site's address, e.g. `https://honeycombeartshub.org.uk`. **Set this in production**: every link in emails and texts (password resets, invoices, waiting-list offers) and Stripe's return address use it |
+| `STAFF_HOST` | — | Optional separate address for staff, e.g. `staff.honeycombeartshub.org.uk` (see below) |
+
+**A separate staff address (optional).** With `STAFF_HOST` set:
+- the admin and every staff API answer only on that address;
+- the public site redirects `/admin` there and refuses staff APIs;
+- staff sign-in cookies are never sent to the public site;
+- staff emails (invites, alerts, the morning email) link to it.
+
+To set it up:
+1. In Render, *Settings → Custom Domains*, add the staff address to the **same** service.
+2. Ask whoever manages the domain to add the CNAME record Render shows.
+3. Wait for Render to show the certificate as issued.
+4. Set `STAFF_HOST` and redeploy.
 
 Uploads in the admin are for **public website photos only**: JPEG, PNG, GIF
 or WebP, checked from the file's contents. Location and camera details are

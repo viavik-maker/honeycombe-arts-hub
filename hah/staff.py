@@ -10,7 +10,7 @@ import datetime
 import json
 
 from . import audit, auth, config, db, mail, outbox, permissions, qr, ratelimit, security
-from .web import authenticator, route, site_url
+from .web import authenticator, route, site_url, staff_url
 
 COOKIE = "hah_staff"
 INVITE_HOURS = 72
@@ -313,7 +313,7 @@ def _new_link(c, h, staff_id, purpose):
               " VALUES (?,?,?,?,?,?)",
               (purpose, security.hash_token(token), staff_id, _utc(hours=INVITE_HOURS), db.now(), h.staff()["id"]))
     # the token rides in the URL fragment, which browsers never send to the server (or its logs)
-    link = "%s/admin#%s=%s" % (_site(h), "invite" if purpose == "staff_invite" else "reset", token)
+    link = "%s/admin#%s=%s" % (staff_url(h), "invite" if purpose == "staff_invite" else "reset", token)
     emailed = False
     if mail.configured():
         user = c.execute("SELECT name, email FROM staff_users WHERE id=?", (staff_id,)).fetchone()

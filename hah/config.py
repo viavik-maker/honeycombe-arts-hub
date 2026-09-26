@@ -34,6 +34,11 @@ CSP_MODE = os.environ.get("HAH_CSP", "report")
 # for local development but must not be trusted in production.
 SITE_URL = os.environ.get("SITE_URL", "").rstrip("/")
 
+# Optional separate address for staff, e.g. staff.honeycombeartshub.org.uk (host name only). When set, the admin
+# and every staff API answer only there: the public site redirects /admin to it and refuses staff APIs, and staff
+# sign-in cookies (host-only) are never sent to the public site. Add it as a custom domain on the same Render service.
+STAFF_HOST = os.environ.get("STAFF_HOST", "").strip().lower().rstrip("/").replace("https://", "").replace("http://", "")
+
 # Staging copies set HAH_NOINDEX=1 so search engines never index them.
 NOINDEX = os.environ.get("HAH_NOINDEX") == "1"
 

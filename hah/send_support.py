@@ -15,7 +15,7 @@ import json
 from . import (audit, booking_settings, catalogue, db, family, formspec, intray, outbox, private_files, ratelimit,
                validate, worker)
 from .validate import Invalid
-from .web import route, site_url
+from .web import route, site_url, staff_url
 
 ratelimit.LIMITS.update({"send_upload": (40, 60 * 60)})
 
@@ -210,7 +210,7 @@ def submit(h):
                      {"first_name": who["first_name"], "child": p["first_name"], "days": days,
                       "how": CONTACT[v["contact_method"]].lower()}, account_id=who["id"], participant_id=pid)
         for to in booking_settings.get("send_notify_emails", c):
-            outbox.email(c, to, "send_intake_staff", {"admin_url": site_url(h) + "/admin/"}, kind="staff")
+            outbox.email(c, to, "send_intake_staff", {"admin_url": staff_url(h) + "/admin/"}, kind="staff")
         audit.record(c, h, "send.intake_submitted", entity_type="send_intake", entity_id=iid, participant_id=pid,
                      account_id=who["id"], restricted=True, details={"files": len(refs)})
         ref = v["ref"]
