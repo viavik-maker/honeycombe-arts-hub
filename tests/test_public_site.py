@@ -103,3 +103,25 @@ class PublicContentApiTest(ServerTestCase):
         self.assertNotIn("smtp", data["settings"])
         self.assertTrue(data["events"])
         self.assertIn("contact", data["pages"])
+
+
+class BookingSwitchOverTest(ServerTestCase):
+    def test_book_now_and_membership_copy_switch_when_booking_goes_live(self):
+        from hah import storage
+        from tests.booking_helpers import set_settings
+        set_settings(booking_live=False)
+        c = self.client()
+        home = c.get("/").text
+        self.assertIn('"bookingLive": false', home)
+        self.assertIn('data-when-booking="on" hidden', home)
+        # staff reworded one of the membership lines: that edit must survive
+        storage.update_json("content.json", {}, lambda x: (x["events"][5].update(price="Members only, £2"), x)[1])
+        set_settings(booking_live=True)
+        home = c.get("/").text
+        self.assertIn('"bookingLive": true', home)
+        content = storage.load_json("content.json", {})
+        self.assertNotIn("You must be a member", content["events"][0]["description"])
+        self.assertEqual(content["events"][5]["price"], "Members only, £2")
+        self.assertIn('href="/account"', c.get("/get-involved").text)
+        self.assertIn("Your account", c.get("/get-involved").text)
+        set_settings(booking_live=False)

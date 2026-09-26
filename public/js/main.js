@@ -28,7 +28,12 @@
     if (a.dataset.nav === seg) a.classList.add("active");
   });
   // dynamic links
-  $$("[data-booking]").forEach(a => a.href = S.bookingUrl || "#");
+  // online booking: once staff switch it on, Book Now goes to our own booking page
+  $$("[data-booking]").forEach(a => {
+    if (S.bookingLive) { a.href = "/book"; a.removeAttribute("target"); a.removeAttribute("rel"); }
+    else a.href = S.bookingUrl || "#";
+  });
+  $$("[data-when-booking]").forEach(el => { el.hidden = (el.dataset.whenBooking === "on") !== !!S.bookingLive; });
   $$("[data-donate]").forEach(a => a.href = S.donateUrl || "#");
   $$("[data-charity]").forEach(el => el.textContent = S.charityNumber || "");
   $$("[data-ofsted]").forEach(el => el.textContent = S.ofstedNumber || "");
@@ -215,7 +220,10 @@
         .map(r => `<div class="event-side__row"><span>${r[0]}</span><strong>${esc(r[1])}</strong></div>`).join("");
       $("#evRows").innerHTML = rows;
       const btn = $("#evBook");
-      if (ev.bookable) { btn.textContent = "Book via our booking portal"; btn.href = S.bookingUrl; btn.target = "_blank"; }
+      const slug = (S.eventActivities || {})[ev.id];
+      if (S.bookingLive && slug) { btn.textContent = "Book now"; btn.href = "/book?activity=" + encodeURIComponent(slug); }
+      else if (ev.bookable && S.bookingLive) { btn.textContent = "Book online"; btn.href = "/book"; }
+      else if (ev.bookable) { btn.textContent = "Book via our booking portal"; btn.href = S.bookingUrl; btn.target = "_blank"; }
       else { btn.textContent = "Enquire about this event"; btn.href = "/contact"; }
     }
   }

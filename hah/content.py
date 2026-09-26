@@ -45,8 +45,23 @@ def public_content():
     c = site_content()
     s = dict(c.get("settings", {}))
     s.pop("smtp", None)
+    s.update(_booking_flags())
     c["settings"] = s
     return c
+
+
+def _booking_flags():
+    """Whether online booking is live, and which What's On events book which
+    activity — so Book Now links can switch over without a deploy."""
+    try:
+        from . import booking_settings, db
+        with db.read() as c:
+            live = bool(booking_settings.get("booking_live", c))
+            links = {r["event_id"]: r["slug"] for r in c.execute(
+                "SELECT event_id, slug FROM activities WHERE event_id IS NOT NULL AND status='published'")}
+    except Exception:  # database not ready (first start-up)
+        return {"bookingLive": False, "eventActivities": {}}
+    return {"bookingLive": live, "eventActivities": links}
 
 
 def bootstrap_seed():
@@ -56,3 +71,51 @@ def bootstrap_seed():
         dest, src = path(name), os.path.join(config.SEED, name)
         if not os.path.exists(dest) and os.path.exists(src):
             shutil.copy(src, dest)
+
+
+# The original membership wording, and what replaces it once online booking
+# is live. Only text still exactly as first written is changed, so anything
+# staff have reworded in the admin is left alone.
+MEMBERSHIP_COPY = [
+    (("pages", "getInvolved", "metaDescription"), "or become a member — become part", "— become part"),
+    (("pages", "getInvolved", "sections", 4, "eyebrow"), "Already a member?", "Already booked with us?"),
+    (("pages", "getInvolved", "sections", 4, "heading"), "Members area", "Your account"),
+    (("pages", "getInvolved", "sections", 4, "body"),
+     "Log in to our members area to book sessions and pay for activities, see your account history, update personal"
+     " and medical information for your child, and download invoices.",
+     "Sign in to book sessions and pay for activities, see your bookings, update your child's details and download"
+     " invoices. There's no membership fee."),
+    (("pages", "getInvolved", "sections", 4, "buttonLabel"), "Log in to members area", "Sign in to your account"),
+    (("events", 0, "description"),
+     "You must be a member to join: £15 per child per year, with free membership for families eligible for Free School"
+     " Meals.",
+     "There's no membership fee — book online, and families eligible for Free School Meals can request a free HAF"
+     " place."),
+    (("events", 5, "description"),
+     "Annual membership (£15 per child) gives families access to all our arts programmes and events throughout the"
+     " year.", "There's no membership fee."),
+    (("events", 5, "price"), "Members · materials included", "Materials included"),
+]
+
+
+def patch_membership_copy():
+    """Run once when online booking is switched on. Returns what changed."""
+    from .storage import update_json
+    changed = []
+
+    def patch(c):
+        for keys, old, new in MEMBERSHIP_COPY:
+            node = c
+            try:
+                for k in keys[:-1]:
+                    node = node[k]
+                value = node[keys[-1]]
+            except (KeyError, IndexError, TypeError):
+                continue
+            if isinstance(value, str) and old in value:
+                node[keys[-1]] = value.replace(old, new)
+                changed.append("/".join(str(k) for k in keys))
+        return c
+
+    update_json("content.json", {}, patch)
+    return changed

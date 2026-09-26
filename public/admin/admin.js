@@ -205,6 +205,7 @@
     try {
       await post("/api/admin/content", content);
       saved = JSON.stringify(content); dirty();
+      freshEvents = new WeakSet();  // published: addresses are now fixed
       toast("Published! The live site is up to date ✨");
     } catch (e) { toast(e.message, true); }
   });
@@ -297,6 +298,12 @@
      EVENTS (What's On) — also used for Past Events
   ================================================================ */
   const slugify = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") || "event";
+  let freshEvents = new WeakSet();  // added since the last save: their id still follows the title
+  const uniqueEventId = (base, ev) => {
+    let id = base, n = 1;
+    while ((content.events || []).some(x => x !== ev && x.id === id)) id = base + "-" + (++n);
+    return id;
+  };
 
   function renderEvents() {
     const root = $("#tab-events");
@@ -339,11 +346,13 @@
     });
 
     $("#addEvent", root).addEventListener("click", () => {
-      list.unshift({
+      const ev = {
         id: "new-event-" + Math.random().toString(36).slice(2, 7),
         title: "New event", summary: "", description: "", image: "/img/photos/painted-star.jpg",
         dates: "", schedule: "", ages: "", price: "", tag: "Event", featured: false, bookable: true
-      });
+      };
+      freshEvents.add(ev);
+      list.unshift(ev);
       editing.events = 0; renderEvents(); dirty();
     });
 
@@ -384,7 +393,9 @@
     card.addEventListener("input", (e) => {
       const k = e.target.dataset.k; if (!k) return;
       ev[k] = e.target.type === "checkbox" ? e.target.checked : e.target.value;
-      if (k === "title") ev.id = slugify(ev.title);
+      // an event's address (/whats-on/<id>) is fixed once it has been published,
+      // so links to it — and its booking link — keep working if the title changes
+      if (k === "title" && freshEvents.has(ev)) ev.id = uniqueEventId(slugify(ev.title), ev);
       dirty();
     });
     card.querySelector("[data-done]").addEventListener("click", onClose);

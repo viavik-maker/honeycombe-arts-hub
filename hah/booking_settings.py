@@ -96,6 +96,7 @@ def save(c, h, changes):
     if unknown:
         raise ValueError("unknown setting: %s" % sorted(unknown)[0])
     cleaned = {k: _clean(k, v) for k, v in changes.items()}
+    switching_on = cleaned.get("booking_live") and not get("booking_live", c)
     staff = h.staff() if h is not None else None
     for k, v in cleaned.items():
         c.execute("INSERT INTO settings(key, value, updated_at, updated_by_staff_id) VALUES (?,?,?,?)"
@@ -104,6 +105,11 @@ def save(c, h, changes):
                   (k, json.dumps(v), db.now(), staff["id"] if staff else None))
     if cleaned and h is not None:
         audit.record(c, h, "settings.booking", details={"changed": sorted(cleaned)})
+    if switching_on:
+        from .content import patch_membership_copy
+        patched = patch_membership_copy()
+        if h is not None:
+            audit.record(c, h, "site.membership_copy_updated", details={"fields": patched})
     return cleaned
 
 

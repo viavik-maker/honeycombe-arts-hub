@@ -615,3 +615,5 @@ p { margin: 0 0 1em; }
   .hero__actions .btn { flex: 1 1 100%; justify-content: center; }
   .section__head { margin-bottom: 2rem; }
 }
+.nav__account { align-self: center; font-family: var(--font-display); font-weight: 600; color: var(--navy-d); text-decoration: none; margin-right: .3em; }
+.nav__account:hover { color: var(--orange-d); }

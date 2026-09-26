@@ -158,6 +158,8 @@ def _section_href(section, settings):
         return safe_url(section.get("buttonUrl"))
     if kind == "contact":
         return "/contact"
+    if kind == "bookingUrl" and settings.get("bookingLive"):
+        return "/account"
     if kind in SETTING_LINKS:
         return safe_url(settings.get(kind))
     return ""
