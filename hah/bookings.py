@@ -481,24 +481,55 @@ def complete_card_checkout(c, checkout, *, payment_intent, amount, currency="gbp
         c.execute("UPDATE payments SET status='succeeded' WHERE id=?", (checkout["credit_payment_id"],))
     bookings = c.execute("SELECT * FROM bookings WHERE checkout_id=?", (checkout["id"],)).fetchall()
     invoice = _invoice_checkout(c, checkout, bookings)
+    card_used = credit_used = 0
     if invoice:
-        money.allocate(c, pay["id"], invoice["id"], int(amount))
+        card_used = money.allocate(c, pay["id"], invoice["id"], int(amount))
         if checkout["credit_payment_id"]:
-            money.allocate(c, checkout["credit_payment_id"], invoice["id"], checkout["credit_pence"])
+            credit_used = money.allocate(c, checkout["credit_payment_id"], invoice["id"], checkout["credit_pence"])
     if late:
-        intray.add(c, "late_payment", "Card payment arrived after the place was released (%s) — refund or rebook"
-                   % checkout["ref"], perm="finance.view", entity_type="checkout", entity_id=checkout["id"],
-                   account_id=checkout["account_id"])
+        _refund_late(c, h, checkout, pay, late, int(amount) - card_used,
+                     (checkout["credit_pence"] - credit_used) if checkout["credit_payment_id"] else 0)
     acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
         if checkout["account_id"] else None
-    if acct:
-        send_summary(c, h, acct, bookings, invoice)
-    elif checkout["guest_contact_id"]:
+    lost = {b["id"] for b in late}
+    kept = [b for b in bookings if b["id"] not in lost]  # the late email covers the rest
+    if kept and acct:
+        send_summary(c, h, acct, kept, invoice)
+    elif kept and checkout["guest_contact_id"]:
         from . import guests
-        guests.send_confirmation(c, h, checkout, bookings, invoice)
+        guests.send_confirmation(c, h, checkout, kept, invoice)
     audit.record(c, h, "checkout.paid", entity_type="checkout", entity_id=checkout["id"],
                  account_id=checkout["account_id"], details={"amount": int(amount)})
     return "completed"
+
+
+def _refund_late(c, h, checkout, pay, late, card_back, credit_back):
+    """The card payment arrived after some held places had gone to someone else: give back what wasn't used —
+    to the card (sent by the refunds job), and any account credit that was used — and tell the family."""
+    if card_back > 0:
+        c.execute("INSERT INTO refunds(payment_id, account_id, amount_pence, method, status, created_at)"
+                  " VALUES (?,?,?, 'stripe', 'pending', ?)", (pay["id"], checkout["account_id"], card_back, db.now()))
+    if credit_back > 0 and checkout["account_id"]:
+        c.execute("INSERT INTO refunds(account_id, amount_pence, method, status, created_at, processed_at)"
+                  " VALUES (?,?, 'account_credit', 'succeeded', ?,?)",
+                  (checkout["account_id"], credit_back, db.now(), db.now()))
+    intray.add(c, "late_payment", "Card payment arrived after %d place(s) were released (%s): %s refunded"
+               " automatically" % (len(late), checkout["ref"], money.pounds(card_back + max(credit_back, 0))),
+               perm="finance.view", entity_type="checkout", entity_id=checkout["id"], account_id=checkout["account_id"])
+    acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
+        if checkout["account_id"] else None
+    to = acct["email"] if acct else (c.execute("SELECT email FROM guest_contacts WHERE id=?",
+                                               (checkout["guest_contact_id"],)).fetchone() or [None])[0]
+    if to:
+        outbox.email(c, to, "late_payment_refund",
+                     {"first_name": acct["first_name"] if acct else "there", "lines": summary_text(c, late),
+                      "back": " and ".join(x for x in (
+                          "%s to your card" % money.pounds(card_back) if card_back > 0 else "",
+                          "%s as account credit" % money.pounds(credit_back) if credit_back > 0 else "") if x) or "nothing",
+                      "book_url": site_url(h) + "/book"},
+                     account_id=checkout["account_id"])
+    audit.record(c, h, "checkout.late_refund", entity_type="checkout", entity_id=checkout["id"],
+                 account_id=checkout["account_id"], details={"card": card_back, "credit": credit_back, "places": len(late)})
 
 
 def release_checkout(c, checkout, status="expired"):

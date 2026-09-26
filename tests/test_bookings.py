@@ -387,6 +387,31 @@ class StripeTest(ServerTestCase):
                 self.assertEqual(c.execute("SELECT status FROM checkouts WHERE ref=?", (r["checkout"],)).fetchone()[0],
                                  "expired")
 
+    def test_late_card_payment_is_refunded_automatically(self):
+        set_settings(pay_later_for_all=True)
+        with FakeStripe() as stripe:
+            aid, (sid,) = make_activity(sessions=1, capacity=1, price=1500, allow_pay_later=1)
+            fam = register_family()
+            child = complete_child(fam)
+            r = ok(fam.post_json("/api/book/confirm", {"items": [{"session_id": sid, "participant": child}],
+                                                       "pay_mode": "card", "accept_terms": True,
+                                                       "idempotency_key": key()})).json()
+            sess = stripe.last_session()
+            ok(webhook(fam, "checkout.session.expired", dict(sess, status="expired")))
+            other = register_family()
+            ok(other.post_json("/api/book/confirm", {"items": [{"session_id": sid, "participant": complete_child(other)}],
+                                                     "pay_mode": "pay_later", "accept_terms": True, "idempotency_key": key()}))
+            # the payment turns up after all
+            ok(webhook(fam, "checkout.session.completed", dict(stripe.pay(sess["id"]), status="complete")))
+            self.assertEqual(booking(r["bookings"][0]["ref"])["status"], "expired")
+            from hah import payments_stripe
+            payments_stripe.send_refunds()
+            self.assertEqual(stripe.refunds[-1]["amount"], 1500)
+            self.assertIn("booked by someone else", last_email_to(fam.email))
+            with db.read() as c:
+                self.assertEqual(c.execute("SELECT status FROM refunds ORDER BY id DESC LIMIT 1").fetchone()[0], "succeeded")
+                self.assertTrue(c.execute("SELECT 1 FROM intray_items WHERE type='late_payment'").fetchone())
+
     def test_stripe_failure_books_nothing(self):
         with FakeStripe() as stripe:
             aid, (sid,) = make_activity(sessions=1, price=1500)

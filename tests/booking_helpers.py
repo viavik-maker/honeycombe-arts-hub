@@ -115,7 +115,7 @@ class FakeStripe:
                     fake.sessions[sid]["status"] = "expired"
                     return self._send(200, fake.sessions[sid])
                 if self.path == "/v1/refunds":
-                    r = {"id": "re_%d" % len(fake.refunds), "status": "succeeded", "amount": int(form["amount"]),
+                    r = {"id": "re_%d_%d" % (id(fake), len(fake.refunds)), "status": "succeeded", "amount": int(form["amount"]),
                          "payment_intent": form["payment_intent"]}
                     fake.refunds.append(r)
                     return self._send(200, r)
