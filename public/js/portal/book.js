@@ -2,6 +2,7 @@
    and My bookings. Prices, places and eligibility always come from the
    server; the basket in sessionStorage is only a list of choices. */
 import { $, $$, api, busy, esc, go, loadMe, notice, params, renderNav, requireSignIn, root, state } from "./core.js";
+import { picture as bodyPicture } from "../bodymap.js";
 
 const BASKET = "hah_basket";
 const money = (p) => "£" + ((p || 0) / 100).toFixed(2).replace(/\.00$/, "");
@@ -313,7 +314,7 @@ export async function myBookings() {
     const unpaid = d.invoices.filter(i => i.balance_pence > 0);
     const noteCard = (n) => `<div class="pcard${n.acknowledged ? "" : " pcard--todo"}"><h2>A note about ${esc(n.child || "your child")}'s session</h2>
         <p class="pcard__intro">${esc(new Date(n.occurred_at).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }))} · ${esc(n.kind)}</p>
-        <p>${esc(n.description)}</p>${n.action_taken ? `<p><strong>What we did:</strong> ${esc(n.action_taken)}${n.first_aid_given ? " (first aid given)" : ""}</p>` : ""}
+        <p>${esc(n.description)}</p>${bodyPicture(n.body_map)}${n.action_taken ? `<p><strong>What we did:</strong> ${esc(n.action_taken)}${n.first_aid_given ? " (first aid given)" : ""}</p>` : ""}
         ${n.acknowledged ? `<p class="pcard__saved">Read ✓</p>` : `<button class="btn btn--sm btn--orange" data-ack="${esc(n.ref)}">I've read this</button>`}
         <p class="hint">Questions? Call us on 07932 772905.</p></div>`;
     root().innerHTML = `<h1>My bookings</h1>

@@ -1,5 +1,6 @@
 /* Registers (sign in/out, collection checks, print) and the incident log. */
 import { $, $$, api, can, chip, day, esc, modal, post, qs, table, toast, when } from "./ui.js";
+import * as bodymap from "/js/bodymap.js";
 
 const A = window.HAHAdmin;
 const FLAG_TEXT = { allergy: "Allergy", anaphylaxis: "ANAPHYLAXIS", medical: "Medical", dietary: "Diet", send: "SEND",
@@ -141,14 +142,16 @@ async function logIncident(pre) {
     near_miss: "Near miss", other: "Other" }, notify: { now: "Tell the parent now (email)", at_collection: "Talk it through at collection",
     not_notified: "Don't tell the parent (give a reason)" } };
   const now = new Date(Date.now() - new Date().getTimezoneOffset() * 60000).toISOString().slice(0, 16);
-  return modal("Log an incident" + (pre && pre.label ? " — " + pre.label : ""), `
+  let marks = () => [];
+  const done = modal("Log an incident" + (pre && pre.label ? " — " + pre.label : ""), `
     <div class="frow"><div class="fgroup"><label>What kind?</label><select name="kind">${Object.entries(meta.kinds).map(([k, v]) => `<option value="${k}">${esc(v)}</option>`).join("")}</select></div>
       <div class="fgroup"><label>When</label><input type="datetime-local" name="when" value="${now}"></div></div>
     ${pre && pre.people ? "" : `<div class="fgroup"><label>Who was involved (name)</label><input type="text" name="person"></div>`}
     <div class="fgroup"><label>What happened</label><textarea name="description" required></textarea></div>
     <div class="fgroup"><label>What we did</label><textarea name="action"></textarea></div>
     <label class="fcheck"><input type="checkbox" name="first_aid"> First aid given</label>
-    <div class="frow"><div class="fgroup"><label>Where</label><input type="text" name="location"></div>
+    <div class="fgroup" id="bodyBox"><label>Where on the body (for injuries)</label><div id="bodyMap"></div></div>
+    <div class="frow"><div class="fgroup"><label>Where it happened</label><input type="text" name="location"></div>
       <div class="fgroup"><label>Severity</label><select name="severity"><option value="minor">Minor</option><option value="moderate">Moderate</option><option value="serious">Serious</option></select></div></div>
     <div class="fgroup"><label>Telling the parent</label><select name="notify">${Object.entries(meta.notify).map(([k, v]) => `<option value="${k}"${k === "at_collection" ? " selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
     <div class="fgroup"><label>Reason (if not telling them)</label><input type="text" name="reason"></div>
@@ -156,9 +159,17 @@ async function logIncident(pre) {
     (f) => post("/api/staff/incidents", {
       kind: f.kind.value, occurred_at_local: f.when.value, session_id: pre && pre.session_id, description: f.description.value,
       action_taken: f.action.value, first_aid_given: f.first_aid.checked, location: f.location.value, severity: f.severity.value,
-      notify_mode: f.notify.value, not_notified_reason: f.reason.value,
+      notify_mode: f.notify.value, not_notified_reason: f.reason.value, body_map: f.kind.value === "injury" ? marks() : [],
       people: pre && pre.people ? pre.people : [{ person_name: f.person.value, role: "involved" }] }), "Save incident")
     .then(r => { if (r) toast("Incident logged" + (r.notified ? " — parent emailed" : "")); return r; });
+  // the dialog is in the page now: add the body map, shown for injuries
+  const dlg = [...document.querySelectorAll("dialog[open]")].pop();  // the one just opened
+  if (dlg && $("#bodyMap", dlg)) {
+    marks = bodymap.editor($("#bodyMap", dlg), []);
+    const sync = () => { $("#bodyBox", dlg).hidden = dlg.querySelector("[name=kind]").value !== "injury"; };
+    dlg.querySelector("[name=kind]").addEventListener("change", sync); sync();
+  }
+  return done;
 }
 
 A.addTab({
@@ -188,6 +199,7 @@ A.addTab({
         <tr><th>What happened</th><td>${esc(i.description)}</td></tr>
         <tr><th>What we did</th><td>${esc(i.action_taken || "—")}${i.first_aid_given ? " · first aid given" : ""}</td></tr>
         <tr><th>Where</th><td>${esc(i.location || "—")}</td></tr>
+        ${i.body_map && i.body_map.length ? `<tr><th>Body map</th><td>${bodymap.picture(i.body_map)}</td></tr>` : ""}
         <tr><th>Parent</th><td>${esc({ now: "Emailed", at_collection: "At collection", not_notified: "Not told: " + (i.not_notified_reason || "") }[i.notify_mode])}${i.discussed_at ? " · discussed " + esc(when(i.discussed_at)) : ""}</td></tr>
         <tr><th>Logged by</th><td>${esc(i.created_by || "")} · ${esc(when(i.created_at))}</td></tr>
         <tr><th>Kept until</th><td>${esc(i.retain_until || "—")}</td></tr></tbody></table>

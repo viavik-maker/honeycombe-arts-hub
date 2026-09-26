@@ -1,6 +1,7 @@
 # Staff guide: the booking system
 
-Sign in at `/admin` with your email, your password and the 6-digit code from your authenticator app. You'll only
+Sign in at `/admin` with your email, your password and the 6-digit code from your authenticator app (the first time,
+scan the QR code on screen with the app). You'll only
 see the areas your role uses.
 
 ## Every day
@@ -28,6 +29,9 @@ see the areas your role uses.
   - **At collection**: the register won't let the child be signed out until you tick that you've talked it
     through.
   - **Not at all**: you must give a reason.
+
+  For an injury, click the body outline (front or back) to mark where it is, and add a few words for each mark.
+  The parent sees the same picture in their note.
 
   Safeguarding concerns go only to the DSL, and parents aren't told automatically.
 

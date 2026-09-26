@@ -97,8 +97,10 @@
       <p>Because the booking system holds children's details, every staff account uses a code from an
         authenticator app (Google or Microsoft Authenticator, 1Password…) as well as a password.</p>
       <ol class="login__steps">
-        <li>In the app, choose <em>Add account → Enter a setup key</em>${/Android|iPhone|iPad/.test(navigator.userAgent) ? ` (or <a href="${esc(e.uri)}">tap here</a>)` : ""}.</li>
-        <li>Account: <strong>Honeycombe Arts Hub</strong>. Key: <code class="login__key">${esc(grouped)}</code> (time-based).</li>
+        <li>In the app, choose <em>Add account → Scan a QR code</em> and scan this:
+          <div class="login__qr">${e.qr_svg || ""}</div>
+          Can't scan it? Choose <em>Enter a setup key</em>${/Android|iPhone|iPad/.test(navigator.userAgent) ? ` (or <a href="${esc(e.uri)}">tap here</a>)` : ""}:
+          account <strong>Honeycombe Arts Hub</strong>, key <code class="login__key">${esc(grouped)}</code> (time-based).</li>
         <li>Type the 6-digit code the app shows:</li>
       </ol>
       <form><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>

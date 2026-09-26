@@ -9,7 +9,7 @@ hash of the session token is stored."""
 import datetime
 import json
 
-from . import audit, auth, config, db, mail, outbox, permissions, ratelimit, security
+from . import audit, auth, config, db, mail, outbox, permissions, qr, ratelimit, security
 from .web import authenticator, route, site_url
 
 COOKIE = "hah_staff"
@@ -227,7 +227,8 @@ def totp_enrol_start(h):
     with db.tx() as c:
         c.execute("UPDATE staff_users SET totp_secret=?, totp_last_step=NULL WHERE id=? AND totp_enabled=0",
                   (secret, me["id"]))
-    return h.json({"secret": secret, "uri": security.totp_uri(secret, me["email"])})
+    uri = security.totp_uri(secret, me["email"])
+    return h.json({"secret": secret, "uri": uri, "qr_svg": qr.svg(uri, module=4)})
 
 
 @route("POST", "/api/staff/totp/enrol", auth="staff", mfa=False)

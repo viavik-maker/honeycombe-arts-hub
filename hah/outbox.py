@@ -65,12 +65,25 @@ def text_message(c, to, template, context=None, *, kind="service", account_id=No
     if not to:
         return None
     text = body if body is not None else templating.render_sms(template, context or {})
+    blocked = c.execute("SELECT 1 FROM sms_blocks WHERE phone=?", (to,)).fetchone()
     cur = c.execute(
         "INSERT INTO message_deliveries(campaign_id, template_key, channel, kind, to_address, body_text,"
-        " account_id, participant_id, booking_id, next_attempt_at, created_at)"
-        " VALUES (?,?, 'sms', ?,?,?,?,?,?,?,?)",
-        (campaign_id, template, kind, to, text, account_id, participant_id, booking_id, db.now(), db.now()))
+        " account_id, participant_id, booking_id, next_attempt_at, created_at, status, error)"
+        " VALUES (?,?, 'sms', ?,?,?,?,?,?,?,?,?,?)",
+        (campaign_id, template, kind, to, text, account_id, participant_id, booking_id, db.now(), db.now(),
+         "suppressed" if blocked else "queued", "They replied STOP to our texts" if blocked else None))
     return cur.lastrowid
+
+
+def block_sms(c, phone, source):
+    """No more texts to PHONE (they replied STOP, or the provider says they opted out)."""
+    c.execute("INSERT OR IGNORE INTO sms_blocks(phone, blocked_at, source) VALUES (?,?,?)", (phone, db.now(), source))
+    for r in c.execute("SELECT id, phone FROM marketing_preferences WHERE sms_opt_in=1 AND phone IS NOT NULL").fetchall():
+        if validate.uk_mobile(r["phone"]) == phone:
+            c.execute("UPDATE marketing_preferences SET sms_opt_in=0, unsubscribed_sms_at=?, updated_at=? WHERE id=?",
+                      (db.now(), db.now(), r["id"]))
+    c.execute("UPDATE message_deliveries SET status='suppressed', error='They replied STOP to our texts',"
+              " locked_until=NULL WHERE channel='sms' AND to_address=? AND status='queued'", (phone,))
 
 
 def _claim():
@@ -147,6 +160,9 @@ def send_due():
             sent += 1
         except sms.SmsError as e:
             _finish(r, False, error=str(e), permanent=e.permanent, suppressed=e.opted_out)
+            if e.opted_out:
+                with db.tx() as c:
+                    block_sms(c, r["to_address"], "provider_opt_out")
             failed += 1
     return "sent %d, failed %d" % (sent, failed) if rows else None
 

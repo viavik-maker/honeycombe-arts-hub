@@ -10,6 +10,8 @@ SMS_PROVIDER=twilio | log | disabled (default disabled)
 Only UK mobile numbers are texted. Never put health or safeguarding
 details in a text: they pass through the provider's systems."""
 import base64
+import hashlib
+import hmac
 import json
 import os
 import sys
@@ -58,6 +60,9 @@ def _twilio(to, body):
     sid = env["TWILIO_ACCOUNT_SID"]
     base = env.get("TWILIO_API_BASE", "https://api.twilio.com")
     form = {"To": to, "Body": body}
+    callback = status_callback_url()
+    if callback:
+        form["StatusCallback"] = callback
     if env.get("TWILIO_MESSAGING_SERVICE_SID"):
         form["MessagingServiceSid"] = env["TWILIO_MESSAGING_SERVICE_SID"]
     else:
@@ -82,3 +87,23 @@ def _twilio(to, body):
         raise SmsError("Twilio %s: %s" % (code or e.code, detail.get("message", e.reason)), permanent=permanent)
     except OSError as e:
         raise SmsError("couldn't reach Twilio: %s" % e)
+
+
+# ---------------------------------------------------------------- delivery reports and replies
+
+
+def status_callback_url():
+    """Where Twilio reports delivery (only when the site has a public https address)."""
+    from . import config
+    base = (config.SITE_URL or "").rstrip("/")
+    return base + "/api/twilio/status" if base.startswith("https://") else None
+
+
+def verify_twilio(url, params, signature):
+    """Twilio signs each request: base64(HMAC-SHA1(auth token, URL + every POST field and value, sorted))."""
+    token = os.environ.get("TWILIO_AUTH_TOKEN")
+    if not token or not signature:
+        return False
+    payload = url + "".join(k + v for k, v in sorted(params.items()))
+    expected = base64.b64encode(hmac.new(token.encode(), payload.encode(), hashlib.sha1).digest()).decode()
+    return hmac.compare_digest(expected, signature)

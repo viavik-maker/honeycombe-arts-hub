@@ -190,6 +190,15 @@ Set these in Render → the service → *Environment* (never in the admin):
 | `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | from the Twilio console |
 | `TWILIO_FROM` | an alphanumeric sender such as `HoneycombeH` (UK, one-way) or a Twilio number |
 
+**Text delivery reports and STOP replies.**
+- Once `SITE_URL` is an `https://` address, each text asks Twilio to report back to `/api/twilio/status`. The
+  Messages archive then shows *delivered* or *undelivered*.
+- If you send from a Twilio **number** (not an alphanumeric sender), set that number's *A message comes in* webhook to
+  `https://<your site>/api/twilio/inbound` (HTTP POST).
+  - A reply of STOP stops all texts to that number and turns off their text news.
+  - START allows service texts again.
+- Both addresses check Twilio's signature with `TWILIO_AUTH_TOKEN`.
+
 Ask whoever manages the domain to set up **SPF, DKIM and DMARC** for the
 sending address, or emails will land in spam. The old SMTP box in admin →
 Settings still works until `SMTP_HOST` is set, then it's ignored. Emails never

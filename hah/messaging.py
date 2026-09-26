@@ -345,6 +345,6 @@ def archive(h):
         else:
             rows = c.execute("SELECT * FROM message_deliveries WHERE kind<>'staff' ORDER BY id DESC LIMIT 100").fetchall()
         out = [{"id": r["id"], "channel": r["channel"], "kind": r["kind"], "to": r["to_address"], "subject": r["subject"],
-                "status": r["status"], "error": r["error"], "created_at": r["created_at"], "sent_at": r["sent_at"],
+                "status": r["status"], "delivery": r["delivery_status"], "error": r["error"], "created_at": r["created_at"], "sent_at": r["sent_at"],
                 "template": r["template_key"], "body": outbox.archived_body(r)[:4000]} for r in rows]
     return h.json({"messages": out})

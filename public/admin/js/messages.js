@@ -33,7 +33,8 @@ A.addTab({
         <p class="fhint">Every email and text the site has sent (one-time sign-in links are never kept).</p>
         ${table([{ label: "When", get: m => esc(when(m.created_at)) }, { label: "To", get: m => esc(m.to) },
           { label: "Message", get: m => `<details><summary>${esc(m.subject || m.template || m.channel)}</summary><pre class="msgbody">${esc(m.body)}</pre></details>` },
-          { label: "Status", get: m => chip(m.status, m.status === "sent" ? "ok" : m.status === "failed" ? "bad" : "muted") + (m.error ? `<br><span class="fhint">${esc(m.error)}</span>` : "") }], d.messages)}`;
+          { label: "Status", get: m => chip(m.status, m.status === "sent" ? "ok" : m.status === "failed" ? "bad" : "muted") +
+            (m.delivery ? " " + chip(m.delivery, m.delivery === "delivered" ? "ok" : ["undelivered", "failed"].includes(m.delivery) ? "bad" : "muted") : "") + (m.error ? `<br><span class="fhint">${esc(m.error)}</span>` : "") }], d.messages)}`;
       $("#arQ", root).onkeydown = (e) => { if (e.key === "Enter") { st.q = e.target.value; this.render(root); } };
     } else {
       const [acts, sess] = await Promise.all([api("/api/staff/activities?tab=current"), api("/api/staff/sessions/upcoming")]);

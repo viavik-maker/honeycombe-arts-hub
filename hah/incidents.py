@@ -6,6 +6,7 @@ collection (the register won't let the child be signed out until it's been
 talked through), or not at all (a reason is required). Safeguarding concerns
 are restricted to the DSL role and never sent to parents automatically."""
 import datetime
+import json
 
 from . import audit, db, family, intray, outbox, validate
 from .validate import Invalid
@@ -83,6 +84,32 @@ def _notify_now(c, h, inc_id):
     return len(told)
 
 
+MAX_MARKS = 12
+
+
+def clean_body_map(value):
+    """Marks on the body outline: [{view: front|back, x, y (0–100 % of the figure), note}] as JSON, or None."""
+    if value in (None, "", []):
+        return None
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return None
+    marks = []
+    for m in value if isinstance(value, list) else []:
+        if not isinstance(m, dict) or m.get("view") not in ("front", "back"):
+            continue
+        try:
+            x, y = float(m.get("x")), float(m.get("y"))
+        except (TypeError, ValueError):
+            continue
+        if 0 <= x <= 100 and 0 <= y <= 100:
+            marks.append({"view": m["view"], "x": round(x, 1), "y": round(y, 1),
+                          "note": validate.text(m.get("note"), 60) or ""})
+    return json.dumps(marks[:MAX_MARKS]) if marks else None
+
+
 def clean(d, current=None):
     errors, out = {}, {}
     get = (lambda k: d[k] if k in d else (current[k] if current else None))
@@ -106,6 +133,7 @@ def clean(d, current=None):
         out[k] = validate.long_text(get(k), 3000) or None
     out["first_aid_given"] = 1 if get("first_aid_given") else 0
     out["riddor_reportable"] = 1 if get("riddor_reportable") else 0
+    out["body_map"] = clean_body_map(get("body_map"))
     mode = get("notify_mode")
     if kind == "safeguarding":
         mode, out["not_notified_reason"] = "not_notified", "Safeguarding concern — the DSL decides who is told."
@@ -174,6 +202,7 @@ def incident_json(c, inc, full=False):
         out.update({k: inc[k] for k in ("location", "description", "action_taken", "first_aid_given", "first_aider",
                                         "witnesses", "follow_up", "not_notified_reason", "riddor_reportable",
                                         "created_at", "retain_until")})
+        out["body_map"] = json.loads(inc["body_map"]) if inc["body_map"] else []
         who = c.execute("SELECT name FROM staff_users WHERE id=?", (inc["created_by"],)).fetchone()
         out["created_by"] = who["name"] if who else None
     return out
@@ -220,6 +249,8 @@ def update(h, iid):
                 fields[k] = validate.long_text(d[k], 3000) or None
         if "riddor_reportable" in d:
             fields["riddor_reportable"] = 1 if d["riddor_reportable"] else 0
+        if "body_map" in d:
+            fields["body_map"] = clean_body_map(d["body_map"])
         if d.get("status") in ("open", "closed"):
             fields["status"] = d["status"]
             fields["closed_at"] = db.now() if d["status"] == "closed" else None
@@ -263,6 +294,7 @@ def my_incidents(h):
     return h.json({"incidents": [{
         "ref": r["ref"], "child": r["first_name"], "occurred_at": r["occurred_at"], "kind": KINDS[r["kind"]],
         "description": r["description"], "action_taken": r["action_taken"], "first_aid_given": bool(r["first_aid_given"]),
+        "body_map": json.loads(r["body_map"]) if r["body_map"] else [],
         "acknowledged": bool(r["acknowledged_at"])} for r in rows]})
 
 
