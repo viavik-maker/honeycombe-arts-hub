@@ -94,3 +94,27 @@ see the areas your role uses.
 - **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
   **Restore** it before then.
 - Only the DSL sees family safeguarding information. Viewing health details is logged.
+
+## SEND support requests
+
+- Families with a child who has SEND or additional needs can send a **support request** before booking. It's
+  linked from the registration page and from their account.
+- Each request tells us:
+  - how they'd like to talk (a call, a visit or email);
+  - their child's needs;
+  - what helps, what overwhelms, how the child communicates, and the support they get now;
+  - whether they have an EHCP, with any plans uploaded.
+- **Who sees them:** requests arrive in the **In-tray** and under **SEND support**. Only staff with SEND access see
+  them: the owner, admin, manager, DSL and SEND lead. Opening a request or downloading a document is logged.
+  - Downloads save to your computer: don't keep copies on shared drives or email them on.
+  - Set who gets an email alert (without details) in Booking settings → *SEND lead email(s)*.
+- **Work each request through:**
+  - **Assign to me**;
+  - add **notes** after each call;
+  - **Mark as contacted** or **Visit booked…**;
+  - finally **Support plan agreed…** with a short, practical summary.
+
+  The summary appears on registers (a *Support plan* chip, with the text under *Details*) and on the child's
+  record. The family is emailed that they can book.
+- Documents uploaded but never sent with a request are deleted after 2 days. When a family's account is erased,
+  their requests and documents are deleted too.

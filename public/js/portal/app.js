@@ -4,6 +4,7 @@ import * as account from "./account.js";
 import * as book from "./book.js";
 import * as guest from "./guest.js";
 import * as privacy from "./privacy.js";
+import * as send from "./send.js";
 
 const PAGES = {
   "register": account.registerChooser,
@@ -24,6 +25,7 @@ const PAGES = {
   "guest-confirm": guest.guestConfirm,
   "privacy": privacy.privacy,
   "unsubscribe": privacy.unsubscribe,
+  "send": send.sendSupport,
 };
 
 const page = document.body.dataset.portal;

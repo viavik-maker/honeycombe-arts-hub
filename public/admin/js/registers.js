@@ -67,7 +67,7 @@ async function openRegister(root, sid, back) {
       : `${esc(r.party.contact.name)} <span class="fhint">group: ${r.party.adults} adult(s), ${r.party.children} child(ren)</span>`;
     const flags = p ? Object.entries(p.flags).filter(([, v]) => v).map(([k]) => chip(FLAG_TEXT[k], k === "anaphylaxis" ? "bad" : "warn")).join(" ") : "";
     const extra = p ? [p.collection_alert ? chip("COLLECTION ALERT", "bad") : "", PHOTO[p.photo] ? chip(...PHOTO[p.photo]) : "",
-      p.go_home_alone ? chip("May go home alone", "info") : "", r.profile_incomplete || p.level === "none" ? chip("Details incomplete", "warn") : "",
+      p.go_home_alone ? chip("May go home alone", "info") : "", p.support_plan ? chip("Support plan", "info") : "", r.profile_incomplete || p.level === "none" ? chip("Details incomplete", "warn") : "",
       p.haf && p.haf !== "unknown" && r.funding === "haf" ? chip("HAF", "info") : "", r.to_discuss.length ? chip("Incident to discuss", "bad") : ""].join(" ") : "";
     const st = STATUS[r.status] || [r.status, "muted"];
     const inOut = r.signed_in_at ? `in ${hhmm(r.signed_in_at)}${r.late ? " (late)" : ""}` + (r.signed_out_at ? ` · out ${hhmm(r.signed_out_at)}${r.collected_by ? " with " + esc(r.collected_by) : ""}` : "") : "";
@@ -125,6 +125,7 @@ async function openRegister(root, sid, back) {
     modal(r.person ? `${r.person.first_name} ${r.person.last_name}` : r.party.contact.name, people.map(p => `
       ${r.person ? "" : `<h3>${esc(p.first_name)} ${esc(p.last_name)}</h3>`}
       <table class="table"><tbody>${h(p) || `<tr><td>No health needs recorded.</td></tr>`}
+      ${p.support_plan ? `<tr><th>Support plan</th><td style="white-space:pre-line">${esc(p.support_plan)}</td></tr>` : ""}
       <tr><th>First aid / plasters</th><td>${esc(p.first_aid || "?")} / ${esc(p.plasters || "?")}</td></tr>
       <tr><th>Parent</th><td>${esc(p.parent.name)} ${esc(p.parent.mobile || "")}</td></tr>
       ${p.contacts.map(c => `<tr><th>${esc(c.relationship)}</th><td>${esc(c.full_name)} ${esc(c.phone)}${c.can_collect ? " · can collect" : ""}</td></tr>`).join("")}

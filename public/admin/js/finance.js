@@ -79,6 +79,7 @@ A.addTab({
 /* ---------------- In-tray ---------------- */
 function link(i) {
   if (i.entity_type === "booking") return ["Open booking", () => A.openTab("bookings", { quick: "", openId: i.entity_id })];
+  if (i.entity_type === "send_intake") return ["Open request", () => A.openTab("send")];
   if (i.entity_type === "incident") return ["Open incidents", () => A.openTab("incidents")];
   if (i.entity_type === "session") return ["Waiting list", () => A.openTab("bookings", { quick: "waitlist", session: i.entity_id })];
   if (i.entity_type === "activity") return ["Open activities", () => A.openTab("activities")];

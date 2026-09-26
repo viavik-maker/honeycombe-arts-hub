@@ -39,13 +39,15 @@ DEFAULTS = {
     "credit_note_prefix": "CN",
     # who hears about what
     "dsl_notify_emails": [],
+    "send_notify_emails": [],              # told (without details) when a SEND support request arrives
+    "send_response_days": 5,               # "our SEND lead gets in touch within N working days"
     "finance_notify_emails": [],
 }
 
 LIMITS = {"hold_minutes": (31, 120), "cancel_cutoff_hours": (0, 720), "refund_days": (0, 90),
           "waitlist_offer_hours": (1, 168), "waitlist_offer_hours_soon": (1, 48),
           "manual_waitlist_release_hours": (1, 336), "payment_terms_days": (0, 90), "go_home_alone_min_age": (8, 18),
-          "reporting_year_start_month": (1, 12)}
+          "reporting_year_start_month": (1, 12), "send_response_days": (1, 30)}
 
 
 def get_all(c=None):

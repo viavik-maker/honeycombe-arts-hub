@@ -41,6 +41,9 @@ export async function registerChooser() {
           <p class="hint" style="margin:.8em 0 .2em;font-weight:800;font-size:.78rem;letter-spacing:.05em">WE'LL ASK FOR</p>
           <ul class="chips">${v.asks.map(a => `<li>${esc(a)}</li>`).join("")}</ul>
         </label>`).join("")}</div>
+      <div class="send-callout"><span aria-hidden="true">💬</span><div><strong>Does your child have SEND or additional needs?</strong>
+        <p>Tell our SEND lead about them first and we'll plan their support together before you book.
+        <a href="/register/details?for=full&amp;next=/send-support">Start here</a></p></div></div>
       <div class="btn-row">
         <p class="form-note">Not sure which to choose? <a href="/contact">Get in touch</a> ·
           Already registered? <a href="/login">Sign in</a> ·
@@ -124,6 +127,7 @@ function codeStep(email, kind, fromLogin) {
       await loadMe();
       if (fromLogin) return go(safeNext("/account"));
       if (kind === "adult") return go(`/account/family/${state.me.participants[0].ref}?setup=1`);
+      if (params.get("next") === "/send-support") return go("/send-support");  // the support form adds the child
       go(`/account/family/new?level=${kind}${params.get("next") ? "&next=" + encodeURIComponent(params.get("next")) : ""}`);
     } catch (x) { showErrors(form, { code: x.message }, "code", "That didn't work"); }
   };
@@ -262,7 +266,9 @@ export async function accountHome() {
     ${me.account.kind === "family" ? `<div class="person" style="display:grid;place-items:center;text-align:center">
       <p><a class="btn btn--honey" href="/account/family/new">＋ Add a child</a></p></div>` : ""}</div>
     <p><a class="btn btn--orange" href="/book">Book activities</a> <a class="btn btn--ghost" href="/account/details">Your details & emergency contacts</a>
-      <a class="btn btn--ghost" href="/account/privacy">Your data & messages</a></p>`;
+      <a class="btn btn--ghost" href="/account/privacy">Your data & messages</a></p>
+    <div class="send-callout"><span aria-hidden="true">💬</span><div><strong>Does a child need extra support (SEND)?</strong>
+      <p>Tell our SEND lead and we'll plan it together. <a href="/send-support">Plan their support</a></p></div></div>`;
 }
 
 export async function childNew() {

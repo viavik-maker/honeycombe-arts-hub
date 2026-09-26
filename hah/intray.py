@@ -40,7 +40,7 @@ TYPE_NAMES = {
     "payment_problem": "Payment problem", "late_payment": "Late card payment", "payment_dispute": "Card dispute",
     "refund_failed": "Refund failed", "incident_follow_up": "Incident follow-up", "publish_blocked": "Activity couldn't go live",
     "activation_problem": "Activation problem", "walkin_follow_up": "Walk-in to follow up", "haf_claim": "HAF claim",
-    "contact_message": "Contact message", "import_review": "Import to review",
+    "contact_message": "Contact message", "send_intake": "SEND support request", "import_review": "Import to review",
 }
 
 

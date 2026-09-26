@@ -157,3 +157,28 @@ dialog.pcard { max-width: min(520px, 92vw); border: 0; }
 dialog.pcard::backdrop { background: rgba(35, 43, 73, .45); }
 @media (max-width: 640px) { .session-row__act { align-items: flex-start; } .elig-notes { text-align: left; } }
 .hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }
+
+/* SEND support request (mockup 6) */
+.send-steps { list-style: none; padding: 0; margin: 1.4rem 0 1.6rem; display: grid; grid-template-columns: repeat(3, 1fr); gap: .8rem; counter-reset: step; }
+.send-steps li { background: #eef0f7; border-radius: var(--r-sm); padding: .9rem 1rem; counter-increment: step; }
+.send-steps li::before { content: "STEP " counter(step); display: block; font-size: .72rem; font-weight: 800; letter-spacing: .06em; color: var(--navy); }
+.send-steps strong { display: block; color: var(--navy-d); }
+.send-steps span { font-size: .88rem; color: var(--muted); }
+@media (max-width: 640px) { .send-steps { grid-template-columns: 1fr; } }
+.choice-grid--3 { grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); margin: .4rem 0 0; }
+.choice-card--sm { padding: 1rem 1rem .8rem; }
+.choice-card--sm h3 { font-size: 1.02rem; margin: 0 0 .2em; padding-right: 1.6rem; }
+.choice-card--sm p { font-size: .88rem; margin: 0; }
+.dropzone { border: 2px dashed #b9b2a3; border-radius: var(--r-sm); padding: 1.3rem; text-align: center; cursor: pointer;
+  background: #faf8f4; display: flex; flex-direction: column; gap: .3rem; }
+.dropzone:focus-visible, .dropzone--over { border-color: var(--navy); background: #eef0f7; }
+.dropzone--busy { opacity: .6; }
+.upload-label { font-weight: 800; color: var(--navy); margin: 1rem 0 .4rem; font-size: .92rem; }
+.file-list { margin: .5rem 0 .8rem; }
+.file-row { display: flex; gap: 1rem; align-items: center; border: 1px solid var(--line); border-radius: var(--r-sm);
+  padding: .6rem .9rem; margin-bottom: .4rem; background: #fff; }
+.file-row span:first-child { flex: 1; }
+.send-callout { display: flex; gap: .9rem; align-items: flex-start; background: #eef0f7; border-radius: var(--r-md);
+  padding: 1rem 1.2rem; margin: 0 0 1.4rem; }
+.send-callout span { font-size: 1.5rem; }
+.send-callout p { margin: .2em 0 0; color: var(--muted); }

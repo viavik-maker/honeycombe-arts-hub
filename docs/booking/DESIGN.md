@@ -21,7 +21,7 @@ it, and every PR that changes the design updates this file in the same change.
 - **SMS** goes live at launch through Twilio, behind a provider interface.
 - **Self-registration is for 18+ only.** Anyone under 18 is always registered by a parent or carer. The mockup's
   "Teens" card becomes "Young adults (18+)".
-- **The SEND support intake form** (mockup 6, with EHCP uploads) is phase 2.
+- **The SEND support intake form** (mockup 6, with EHCP uploads) is phase 2 — built first in Phase 2 (`hah/send_support.py`, `hah/private_files.py`): the parent signs in (email verified) before sending it, so special-category data never arrives under an unverified address.
 - **No booking migration.** Families (parents and children) are imported from the MagicBooking export. Passwords can't
   be carried over.
 - **No membership fee.**

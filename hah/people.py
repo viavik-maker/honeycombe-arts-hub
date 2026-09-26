@@ -177,6 +177,7 @@ def participant_record(h, ref):
         out = {"participant": dict(family.participant_summary(c, p), school_name=p["school_name"], education=p["education"],
                                    gender=p["gender"], photo=p["photo_consent"], collection_alert=p["collection_alert"],
                                    has_collection_password=bool(p["collection_pw_hash"]),
+                                   support_plan=p["support_plan"],
                                    haf=p["haf_status"] if h.has_perm("bookings.manage") else None),
                "family": {"ref": a["ref"], "name": "%s %s" % (a["first_name"], a["last_name"])},
                "tabs": ["basic"] + (["health"] if h.has_perm("people.view_health") else [])

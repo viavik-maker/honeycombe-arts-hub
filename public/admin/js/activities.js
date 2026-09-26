@@ -305,7 +305,9 @@ const GROUPS = [
     ["ofsted_urn", "text", "Ofsted URN"], ["bank_name", "text", "Bank name"], ["bank_sort_code", "text", "Sort code"],
     ["bank_account_number", "text", "Account number"], ["invoice_footer", "area", "Footer"], ["invoice_prefix", "text", "Invoice number prefix"],
     ["credit_note_prefix", "text", "Credit note prefix"]]],
-  ["Notifications", [["dsl_notify_emails", "list", "Safeguarding lead email(s)"], ["finance_notify_emails", "list", "Finance email(s)"]]],
+  ["Notifications", [["dsl_notify_emails", "list", "Safeguarding lead email(s)"], ["finance_notify_emails", "list", "Finance email(s)"],
+    ["send_notify_emails", "list", "SEND lead email(s) — told when a support request arrives (no details in the email)"],
+    ["send_response_days", "int", "SEND lead gets in touch within (working days)"]]],
 ];
 
 A.addTab({

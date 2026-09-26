@@ -186,6 +186,9 @@ def export_account(c, a):
                                          " guest_contacts g ON g.id=b.guest_contact_id JOIN activity_sessions s ON"
                                          " s.id=b.session_id JOIN activities act ON act.id=b.activity_id WHERE g.email=?",
                                       (a["email"],))
+    from . import send_support
+    out["send_support_requests"] = [send_support.intake_json(c, it) for it in c.execute(
+        "SELECT * FROM send_intakes WHERE account_id=?", (aid,)).fetchall()]
     out["exported_at"] = db.now()
     return out
 
@@ -196,9 +199,11 @@ def export_account(c, a):
 def erase_account(c, aid, h=None):
     """Remove a family's personal data, keeping only what must be kept.
     Returns what was kept and why."""
+    from . import send_support
     kept = []
     now = db.now()
     a = c.execute("SELECT * FROM accounts WHERE id=?", (aid,)).fetchone()
+    send_support.erase_for_account(c, aid)
     for p in c.execute("SELECT * FROM participants WHERE account_id=?", (aid,)).fetchall():
         pid = p["id"]
         accident = c.execute("SELECT 1 FROM incident_people WHERE participant_id=?", (pid,)).fetchone()

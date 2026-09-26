@@ -1,0 +1,4 @@
+Subject: New SEND support request
+A family has sent a SEND support request. Sign in to the admin to read it (SEND support): {{admin_url}}
+
+(For privacy, the details aren't included in this email.)

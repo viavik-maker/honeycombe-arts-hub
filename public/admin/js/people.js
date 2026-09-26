@@ -176,6 +176,7 @@ async function childRecord(root, ref, back, open, tab) {
       <tr><th>Photos</th><td>${esc(p.photo || "not answered")}</td></tr>
       <tr><th>Permissions</th><td>${esc(Object.entries(d.consents).map(([k, v]) => k.replace("_", " ") + ": " + v).join(" · ") || "—")}</td></tr>
       <tr><th>Collection</th><td>${p.has_collection_password ? "Password set" : "No password"}${p.collection_alert ? `<br><strong class="bad">Alert:</strong> ${esc(p.collection_alert)}` : ""}</td></tr>
+      ${p.support_plan ? `<tr><th>Support plan</th><td style="white-space:pre-line">${esc(p.support_plan)}</td></tr>` : ""}
       ${p.haf ? `<tr><th>HAF</th><td>${esc(p.haf.replace("_", " "))}</td></tr>` : ""}
       ${d.attended != null ? `<tr><th>Sessions attended</th><td>${d.attended}</td></tr>` : ""}</tbody></table>
       ${d.bookings ? `<h3>Bookings</h3>${table([{ label: "Date", get: b => esc(day(b.date)) }, { label: "Activity", get: b => esc(b.activity) }, { label: "Status", get: b => esc(b.status_text) }], d.bookings.slice(0, 30), { empty: "None." })}` : ""}

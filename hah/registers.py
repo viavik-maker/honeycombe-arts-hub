@@ -68,7 +68,7 @@ def person_row(c, p, session, show_haf):
         "plasters": _consent(c, acct["id"], p["id"], "plasters"),
         "go_home_alone": alone == "yes" and months // 12 >= booking_settings.get("go_home_alone_min_age", c),
         "collection_alert": p["collection_alert"], "has_collection_password": bool(p["collection_pw_hash"]),
-        "needs_review": bool(p["needs_review"]), "level": p["level"],
+        "needs_review": bool(p["needs_review"]), "level": p["level"], "support_plan": p["support_plan"],
         "haf": p["haf_status"] if show_haf else None,
         "parent": {"name": "%s %s" % (acct["first_name"], acct["last_name"]), "mobile": acct["mobile"]},
         "collectors": [x for x in contacts if x["can_collect"]],

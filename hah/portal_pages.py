@@ -19,6 +19,7 @@ PAGES = {
     "/account/details": ("details", "Your details"),
     "/account/bookings": ("bookings", "My bookings"),
     "/account/privacy": ("privacy", "Your data & messages"),
+    "/send-support": ("send", "Plan your child's support"),
     "/book": ("book", "Book activities"),
     "/book/review": ("book-review", "Your booking"),
     "/book/done": ("book-done", "Booking complete"),
