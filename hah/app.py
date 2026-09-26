@@ -7,7 +7,7 @@ import threading
 from http.server import ThreadingHTTPServer
 
 # importing these modules registers their routes and jobs
-from . import auth, cms, config, db, pages, system  # noqa: F401
+from . import cms, config, db, pages, staff, system  # noqa: F401
 from .content import bootstrap_seed
 from .web import Handler
 from .worker import Worker
@@ -17,7 +17,6 @@ def prepare_data():
     os.makedirs(config.DATA, exist_ok=True)
     os.makedirs(config.UPLOADS, exist_ok=True)
     bootstrap_seed()
-    auth.init_auth()
     applied = db.migrate()
     if applied:
         print("  database: applied migrations %s" % ", ".join("%04d" % v for v in applied))

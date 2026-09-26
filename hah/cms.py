@@ -11,7 +11,7 @@ import time
 from email.parser import BytesParser
 from email.policy import HTTP
 
-from . import auth, config, images, ratelimit
+from . import audit, config, db, images, ratelimit
 from .content import public_content, site_content
 from .mail import try_send_email
 from .markup import csv_safe
@@ -84,48 +84,10 @@ def newsletter(h):
     return h.json({"ok": True, "note": "already subscribed"} if already else {"ok": True})
 
 
-# ---------------------------------------------------------------- staff login
-
-
-@route("POST", "/api/admin/login")
-def login(h):
-    d = h.json_body() or {}
-    ip = h.client_ip()
-    if ratelimit.blocked("admin_login_failure", ip):
-        return h.json({"error": "Too many wrong passwords — please wait 15 minutes and try again."}, 429)
-    time.sleep(0.4)  # soft brute-force throttle
-    if auth.check_password(d.get("password") or ""):
-        tok = auth.new_session()
-        return h.json({"ok": True}, headers={
-            "Set-Cookie": "hah_session=%s; %s; Max-Age=%d" % (tok, h.cookie_attrs(), config.SESSION_TTL)})
-    ratelimit.hit("admin_login_failure", ip)
-    return h.json({"error": "Incorrect password"}, 401)
-
-
-@route("POST", "/api/admin/logout")
-def logout(h):
-    tok = h.cookie("hah_session")
-    if tok:
-        auth.drop_session(tok)
-    return h.json({"ok": True}, headers={"Set-Cookie": "hah_session=; %s; Max-Age=0" % h.cookie_attrs()})
-
-
-@route("POST", "/api/admin/password", auth="admin")
-def change_password(h):
-    d = h.json_body() or {}
-    if not auth.check_password(d.get("current") or ""):
-        return h.json({"error": "Current password is incorrect"}, 400)
-    new = d.get("new") or ""
-    if len(new) < 8:
-        return h.json({"error": "New password must be at least 8 characters"}, 400)
-    auth.set_password(new)
-    return h.json({"ok": True})
-
-
 # ---------------------------------------------------------------- staff CMS
 
 
-@route("GET", "/api/admin/overview", auth="admin")
+@route("GET", "/api/admin/overview", auth="staff", perm="site.content")
 def overview(h):
     return h.json({
         "content": site_content(),
@@ -134,8 +96,10 @@ def overview(h):
     })
 
 
-@route("GET", "/api/admin/subscribers.csv", auth="admin")
+@route("GET", "/api/admin/subscribers.csv", auth="staff", perm="site.content")
 def subscribers_csv(h):
+    with db.tx() as c:
+        audit.record(c, h, "newsletter.exported")
     out = io.StringIO()
     w = csv.writer(out, lineterminator="\n")
     w.writerow(["email", "name", "date"])
@@ -146,7 +110,7 @@ def subscribers_csv(h):
                    "Cache-Control": "no-store"})
 
 
-@route("POST", "/api/admin/content", auth="admin", body_limit=4 * 1024 * 1024)
+@route("POST", "/api/admin/content", auth="staff", perm="site.content", body_limit=4 * 1024 * 1024)
 def save_content(h):
     d = h.json_body()
     if not isinstance(d, dict) or "settings" not in d:
@@ -157,10 +121,12 @@ def save_content(h):
     if "pages" in d and not isinstance(d["pages"], dict):
         return h.json({"error": "invalid content: pages"}, 400)
     replace_json("content.json", d, backup="content.backup.json")  # keeps a rolling backup
+    with db.tx() as c:
+        audit.record(c, h, "site.published")
     return h.json({"ok": True})
 
 
-@route("POST", "/api/admin/upload", auth="admin", body_limit=config.MAX_UPLOAD)
+@route("POST", "/api/admin/upload", auth="staff", perm="site.content", body_limit=config.MAX_UPLOAD)
 def upload(h):
     """A photo for the public website. Only real JPEG/PNG/GIF/WebP images are
     accepted (checked from the file's contents, not its name), and location
@@ -192,11 +158,13 @@ def upload(h):
         final = f"{stem}-{secrets.token_hex(4)}{ext}"
         with open(os.path.join(config.UPLOADS, final), "wb") as f:
             f.write(payload)
+        with db.tx() as c:
+            audit.record(c, h, "site.upload", details={"file": final})
         return h.json({"ok": True, "url": f"/uploads/{final}"})
     return h.json({"error": "no file found in upload"}, 400)
 
 
-@route("POST", "/api/admin/messages", auth="admin")
+@route("POST", "/api/admin/messages", auth="staff", perm="site.content")
 def messages(h):
     d = h.json_body() or {}
 
@@ -209,10 +177,14 @@ def messages(h):
             msgs = [msg for msg in msgs if msg["id"] != d.get("id")]
         return msgs
 
-    return h.json({"ok": True, "messages": update_json("messages.json", [], change)})
+    msgs = update_json("messages.json", [], change)
+    if d.get("action") == "delete":
+        with db.tx() as c:
+            audit.record(c, h, "inbox.message_deleted")
+    return h.json({"ok": True, "messages": msgs})
 
 
-@route("POST", "/api/admin/subscribers", auth="admin")
+@route("POST", "/api/admin/subscribers", auth="staff", perm="site.content")
 def subscribers(h):
     d = h.json_body() or {}
 
@@ -221,7 +193,11 @@ def subscribers(h):
             subs = [s for s in subs if s.get("email") != d.get("email")]
         return subs
 
-    return h.json({"ok": True, "subscribers": update_json("subscribers.json", [], change)})
+    subs = update_json("subscribers.json", [], change)
+    if d.get("action") == "delete":
+        with db.tx() as c:
+            audit.record(c, h, "newsletter.subscriber_removed")
+    return h.json({"ok": True, "subscribers": subs})
 
 
 # ---------------------------------------------------------------- CSP reports
@@ -249,7 +225,7 @@ def _printable(text):
     return "".join(ch if ch.isprintable() else "?" for ch in text) or "?"
 
 
-@route("GET", "/api/admin/request-info", auth="admin")
+@route("GET", "/api/admin/request-info", auth="staff", perm="system.view")
 def request_info(h):
     """Shows staff how the server sees their request, to confirm the visitor
     IP used for rate limits is right behind Render's proxies (it should be

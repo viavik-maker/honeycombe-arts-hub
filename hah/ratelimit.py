@@ -7,7 +7,6 @@ from collections import deque
 
 # name: (max events, window in seconds)
 LIMITS = {
-    "admin_login_failure": (10, 15 * 60),
     "public_form": (30, 60 * 60),
     "csp_report": (60, 60 * 60),
 }

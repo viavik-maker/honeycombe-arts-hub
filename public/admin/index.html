@@ -14,14 +14,10 @@
 
   <!-- ============ LOGIN ============ -->
   <div id="loginView" class="login" hidden>
-    <form id="loginForm" class="login__card">
+    <div class="login__card">
       <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="login__logo">
-      <h1>Staff sign in</h1>
-      <p>Welcome back! Enter the team password to manage the website.</p>
-      <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
-      <button class="abtn abtn--primary" type="submit">Sign in</button>
-      <p id="loginErr" class="login__err" hidden></p>
-    </form>
+      <div id="loginStep"></div>
+    </div>
   </div>
 
   <!-- ============ APP ============ -->
@@ -30,17 +26,18 @@
       <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="side__logo">
       <nav class="side__nav" id="sideNav">
         <button data-tab="dashboard" class="active"><span>🏠</span> Dashboard</button>
-        <button data-tab="events"><span>🎟️</span> What’s On</button>
-        <button data-tab="past"><span>📜</span> Past Events</button>
-        <button data-tab="gallery"><span>🖼️</span> Gallery</button>
-        <button data-tab="testimonials"><span>💬</span> Testimonials</button>
-        <button data-tab="mission"><span>🌟</span> Impact &amp; Values</button>
-        <button data-tab="pages"><span>📄</span> Page text</button>
-        <button data-tab="messages"><span>📥</span> Inbox <em id="msgBadge" hidden></em></button>
-        <button data-tab="subscribers"><span>📣</span> Newsletter</button>
-        <button data-tab="settings"><span>⚙️</span> Settings</button>
+        <button data-tab="events" data-perm="site.content"><span>🎟️</span> What’s On</button>
+        <button data-tab="past" data-perm="site.content"><span>📜</span> Past Events</button>
+        <button data-tab="gallery" data-perm="site.content"><span>🖼️</span> Gallery</button>
+        <button data-tab="testimonials" data-perm="site.content"><span>💬</span> Testimonials</button>
+        <button data-tab="mission" data-perm="site.content"><span>🌟</span> Impact &amp; Values</button>
+        <button data-tab="pages" data-perm="site.content"><span>📄</span> Page text</button>
+        <button data-tab="messages" data-perm="site.content"><span>📥</span> Inbox <em id="msgBadge" hidden></em></button>
+        <button data-tab="subscribers" data-perm="site.content"><span>📣</span> Newsletter</button>
+        <button data-tab="settings" data-perm="site.content"><span>⚙️</span> Settings</button>
       </nav>
       <div class="side__foot">
+        <span id="whoAmI" class="side__who"></span>
         <a href="/" target="_blank" rel="noopener">↗ View live site</a>
         <button id="logoutBtn">Sign out</button>
       </div>
@@ -69,5 +66,6 @@
   <div id="toast" class="toast" hidden></div>
 
   <script src="/admin/admin.js"></script>
+  <script type="module" src="/admin/js/account.js"></script>
 </body>
 </html>

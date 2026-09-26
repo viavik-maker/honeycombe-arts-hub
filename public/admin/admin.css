@@ -206,3 +206,30 @@ img { max-width: 100%; }
   .item { grid-template-columns: 64px 1fr; }
   .item__actions { grid-column: 1 / -1; }
 }
+
+/* ---------- sign-in steps ---------- */
+.login__card #loginStep { text-align: left; }
+.login__card #loginStep h1, .login__card #loginStep > p { text-align: center; }
+.login__steps { padding-left: 1.2em; color: var(--ink); line-height: 1.6; margin: 0 0 1.2em; }
+.login__steps li { margin-bottom: .4em; }
+.login__key { display: inline-block; background: var(--cream); border-radius: 8px; padding: .15em .5em; font-size: 1.02rem; letter-spacing: .04em; word-break: break-all; }
+.login__codes { background: var(--cream); border-radius: 12px; padding: 1em 1.2em; font-size: 1.1rem; line-height: 1.7; text-align: center; margin: 0 0 1.2em; }
+.side__who { display: block; color: #fff; font-weight: 800; margin-bottom: .4em; }
+
+/* ---------- shared bits for the booking back office ---------- */
+.table-wrap { overflow-x: auto; margin: 0 0 1em; }
+.table td.nowrap, .table th.nowrap, .nowrap { white-space: nowrap; }
+.chip { display: inline-block; border-radius: 999px; padding: .1em .65em; font-size: .82rem; font-weight: 800; white-space: nowrap; }
+.chip--ok { background: #e4f2dc; color: #2f5a1d; }
+.chip--warn { background: #fdf0d2; color: #7a5304; }
+.chip--bad { background: #fbe3dc; color: #962f12; }
+.chip--info { background: #e2e8f7; color: #2e3960; }
+.chip--muted { background: #eeeae2; color: #555a6e; }
+.linkbox { width: 100%; font-family: monospace; }
+dialog.dlg { border: 0; border-radius: 18px; padding: 1.6rem; max-width: min(520px, 94vw); box-shadow: 0 20px 60px rgba(0,0,0,.25); }
+dialog.dlg::backdrop { background: rgba(35, 43, 73, .45); }
+dialog.dlg h2 { margin-top: 0; }
+.dlg__btns { display: flex; justify-content: flex-end; gap: .6em; margin-top: 1.2em; }
+.dlg__err { color: var(--red); font-weight: 800; }
+.dlg .fcheck { display: flex; margin: .35em 0; }
+input[type=date], input[type=time], input[type=tel], input[type=search], select, textarea { font: inherit; }

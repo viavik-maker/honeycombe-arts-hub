@@ -14,45 +14,28 @@ class AdminAuthTest(ServerTestCase):
         c = self.client()
         self.assertEqual(c.get("/api/admin/overview").status, 401)
         self.assertEqual(c.get("/api/admin/subscribers.csv").status, 401)
-        for path in ("/api/admin/content", "/api/admin/upload", "/api/admin/password",
+        for path in ("/api/admin/content", "/api/admin/upload",
                      "/api/admin/messages", "/api/admin/subscribers"):
             with self.subTest(path=path):
                 self.assertEqual(c.post_json(path, {}).status, 401)
 
-    def test_wrong_password_is_rejected(self):
-        c = self.client()
-        r = c.login_admin("not-the-password")
-        self.assertEqual(r.status, 401)
-        self.assertFalse(c.cookies)
-
-    def test_login_sets_session_cookie_and_logout_clears_it(self):
-        c = self.client()
-        r = c.login_admin()
-        self.assertEqual(r.status, 200)
-        cookie = r.header("Set-Cookie")
-        self.assertIn("hah_session=", cookie)
-        self.assertIn("HttpOnly", cookie)
-        self.assertIn("SameSite=Lax", cookie)
-        overview = c.get("/api/admin/overview")
+    def test_overview_for_signed_in_staff(self):
+        overview = self.admin().get("/api/admin/overview")
         self.assertEqual(overview.status, 200)
         data = overview.json()
         self.assertEqual(set(data), {"content", "messages", "subscribers"})
         self.assertIn("smtp", data["content"]["settings"])  # admins can see/edit SMTP
-        self.assertEqual(c.post_json("/api/admin/logout", {}).status, 200)
-        self.assertEqual(c.get("/api/admin/overview").status, 401)
+
+    def test_website_editing_needs_the_right_role(self):
+        c = self.admin(roles=("session_staff",))
+        self.assertEqual(c.get("/api/admin/overview").status, 403)
+        self.assertEqual(c.post_json("/api/admin/content", {}).status, 403)
 
     def test_cross_origin_post_is_refused(self):
         c = self.client()
-        r = c.post_json("/api/admin/login", {"password": "x"},
+        r = c.post_json("/api/staff/login", {"email": "x@example.org", "password": "x"},
                         headers={"Origin": "https://evil.example"})
         self.assertEqual(r.status, 403)
-
-    def test_password_change_validation(self):
-        c = self.admin()
-        r = c.post_json("/api/admin/password", {"current": "wrong", "new": "long-enough-1"})
-        self.assertEqual(r.status, 400)
-        r = c.post_json("/api/admin/password", {"current": "test-admin-password", "new": "short"})
-        self.assertEqual(r.status, 400)
 
 
 class AdminContentTest(ServerTestCase):

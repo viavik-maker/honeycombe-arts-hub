@@ -6,6 +6,8 @@
   const esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
 
+  let me = null;               // signed-in staff member: {staff, perms, csrf, ...}
+  let perms = new Set();
   let content = null;          // editable copy
   let saved = null;            // last-saved snapshot (JSON string)
   let messages = [], subscribers = [];
@@ -13,15 +15,19 @@
 
   /* ---------------- api ---------------- */
   async function api(path, opts) {
+    opts = opts || {};
+    if (opts.method && opts.method !== "GET" && me) {
+      opts.headers = Object.assign({ "X-CSRF-Token": me.csrf }, opts.headers || {});
+    }
     const r = await fetch(path, opts);
     const d = await r.json().catch(() => ({}));
-    if (r.status === 401) { showLogin(); throw new Error("unauthorised"); }
-    if (!r.ok) throw new Error(d.error || "Request failed");
+    if (r.status === 401 && !opts.quiet401) { showLogin(); throw new Error("Please sign in again"); }
+    if (!r.ok) { const e = new Error(d.error || "Request failed"); e.status = r.status; e.data = d; throw e; }
     return d;
   }
-  const post = (path, body) => api(path, {
+  const post = (path, body, extra) => api(path, Object.assign({
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
-  });
+  }, extra || {}));
 
   function toast(msg, err) {
     const t = $("#toast");
@@ -29,31 +35,158 @@
     clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 2600);
   }
 
-  /* ---------------- auth flow ---------------- */
-  function showLogin() { $("#loginView").hidden = false; $("#appView").hidden = true; }
+  /* ---------------- sign-in (step by step) ----------------
+     setup (first owner) · password · 2FA code · 2FA set-up · recovery codes · invite links */
+  function showLogin() {
+    me = null; perms = new Set();
+    $("#loginView").hidden = false; $("#appView").hidden = true;
+    const m = location.hash.match(/^#(invite|reset)=([\w-]+)$/);
+    if (m) return stepInvite(m[2]);
+    api("/api/staff/setup", { quiet401: true })
+      .then(st => st.needed ? stepSetup(st.possible) : stepPassword())
+      .catch(() => stepPassword());
+  }
   function showApp() { $("#loginView").hidden = true; $("#appView").hidden = false; }
 
-  $("#loginForm").addEventListener("submit", async (e) => {
-    e.preventDefault();
-    $("#loginErr").hidden = true;
-    try {
-      await post("/api/admin/login", { password: $("#loginPass").value });
-      $("#loginPass").value = "";
-      await boot();
-    } catch (err) {
-      $("#loginErr").textContent = err.message; $("#loginErr").hidden = false;
+  function stepView(html, onSubmit) {
+    const box = $("#loginStep");
+    box.innerHTML = html + `<p class="login__err" hidden></p>`;
+    const form = $("form", box);
+    if (form) form.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const err = $(".login__err", box); err.hidden = true;
+      const btn = $("button[type=submit]", form); btn.disabled = true;
+      try { await onSubmit(form); }
+      catch (x) { err.textContent = x.message; err.hidden = false; }
+      finally { btn.disabled = false; }
+    });
+    const first = $("input", box); if (first) first.focus();
+  }
+  // after any step the server says what comes next
+  async function next(d) {
+    if (d.csrf) me = Object.assign(me || {}, { csrf: d.csrf });
+    if (d.step === "totp") return stepCode();
+    if (d.step === "enrol") return stepEnrol();
+    if (d.recovery_codes) return stepRecovery(d.recovery_codes);
+    if (d.recovery_codes_left != null) toast(`Recovery code used — ${d.recovery_codes_left} left`);
+    history.replaceState(null, "", location.pathname);
+    return boot();
+  }
+
+  function stepPassword() {
+    stepView(`<h1>Staff sign in</h1>
+      <p>Sign in with your own email and password.</p>
+      <form><input type="email" name="email" placeholder="Email" autocomplete="username" required>
+        <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+        <button class="abtn abtn--primary" type="submit">Sign in</button></form>`,
+      async (f) => next(await post("/api/staff/login", { email: f.email.value, password: f.password.value }, { quiet401: true })));
+  }
+
+  function stepCode() {
+    stepView(`<h1>Enter your code</h1>
+      <p>Open your authenticator app and type the 6-digit code for Honeycombe Arts Hub. Lost your phone? Use one of your recovery codes.</p>
+      <form><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+        <button class="abtn abtn--primary" type="submit">Continue</button></form>`,
+      async (f) => next(await post("/api/staff/totp/verify", { code: f.code.value }, { quiet401: true })));
+  }
+
+  async function stepEnrol() {
+    const e = await api("/api/staff/totp/enrol", { quiet401: true });
+    const grouped = e.secret.replace(/(.{4})/g, "$1 ").trim();
+    stepView(`<h1>Set up two-step sign-in</h1>
+      <p>Because the booking system holds children's details, every staff account uses a code from an
+        authenticator app (Google or Microsoft Authenticator, 1Password…) as well as a password.</p>
+      <ol class="login__steps">
+        <li>In the app, choose <em>Add account → Enter a setup key</em>${/Android|iPhone|iPad/.test(navigator.userAgent) ? ` (or <a href="${esc(e.uri)}">tap here</a>)` : ""}.</li>
+        <li>Account: <strong>Honeycombe Arts Hub</strong>. Key: <code class="login__key">${esc(grouped)}</code> (time-based).</li>
+        <li>Type the 6-digit code the app shows:</li>
+      </ol>
+      <form><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+        <button class="abtn abtn--primary" type="submit">Turn on two-step sign-in</button></form>`,
+      async (f) => next(await post("/api/staff/totp/enrol", { code: f.code.value }, { quiet401: true })));
+  }
+
+  function stepRecovery(codes) {
+    stepView(`<h1>Save your recovery codes</h1>
+      <p>If you lose your phone, each of these lets you sign in once. Print them or save them somewhere safe
+        (not on the same phone). You won't see them again.</p>
+      <pre class="login__codes">${codes.map(esc).join("\n")}</pre>
+      <form><button class="abtn abtn--primary" type="submit">I've saved them — continue</button></form>`,
+      async () => next({}));
+  }
+
+  function stepSetup(possible) {
+    if (!possible) {
+      return stepView(`<h1>Set up the admin</h1><p>No staff accounts exist yet. Ask whoever manages the hosting to set
+        the <code>ADMIN_PASSWORD</code> environment variable, then reload this page.</p>`);
     }
-  });
+    stepView(`<h1>Create the owner account</h1>
+      <p>Staff now sign in with their own accounts. Create yours first — you'll need the current team password.
+        After this, the shared team password stops working.</p>
+      <form><input type="password" name="team" placeholder="Current team password" autocomplete="off" required>
+        <input name="name" placeholder="Your name" autocomplete="name" required>
+        <input type="email" name="email" placeholder="Your email" autocomplete="username" required>
+        <input type="password" name="password" placeholder="New password (10+ characters)" autocomplete="new-password" required minlength="10">
+        <button class="abtn abtn--primary" type="submit">Create owner account</button></form>`,
+      async (f) => next(await post("/api/staff/setup", { team_password: f.team.value, name: f.name.value,
+        email: f.email.value, password: f.password.value }, { quiet401: true })));
+  }
+
+  async function stepInvite(token) {
+    let who;
+    try { who = await post("/api/staff/invite/check", { token }, { quiet401: true }); }
+    catch (e) {
+      history.replaceState(null, "", location.pathname);
+      stepView(`<h1>Link not valid</h1><p>${esc(e.message)}</p>`);
+      return;
+    }
+    stepView(`<h1>${who.purpose === "staff_reset" ? "Choose a new password" : "Welcome, " + esc(who.name) + "!"}</h1>
+      <p>Choose a password for <strong>${esc(who.email)}</strong> — at least 10 characters (three random words works well).</p>
+      <form><input type="password" name="password" placeholder="New password" autocomplete="new-password" required minlength="10">
+        <button class="abtn abtn--primary" type="submit">Continue</button></form>`,
+      async (f) => next(await post("/api/staff/invite/accept", { token, password: f.password.value }, { quiet401: true })));
+  }
+
   $("#logoutBtn").addEventListener("click", async () => {
-    await post("/api/admin/logout", {}); showLogin();
+    try { await post("/api/staff/logout", {}); } catch (_) { /* signed out either way */ }
+    showLogin();
   });
 
   async function boot() {
-    const d = await api("/api/admin/overview");
-    content = d.content; messages = d.messages; subscribers = d.subscribers;
-    saved = JSON.stringify(content);
-    showApp(); renderAll();
+    me = await api("/api/staff/me", { quiet401: true });
+    if (!me.mfa_passed) throw new Error("two-factor check needed");
+    perms = new Set(me.perms);
+    $("#whoAmI").textContent = me.staff.name;
+    $$("#sideNav button[data-perm]").forEach(b => b.hidden = !perms.has(b.dataset.perm));
+    if (perms.has("site.content")) {
+      const d = await api("/api/admin/overview");
+      content = d.content; messages = d.messages; subscribers = d.subscribers;
+      saved = JSON.stringify(content);
+    }
+    showApp();
+    renderAll();
+    document.dispatchEvent(new CustomEvent("hah:ready", { detail: me }));
   }
+
+  /* ---------------- bridge for the ES-module areas (public/admin/js/*.js) ---------------- */
+  const moduleTabs = {};
+  window.HAHAdmin = {
+    api, post, toast, esc, $, $$,
+    me: () => me,
+    can: (p) => perms.has(p),
+    /* addTab({id, label, icon, perm, render(root)}) — a new sidebar area, rendered when opened */
+    addTab(t) {
+      moduleTabs[t.id] = t;
+      const b = document.createElement("button");
+      b.dataset.tab = t.id;
+      if (t.perm) { b.dataset.perm = t.perm; b.hidden = !perms.has(t.perm); }
+      b.innerHTML = `<span>${t.icon}</span> ${esc(t.label)}`;
+      $("#sideNav").appendChild(b);
+      const panel = document.createElement("div");
+      panel.id = "tab-" + t.id; panel.className = "tab"; panel.hidden = true;
+      $("main.panel").appendChild(panel);
+    },
+  };
 
   /* ---------------- dirty tracking ---------------- */
   function dirty() {
@@ -80,6 +213,8 @@
     const b = e.target.closest("button"); if (!b) return;
     $$("#sideNav button").forEach(x => x.classList.toggle("active", x === b));
     $$(".tab").forEach(t => t.hidden = t.id !== "tab-" + b.dataset.tab);
+    const mt = moduleTabs[b.dataset.tab];
+    if (mt) Promise.resolve(mt.render($("#tab-" + mt.id))).catch(err => toast(err.message, true));
   });
 
   /* ---------------- upload helper ---------------- */
@@ -92,7 +227,7 @@
       if (!inp.files[0]) return;
       const fd = new FormData(); fd.append("file", inp.files[0]);
       try {
-        const r = await fetch("/api/admin/upload", { method: "POST", body: fd });
+        const r = await fetch("/api/admin/upload", { method: "POST", body: fd, headers: { "X-CSRF-Token": me.csrf } });
         const d = await r.json();
         if (!r.ok) throw new Error(d.error || "Upload failed");
         onDone(d.url); toast("Image uploaded 📷");
@@ -118,9 +253,14 @@
      DASHBOARD
   ================================================================ */
   function renderDashboard() {
+    if (!content) {
+      $("#tab-dashboard").innerHTML = `<h1>Hello, ${esc(me.staff.name)}! 👋</h1>
+        <p class="sub">Choose an area from the menu on the left.</p>`;
+      return;
+    }
     const unread = messages.filter(m => !m.read).length;
     $("#tab-dashboard").innerHTML = `
-      <h1>Hello, Hub team! 👋</h1>
+      <h1>Hello, ${esc(me.staff.name)}! 👋</h1>
       <p class="sub">Here's how the website is looking today.</p>
       <div class="statgrid">
         <div class="stat"><strong>${content.events.length}</strong><span>events on What's On</span></div>
@@ -812,14 +952,6 @@
         <div class="fgroup"><label>Send notifications to</label><input type="email" data-smtp="notifyTo" value="${esc(s.smtp.notifyTo)}"></div>
       </div>
 
-      <div class="acard"><h2>Change admin password</h2>
-        <div class="frow">
-          <div class="fgroup"><label>Current password</label><input type="password" id="pwCur" autocomplete="current-password"></div>
-          <div class="fgroup"><label>New password (8+ characters)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
-        </div>
-        <button class="abtn abtn--primary" id="pwBtn">Change password</button>
-      </div>
-
       <div class="acard"><h2>System &amp; backups</h2>
         <div id="sysBody"><p class="fhint">Checking…</p></div>
         <button class="abtn abtn--ghost abtn--sm" id="backupBtn" style="margin-top:.8em">Back up now</button>
@@ -843,13 +975,6 @@
       } catch (e) { toast(e.message, true); }
     });
     loadSystem();
-    $("#pwBtn", root).addEventListener("click", async () => {
-      try {
-        await post("/api/admin/password", { current: $("#pwCur").value, new: $("#pwNew").value });
-        $("#pwCur").value = ""; $("#pwNew").value = "";
-        toast("Password changed 🔒");
-      } catch (e) { toast(e.message, true); }
-    });
   }
 
   /* System & backups card (Settings): read-only status from the server */
@@ -881,7 +1006,9 @@
 
   /* ---------------- render all ---------------- */
   function renderAll() {
-    renderDashboard(); renderEvents(); renderPast(); renderGallery();
+    renderDashboard();
+    if (!content) return;  // no website-editing permission: the CMS tabs are hidden
+    renderEvents(); renderPast(); renderGallery();
     renderTestimonials(); renderMission(); renderPages();
     renderMessages(); renderSubscribers(); renderSettings();
   }

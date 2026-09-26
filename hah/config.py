@@ -9,11 +9,12 @@ UPLOADS = os.path.join(DATA, "uploads")  # all editable state lives under data/
 SEED = os.path.join(ROOT, "seed")  # bundled defaults, copied into DATA on first boot
 PARTIALS = os.path.join(ROOT, "partials")
 
-# Initial admin password for the very first login. Set ADMIN_PASSWORD in the
-# host environment (e.g. a Render secret) so it is never committed to the repo.
-# Only used to seed auth.json on first run; change it in the CMS afterwards.
-DEFAULT_PASSWORD = os.environ.get("ADMIN_PASSWORD", "honeycomb2026")
-SESSION_TTL = 60 * 60 * 24 * 7  # 7 days
+# On a brand-new install (no staff accounts, no data/auth.json), whoever sets
+# up the first owner account must know this. Set it as a Render secret; it's
+# never stored in the repo and there is no default.
+ADMIN_PASSWORD = os.environ.get("ADMIN_PASSWORD", "")
+STAFF_SESSION_HOURS = 12      # staff are signed out after this long regardless
+STAFF_IDLE_MINUTES = 60       # ... or after this long without using the admin
 MAX_UPLOAD = 15 * 1024 * 1024
 BODY_LIMIT = 64 * 1024  # default request-body cap; routes that need more say so
 

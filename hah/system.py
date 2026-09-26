@@ -45,7 +45,7 @@ def backup_stale(jobs, now=None):
     return now - finished > datetime.timedelta(hours=26)
 
 
-@route("GET", "/api/admin/system-status", auth="admin")
+@route("GET", "/api/admin/system-status", auth="staff", perm="system.view")
 def system_status(h):
     jobs = worker.status()
     local = []
@@ -64,7 +64,7 @@ def system_status(h):
     })
 
 
-@route("POST", "/api/admin/backup-now", auth="admin")
+@route("POST", "/api/admin/backup-now", auth="staff", perm="system.view")
 def backup_now(h):
     if WORKER is None:
         return h.json({"error": "The background worker isn't running on this server."}, 503)

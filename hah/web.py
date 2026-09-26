@@ -6,6 +6,7 @@ GET route doesn't claim falls through to the static-file handler.
 
 Every response carries the security headers below; HTML pages also get a
 Content-Security-Policy with a per-request nonce (see csp())."""
+import hmac
 import json
 import re
 import secrets
@@ -15,16 +16,17 @@ import time
 import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
-from . import auth, config
+from . import config
 
 # ---------------------------------------------------------------- routes
 
 
 class Route:
-    __slots__ = ("method", "regex", "fn", "auth", "body_limit")
+    __slots__ = ("method", "regex", "fn", "auth", "perm", "mfa", "csrf", "body_limit")
 
-    def __init__(self, method, regex, fn, auth, body_limit):
-        self.method, self.regex, self.fn, self.auth, self.body_limit = method, regex, fn, auth, body_limit
+    def __init__(self, method, regex, fn, auth, perm, mfa, csrf, body_limit):
+        self.method, self.regex, self.fn = method, regex, fn
+        self.auth, self.perm, self.mfa, self.csrf, self.body_limit = auth, perm, mfa, csrf, body_limit
 
 
 ROUTES = []
@@ -42,14 +44,33 @@ def compile_pattern(pattern):
     return re.compile("^%s$" % "".join(out))
 
 
-def route(method, pattern, *, auth=None, body_limit=None):
+def route(method, pattern, *, auth=None, perm=None, mfa=True, csrf=True, body_limit=None):
     """Register fn(handler, **params) for METHOD pattern.
 
-    auth="admin" needs a staff login; body_limit caps the request body in
-    bytes (default config.BODY_LIMIT)."""
+    auth:  None (public), "staff" or "account" — who must be signed in.
+    perm:  for staff routes, the permission needed (see permissions.py).
+    mfa:   staff routes need two-factor done, except the 2FA steps themselves.
+    csrf:  signed-in POSTs must carry the session's X-CSRF-Token and a
+           same-site Origin header.
+    body_limit: request-body cap in bytes (default config.BODY_LIMIT)."""
+    if perm and auth != "staff":
+        raise ValueError("perm= needs auth='staff'")
+
     def register(fn):
-        ROUTES.append(Route(method, compile_pattern(pattern), fn, auth,
+        ROUTES.append(Route(method, compile_pattern(pattern), fn, auth, perm, mfa, csrf,
                             body_limit or config.BODY_LIMIT))
+        return fn
+    return register
+
+
+# auth kind -> fn(handler) returning the signed-in principal (a dict with at
+# least "csrf"; staff also "perms" and "mfa_passed") or None
+AUTHENTICATORS = {}
+
+
+def authenticator(kind):
+    def register(fn):
+        AUTHENTICATORS[kind] = fn
         return fn
     return register
 
@@ -235,20 +256,53 @@ class Handler(BaseHTTPRequestHandler):
                 return v
         return None
 
-    def cookie_attrs(self):
+    def cookie_attrs(self, samesite="Lax"):
         """Attributes every session cookie gets (Secure once we're on HTTPS)."""
-        return "Path=/; HttpOnly; SameSite=Lax" + ("; Secure" if self.is_https() else "")
+        return "Path=/; HttpOnly; SameSite=%s" % samesite + ("; Secure" if self.is_https() else "")
 
-    def is_admin(self):
-        tok = self.cookie("hah_session")
-        return bool(tok and tok in auth.sessions())
+    def principal(self, kind):
+        """Who is signed in as KIND ("staff"/"account") on this request, or None."""
+        cache = self.__dict__.setdefault("_principals", {})
+        if kind not in cache:
+            fn = AUTHENTICATORS.get(kind)
+            cache[kind] = fn(self) if fn else None
+        return cache[kind]
 
-    def same_origin(self):
+    def staff(self):
+        return self.principal("staff")
+
+    def has_perm(self, perm):
+        s = self.staff()
+        return bool(s and s["mfa_passed"] and perm in s["perms"])
+
+    def same_origin(self, required=False):
         origin = self.headers.get("Origin")
         if not origin:
-            return True
+            return not required
         host = self.headers.get("Host") or ""
         return urllib.parse.urlparse(origin).netloc == host
+
+    def _allowed(self, r):
+        """True if the request may go ahead. Otherwise the refusal has been
+        sent and the route must NOT run."""
+        if not r.auth:
+            return True
+        who = self.principal(r.auth)
+        if who is None:
+            self.json({"error": "unauthorised"}, 401)
+            return False
+        if r.auth == "staff" and r.mfa and not who.get("mfa_passed"):
+            self.json({"error": "two-factor check needed", "step": "totp"}, 401)
+            return False
+        if r.perm and r.perm not in who.get("perms", ()):
+            self.json({"error": "You don't have permission to do that."}, 403)
+            return False
+        if self.command == "POST" and r.csrf:
+            token = self.headers.get("X-CSRF-Token") or ""
+            if not self.same_origin(required=True) or not hmac.compare_digest(token, who.get("csrf") or "-"):
+                self.json({"error": "This page is out of date — please reload it and try again."}, 403)
+                return False
+        return True
 
     def new_nonce(self):
         return secrets.token_urlsafe(16)
@@ -268,11 +322,12 @@ class Handler(BaseHTTPRequestHandler):
         path = urllib.parse.unquote(path)
         if path != "/" and path.endswith("/"):
             path = path.rstrip("/")
+        self._principals = {}
         r, params = match("GET", path)
         if r is None:
             return _get_fallback(self, path)
-        if r.auth == "admin" and not self.is_admin():
-            return self.json({"error": "unauthorised"}, 401)
+        if not self._allowed(r):
+            return
         return r.fn(self, **params)
 
     def do_HEAD(self):
@@ -282,14 +337,16 @@ class Handler(BaseHTTPRequestHandler):
         if not self.same_origin():
             return self.json({"error": "bad origin"}, 403)
         path = urllib.parse.urlparse(self.path).path
+        self._principals = {}
         try:
             r, params = match("POST", path)
-            if r is None or r.auth == "admin":
-                # unknown paths answer like protected ones until you're logged in
-                if not self.is_admin():
+            if r is None:
+                # unknown paths answer like protected ones until you're signed in
+                if self.staff() is None:
                     return self.json({"error": "unauthorised"}, 401)
-                if r is None:
-                    return self.json({"error": "not found"}, 404)
+                return self.json({"error": "not found"}, 404)
+            if not self._allowed(r):
+                return
             self.body_limit = r.body_limit
             return r.fn(self, **params)
         except ValueError as e:

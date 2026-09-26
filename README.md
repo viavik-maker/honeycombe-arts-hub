@@ -19,8 +19,25 @@ Then open:
 | Public website | http://localhost:8000 |
 | Staff admin (CMS) | http://localhost:8000/admin |
 
-**Default admin password: `honeycomb2026`** — change it on the admin → Settings tab
-as soon as you log in.
+## Staff sign-in
+
+Every staff member has their **own account** (email + password) and signs in
+with a 6-digit code from an authenticator app as well (Google or Microsoft
+Authenticator, 1Password…), because the booking system holds children's
+details. What each person can see and do depends on their roles (Owner,
+Administrator, Manager, Session staff, Designated Safeguarding Lead, SEND
+lead, Finance) — manage them in the admin's **Staff** tab. Every sign-in and
+change is recorded in the **Audit log**.
+
+**First time (upgrading from the shared team password):** open `/admin` and
+create the owner account. You'll be asked for the current team password once;
+after that the shared password stops working. (On a brand-new install there
+is no team password: set `ADMIN_PASSWORD` in the host's environment first.
+The old published default password is never accepted.)
+
+**Adding staff:** Staff → *Invite a staff member* gives you a one-time link to
+send them. **Lost phone or forgotten password:** an administrator uses *Reset
+password & 2FA* to send a new link. Keep your recovery codes somewhere safe.
 
 ## What staff can edit in the admin
 
@@ -35,7 +52,9 @@ as soon as you log in.
 - **Inbox** — messages sent from the contact form (reply by email in one click)
 - **Newsletter** — subscriber list, CSV download, copy-all-emails
 - **Settings** — announcement bar, contact details, booking/donate/social links,
-  charity numbers, optional email notifications, admin password
+  charity numbers, optional email notifications, system & backups
+- **My account** — your password, signing out other devices
+- **Staff** and **Audit log** — for owners and administrators
 
 In the Get Involved text boxes, a blank line starts a new paragraph,
 `**stars**` make words bold and `[label](https://…)` makes a link — everything
@@ -89,8 +108,8 @@ Recommended: **Render.com** (a `render.yaml` blueprint is included):
 3. In the service's *Settings → Custom Domains*, add `honeycombeartshub.org.uk`
    and `www.honeycombeartshub.org.uk`, then add the DNS records Render shows
    you at your domain registrar. HTTPS is automatic.
-4. Open `https://honeycombeartshub.org.uk/admin`, log in, and immediately
-   change the password in Settings.
+4. Set `ADMIN_PASSWORD` in the service's *Environment*, then open
+   `https://honeycombeartshub.org.uk/admin` and create the owner account.
 
 Every merge to `main` deploys automatically. Render does this itself when
 Auto-Deploy is on; the included `.github/workflows/deploy.yml` can do it

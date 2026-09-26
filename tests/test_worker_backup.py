@@ -109,7 +109,7 @@ class LocalBackupTest(ServerTestCase):
         self.assertEqual(oct(os.stat(path).st_mode & 0o777), "0o600")
         with tarfile.open(path) as tar:
             names = set(tar.getnames())
-            self.assertTrue({"booking.db", "content.json", "auth.json", "uploads/pic.png"} <= names)
+            self.assertTrue({"booking.db", "content.json", "uploads/pic.png"} <= names)
             out = tempfile.mkdtemp()
             try:
                 tar.extract("booking.db", out)

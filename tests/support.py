@@ -24,10 +24,16 @@ atexit.register(shutil.rmtree, DATA_DIR, ignore_errors=True)
 # must be set before the app is imported: it reads them at import time
 os.environ["HAH_DATA_DIR"] = DATA_DIR
 os.environ["ADMIN_PASSWORD"] = ADMIN_PASSWORD = "test-admin-password"
+os.environ["HAH_PBKDF2_ITERATIONS"] = "1000"  # real hashing is deliberately slow
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from hah import app, ratelimit, web  # noqa: E402
+import itertools  # noqa: E402
+
+from hah import app, db, ratelimit, security, web  # noqa: E402
+from hah import config  # noqa: E402
+
+assert config.DATA == DATA_DIR, "the app was imported before tests.support set HAH_DATA_DIR"
 
 web.Handler.log_message = lambda *args: None  # keep test output readable
 _httpd = None
@@ -79,6 +85,7 @@ class Client:
     def __init__(self):
         self.host, self.port = address()
         self.cookies = {}
+        self.csrf = None
 
     @property
     def origin(self):
@@ -90,6 +97,8 @@ class Client:
             h["Cookie"] = "; ".join("%s=%s" % kv for kv in self.cookies.items())
         if origin and method == "POST" and "Origin" not in h:
             h["Origin"] = self.origin
+        if method == "POST" and self.csrf and "X-CSRF-Token" not in h:
+            h["X-CSRF-Token"] = self.csrf
         conn = http.client.HTTPConnection(self.host, self.port, timeout=10)
         try:
             conn.request(method, path, body=body, headers=h)
@@ -121,8 +130,48 @@ class Client:
         return self.request("POST", path, body,
                             headers={"Content-Type": "multipart/form-data; boundary=" + boundary})
 
-    def login_admin(self, password=ADMIN_PASSWORD):
-        return self.post_json("/api/admin/login", {"password": password})
+    def sign_in(self, email, password, totp_secret=None):
+        """Staff sign-in: password, then the 2FA code if asked. Returns the
+        last response; on success the client holds the session and CSRF token."""
+        r = self.post_json("/api/staff/login", {"email": email, "password": password})
+        if r.status == 200:
+            self.csrf = r.json()["csrf"]
+            if r.json().get("step") == "totp":
+                r = self.post_json("/api/staff/totp/verify", {"code": next_code(totp_secret)})
+                if r.status == 200:
+                    self.csrf = r.json()["csrf"]
+        return r
+
+
+_codes_used = {}
+
+
+def next_code(secret):
+    """A valid TOTP code for SECRET that hasn't been used yet in this run
+    (the server refuses to accept the same code twice)."""
+    import time
+    step = max(int(time.time() // 30) - 1, _codes_used.get(secret, -1) + 1)
+    _codes_used[secret] = step
+    return security.hotp(security._b32decode(secret), step)
+
+
+_staff_ids = itertools.count(1)
+STAFF_PASSWORD = "correct horse battery staple"
+
+
+def make_staff(roles=("owner",), email=None, name=None, password=STAFF_PASSWORD, totp=True, status="active"):
+    """Create a staff account directly in the database. Returns a dict with
+    id, email, password and totp_secret."""
+    n = next(_staff_ids)
+    email = email or "staff%d@example.org" % n
+    secret = security.new_totp_secret() if totp else None
+    with db.tx() as c:
+        cur = c.execute("INSERT INTO staff_users(email, name, password_hash, totp_secret, totp_enabled, status, created_at)"
+                        " VALUES (?,?,?,?,?,?,?)",
+                        (email, name or "Staff %d" % n, security.hash_password(password), secret,
+                         1 if totp else 0, status, db.now()))
+        c.executemany("INSERT INTO staff_roles VALUES (?,?)", [(cur.lastrowid, r) for r in roles])
+    return {"id": cur.lastrowid, "email": email, "password": password, "totp_secret": secret}
 
 
 class ServerTestCase(unittest.TestCase):
@@ -136,8 +185,11 @@ class ServerTestCase(unittest.TestCase):
     def client(self):
         return Client()
 
-    def admin(self):
+    def admin(self, roles=("owner",)):
+        """A client signed in (with 2FA) as a new staff member with ROLES."""
+        u = make_staff(roles)
         c = Client()
-        r = c.login_admin()
+        r = c.sign_in(u["email"], u["password"], u["totp_secret"])
         self.assertEqual(r.status, 200, r.text)
+        c.staff = u
         return c

@@ -43,13 +43,15 @@ class HeadersTest(ServerTestCase):
                 self.assertIsNone(r.header("Strict-Transport-Security"))
 
     def test_hsts_and_secure_cookie_behind_https(self):
+        from tests.support import make_staff
         c = self.client()
         self.assertEqual(c.get("/", headers={"X-Forwarded-Proto": "https"})
                          .header("Strict-Transport-Security"), "max-age=31536000")
-        r = c.post_json("/api/admin/login", {"password": "test-admin-password"},
+        u = make_staff()
+        r = c.post_json("/api/staff/login", {"email": u["email"], "password": u["password"]},
                         headers={"X-Forwarded-Proto": "https"})
         self.assertIn("; Secure", r.header("Set-Cookie"))
-        r = self.client().login_admin()
+        r = self.client().post_json("/api/staff/login", {"email": u["email"], "password": u["password"]})
         self.assertNotIn("Secure", r.header("Set-Cookie"))
 
     def test_pages_carry_a_csp_with_a_fresh_nonce(self):
@@ -118,13 +120,15 @@ class RateLimitTest(ServerTestCase):
     def tearDown(self):
         ratelimit.reset()
 
-    def test_wrong_admin_passwords_are_throttled(self):
+    def test_wrong_staff_passwords_are_throttled(self):
+        from tests.support import make_staff
+        u = make_staff()
         c = self.client()
-        limit = ratelimit.LIMITS["admin_login_failure"][0]
+        limit = ratelimit.LIMITS["staff_login_pair"][0]
         for _ in range(limit):
-            self.assertEqual(c.login_admin("wrong").status, 401)
-        self.assertEqual(c.login_admin("wrong").status, 429)
-        self.assertEqual(c.login_admin().status, 429)  # even the right one, until it cools off
+            self.assertEqual(c.post_json("/api/staff/login", {"email": u["email"], "password": "wrong"}).status, 401)
+        r = c.post_json("/api/staff/login", {"email": u["email"], "password": u["password"]})
+        self.assertEqual(r.status, 429)  # even the right one, until it cools off
 
     def test_public_forms_are_throttled(self):
         old = ratelimit.LIMITS["public_form"]
