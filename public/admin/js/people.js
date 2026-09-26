@@ -96,6 +96,9 @@ async function familyRecord(root, ref, back, open) {
       · joined ${esc(when(a.created_at))} (${esc(a.source)})${a.last_login_at ? " · last signed in " + esc(when(a.last_login_at)) : ""}</p>
     <div class="quicklinks">
       ${can("bookings.manage") ? `<button class="abtn abtn--primary abtn--sm" id="bookFor">Book sessions…</button>` : ""}
+      ${can("messaging.service") ? `<button class="abtn abtn--ghost abtn--sm" id="msgFam">Message</button>` : ""}
+      ${can("gdpr.manage") ? `<a class="abtn abtn--ghost abtn--sm" href="/api/staff/people/accounts/${esc(a.ref)}/export">Download their data (SAR)</a>` : ""}
+      ${can("gdpr.manage") && a.status === "closed" ? `<button class="abtn abtn--ghost abtn--sm" id="restoreFam">Restore account</button>` : ""}
       ${can("people.edit") ? `<button class="abtn abtn--ghost abtn--sm" id="editFam">Edit</button>` : ""}
       ${can("people.edit") && a.status === "pending_activation" && a.email ? `<button class="abtn abtn--ghost abtn--sm" id="actFam">Resend activation email</button>` : ""}
       ${can("finance.manage") ? `<button class="abtn abtn--ghost abtn--sm" id="plFam">${a.pay_later_allowed ? "Stop" : "Allow"} pay later</button>` : ""}
@@ -126,6 +129,8 @@ async function familyRecord(root, ref, back, open) {
   const reload = () => familyRecord(root, ref, back, open);
   const on = (id, fn) => { const el = $(id, root); if (el) el.onclick = () => fn().catch(x => toast(x.message, true)); };
   on("#bookFor", () => bookForFamily(a.ref, d.participants).then(r => r && reload()));
+  on("#msgFam", async () => A.openTab("messages2", { audience: { type: "accounts", refs: [a.ref] } }));
+  on("#restoreFam", async () => { await post(`/api/staff/people/accounts/${a.ref}/restore`, {}); toast("Restored"); reload(); });
   on("#editFam", async () => {
     const r = await modal("Edit family", `<div class="frow"><div class="fgroup"><label>First name</label><input type="text" name="first_name" value="${esc(a.first_name)}"></div>
       <div class="fgroup"><label>Last name</label><input type="text" name="last_name" value="${esc(a.last_name)}"></div></div>

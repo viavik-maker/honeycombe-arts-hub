@@ -261,3 +261,4 @@ dialog.dlg.dlg--wide { width: min(760px, 94vw); max-width: 94vw; }
 .ok { color: #2f5a1d; font-weight: 800; }
 .bad { color: var(--red); }
 select[multiple] { width: 100%; font: inherit; border: 2px solid var(--line); border-radius: 12px; padding: .4em; }
+.msgbody { white-space: pre-wrap; font-family: inherit; background: var(--cream); padding: .8em 1em; border-radius: 10px; max-height: 320px; overflow: auto; }

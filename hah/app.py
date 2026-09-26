@@ -8,8 +8,8 @@ from http.server import ThreadingHTTPServer
 
 # importing these modules registers their routes and jobs
 from . import (accounts, activities, book_api, booking_settings, bookings_staff, cms, config, db,  # noqa: F401
-               family_api, finance, guests, importer, incidents, intray, outbox, pages, payments_stripe,
-               people, portal_pages, registers, staff, staff_bookings, system, waitlist)
+               family_api, finance, gdpr, guests, importer, incidents, intray, marketing, messaging, outbox,
+               pages, payments_stripe, people, portal_pages, registers, staff, staff_bookings, system, waitlist)
 from .content import bootstrap_seed
 from .web import Handler
 from .worker import Worker
@@ -25,6 +25,9 @@ def prepare_data():
     moved = cms.migrate_messages_json()
     if moved:
         print("  inbox: moved %d contact messages into the database" % moved)
+    moved = marketing.migrate_subscribers_json()
+    if moved:
+        print("  newsletter: moved %d subscribers into the database" % moved)
 
 
 def make_server(address):

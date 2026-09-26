@@ -1,0 +1,6 @@
+Subject: We've received your data request
+Hello {{first_name}},
+
+Thanks — you've asked for a copy of the information we hold about you and your family. We'll email it to you within one month (usually much sooner).
+
+If you didn't ask for this, please call us on 07932 772905.

@@ -3,6 +3,7 @@ import { fail } from "./core.js";
 import * as account from "./account.js";
 import * as book from "./book.js";
 import * as guest from "./guest.js";
+import * as privacy from "./privacy.js";
 
 const PAGES = {
   "register": account.registerChooser,
@@ -21,6 +22,8 @@ const PAGES = {
   "bookings": book.myBookings,
   "guest": guest.guest,
   "guest-confirm": guest.guestConfirm,
+  "privacy": privacy.privacy,
+  "unsubscribe": privacy.unsubscribe,
 };
 
 const page = document.body.dataset.portal;

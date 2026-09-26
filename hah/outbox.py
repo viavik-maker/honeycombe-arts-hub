@@ -42,6 +42,21 @@ def email(c, to, template, context=None, *, kind="service", to_name=None, secret
     return cur.lastrowid
 
 
+def email_body(c, to, subject, text, html_body, *, kind="service", to_name=None, headers=None, account_id=None,
+               campaign_id=None):
+    """Queue an email whose words staff wrote (Messages). TEXT/HTML_BODY are final."""
+    to = validate.email(to)
+    if not to:
+        return None
+    cur = c.execute(
+        "INSERT INTO message_deliveries(campaign_id, template_key, channel, kind, to_address, to_name, subject,"
+        " body_text, body_html, headers, account_id, next_attempt_at, created_at)"
+        " VALUES (?, 'campaign', 'email', ?,?,?,?,?,?,?,?,?,?)",
+        (campaign_id, kind, to, to_name, subject, text, html_body, json.dumps(headers) if headers else None,
+         account_id, db.now(), db.now()))
+    return cur.lastrowid
+
+
 def text_message(c, to, template, context=None, *, kind="service", account_id=None, participant_id=None,
                  booking_id=None, campaign_id=None, body=None):
     """Queue an SMS to a UK mobile (inside the caller's db.tx()). Returns the

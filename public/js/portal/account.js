@@ -261,7 +261,8 @@ export async function accountHome() {
     </div>`).join("")}
     ${me.account.kind === "family" ? `<div class="person" style="display:grid;place-items:center;text-align:center">
       <p><a class="btn btn--honey" href="/account/family/new">＋ Add a child</a></p></div>` : ""}</div>
-    <p><a class="btn btn--orange" href="/book">Book activities</a> <a class="btn btn--ghost" href="/account/details">Your details & emergency contacts</a></p>`;
+    <p><a class="btn btn--orange" href="/book">Book activities</a> <a class="btn btn--ghost" href="/account/details">Your details & emergency contacts</a>
+      <a class="btn btn--ghost" href="/account/privacy">Your data & messages</a></p>`;
 }
 
 export async function childNew() {

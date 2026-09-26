@@ -230,16 +230,28 @@ class CsvSafetyTest(ServerTestCase):
 
 class StorageIntegrityTest(ServerTestCase):
     def test_corrupt_file_is_kept_not_overwritten(self):
-        with open(data_path("subscribers.json"), "w") as f:
+        with open(data_path("store-test.json"), "w") as f:
             f.write('[{"email": "important@example.com"')  # truncated
-        r = self.client().post_json("/api/newsletter", {"email": "new@example.com"})
-        self.assertEqual(r.status, 200)
-        aside = [n for n in os.listdir(os.path.dirname(data_path("x"))) if n.startswith("subscribers.json.corrupt-")]
+        storage.update_json("store-test.json", [], lambda xs: xs + [{"email": "new@example.com"}])
+        aside = [n for n in os.listdir(os.path.dirname(data_path("x"))) if n.startswith("store-test.json.corrupt-")]
         self.assertEqual(len(aside), 1)
         with open(data_path(aside[0])) as f:
             self.assertIn("important@example.com", f.read())
+        self.assertEqual(storage.load_json("store-test.json", []), [{"email": "new@example.com"}])
 
-    def test_concurrent_signups_are_all_kept(self):
+    def test_concurrent_updates_are_all_kept(self):
+        emails = ["fan%d@example.com" % i for i in range(15)]
+        threads = [threading.Thread(target=lambda e=e: storage.update_json("store-many.json", [],
+                                                                          lambda xs: xs + [{"email": e}]))
+                   for e in emails]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        stored = {s["email"] for s in storage.load_json("store-many.json", [])}
+        self.assertEqual(set(emails), stored)
+
+    def test_concurrent_newsletter_signups_are_all_kept(self):
         emails = ["fan%d@example.com" % i for i in range(15)]
         threads = [threading.Thread(target=lambda e=e: self.client().post_json("/api/newsletter", {"email": e}))
                    for e in emails]
@@ -247,5 +259,7 @@ class StorageIntegrityTest(ServerTestCase):
             t.start()
         for t in threads:
             t.join()
-        stored = {s["email"] for s in storage.load_json("subscribers.json", [])}
+        from hah import db
+        with db.read() as c:
+            stored = {r[0] for r in c.execute("SELECT email FROM marketing_preferences WHERE email_opt_in=1")}
         self.assertTrue(set(emails) <= stored)

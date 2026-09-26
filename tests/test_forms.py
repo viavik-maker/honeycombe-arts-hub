@@ -52,7 +52,7 @@ class NewsletterTest(ServerTestCase):
         csv = admin.get("/api/admin/subscribers.csv")
         self.assertEqual(csv.status, 200)
         self.assertIn("attachment", csv.header("Content-Disposition"))
-        self.assertTrue(csv.text.startswith("email,name,date"))
+        self.assertTrue(csv.text.startswith("email,name,date,source"))
         self.assertIn("fan@example.com", csv.text)
 
         r = admin.post_json("/api/admin/subscribers", {"action": "delete", "email": "fan@example.com"})

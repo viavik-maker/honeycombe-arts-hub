@@ -6,14 +6,13 @@ import os
 import re
 import secrets
 import sys
-import time
 from email.parser import BytesParser
 from email.policy import HTTP
 
-from . import audit, config, db, images, intray, mail, outbox, ratelimit
+from . import audit, config, db, images, intray, mail, outbox, ratelimit, validate
 from .content import public_content, site_content
 from .markup import csv_safe
-from .storage import load_json, replace_json, update_json
+from .storage import load_json, replace_json
 from .web import route
 
 TOO_MANY = "Too many attempts from your connection — please try again later."
@@ -54,31 +53,6 @@ def contact(h):
     return h.json({"ok": True})
 
 
-@route("POST", "/api/newsletter")
-def newsletter(h):
-    d = h.json_body()
-    if not d:
-        return h.json({"error": "invalid body"}, 400)
-    if d.get("website"):
-        return h.json({"ok": True})
-    if not ratelimit.hit("public_form", h.client_ip()):
-        return h.json({"error": TOO_MANY}, 429)
-    email = (d.get("email") or "").strip().lower()[:200]
-    name = (d.get("name") or "").strip()[:200]
-    if "@" not in email or "." not in email:
-        return h.json({"error": "Please enter a valid email address."}, 400)
-    already = []
-
-    def add(subs):
-        if any(s.get("email") == email for s in subs):
-            already.append(True)
-            return subs
-        return [{"email": email, "name": name, "date": time.strftime("%Y-%m-%d")}] + subs
-
-    update_json("subscribers.json", [], add)
-    return h.json({"ok": True, "note": "already subscribed"} if already else {"ok": True})
-
-
 # ---------------------------------------------------------------- staff CMS
 
 
@@ -87,8 +61,14 @@ def overview(h):
     return h.json({
         "content": site_content(),
         "messages": inbox(),
-        "subscribers": load_json("subscribers.json", []),
+        "subscribers": _subscribers(),
     })
+
+
+def _subscribers():
+    from . import marketing
+    with db.read() as c:
+        return marketing.subscribers(c)
 
 
 @route("GET", "/api/admin/subscribers.csv", auth="staff", perm="site.content")
@@ -97,9 +77,9 @@ def subscribers_csv(h):
         audit.record(c, h, "newsletter.exported")
     out = io.StringIO()
     w = csv.writer(out, lineterminator="\n")
-    w.writerow(["email", "name", "date"])
-    for s in load_json("subscribers.json", []):
-        w.writerow([csv_safe(s.get(k, "")) for k in ("email", "name", "date")])
+    w.writerow(["email", "name", "date", "source"])
+    for s in _subscribers():
+        w.writerow([csv_safe(s[k]) for k in ("email", "name", "date", "source")])
     return h.send(200, out.getvalue().encode(), "text/csv; charset=utf-8",
                   {"Content-Disposition": "attachment; filename=newsletter-subscribers.csv",
                    "Cache-Control": "no-store"})
@@ -213,18 +193,13 @@ def migrate_messages_json():
 
 @route("POST", "/api/admin/subscribers", auth="staff", perm="site.content")
 def subscribers(h):
+    from . import marketing
     d = h.json_body() or {}
-
-    def change(subs):
-        if d.get("action") == "delete":
-            subs = [s for s in subs if s.get("email") != d.get("email")]
-        return subs
-
-    subs = update_json("subscribers.json", [], change)
-    if d.get("action") == "delete":
+    if d.get("action") == "delete" and validate.email(d.get("email")):
         with db.tx() as c:
+            marketing.unsubscribe(c, validate.email(d["email"]), "email", h)
             audit.record(c, h, "newsletter.subscriber_removed")
-    return h.json({"ok": True, "subscribers": subs})
+    return h.json({"ok": True, "subscribers": _subscribers()})
 
 
 # ---------------------------------------------------------------- CSP reports
