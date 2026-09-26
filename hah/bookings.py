@@ -181,7 +181,47 @@ def assess(c, account, items):
             if ref and any(k in ("level", "haf") for k, _ in problems) else
             ("/account" if any(k in ("reconfirm", "account") for k, _ in problems) else None),
         })
+    _discounts(c, account, lines)
     return lines, _quote(c, account, lines)
+
+
+def _discounts(c, account, lines):
+    """Sibling and multi-day discounts, worked out on the whole basket. Only full-price paid places qualify (not
+    trials, HAF or free places); each place gets the bigger of the two, never both."""
+    st = booking_settings.get_all(c)
+    sib, multi, need = st["sibling_discount_percent"], st["multi_day_discount_percent"], st["multi_day_min_sessions"]
+    for l in lines:
+        l.update(discount_pence=0, discount_reason=None, full_price_pence=l["price_pence"])
+    if not (sib or multi):
+        return
+    ok = [l for l in lines if l["item"]["kind"] == "participant" and l["outcome"] != "blocked" and l["funding"] == "paid"
+          and not l["trial"] and l["price_pence"] > 0]
+    pct = {}
+    if multi:
+        count = {}
+        for l in ok:
+            k = (l["item"]["participant"]["id"], l["item"]["activity"]["id"])
+            count[k] = count.get(k, 0) + 1
+        for l in ok:
+            if count[(l["item"]["participant"]["id"], l["item"]["activity"]["id"])] >= need:
+                pct[id(l)] = (multi, "Multi-day discount (%d%%)" % multi)
+    if sib and account:
+        by_session = {}
+        for l in ok:
+            by_session.setdefault(l["session_id"], []).append(l)
+        for sid, group in by_session.items():
+            already = c.execute("SELECT COUNT(DISTINCT participant_id) FROM bookings WHERE session_id=? AND account_id=?"
+                                " AND participant_id IS NOT NULL AND status IN " + catalogue.HOLDING_SQL,
+                                (sid, account["id"])).fetchone()[0]
+            # the dearest place pays full price; brothers and sisters after it get the discount
+            for i, l in enumerate(sorted(group, key=lambda x: -x["price_pence"])):
+                if (i + already) >= 1 and sib > pct.get(id(l), (0, ""))[0]:
+                    pct[id(l)] = (sib, "Sibling discount (%d%%)" % sib)
+    for l in ok:
+        if id(l) in pct:
+            p, why = pct[id(l)]
+            off = l["price_pence"] * p // 100
+            l.update(price_pence=l["price_pence"] - off, discount_pence=off, discount_reason=why)
 
 
 def _quote(c, account, lines):
@@ -212,7 +252,8 @@ def _quote(c, account, lines):
 
 def _insert_booking(c, item, status, *, account_id=None, guest_contact_id=None, checkout_id=None, price=0,
                     funding="paid", approval_reason=None, hold=None, pay_later=False, group=None, via="online",
-                    staff_id=None, notes=None, profile_incomplete=False, is_trial=False, party_name=None):
+                    staff_id=None, notes=None, profile_incomplete=False, is_trial=False, party_name=None,
+                    discount=(0, None)):
     a, s = item["activity"], item["session"]
     kind = item["kind"]
     bid = c.execute(
@@ -229,6 +270,8 @@ def _insert_booking(c, item, status, *, account_id=None, guest_contact_id=None, 
     if kind == "party":
         for p in item.get("children") or []:
             c.execute("INSERT INTO booking_party_children(booking_id, participant_id) VALUES (?,?)", (bid, p["id"]))
+    if discount[0] and price:
+        c.execute("UPDATE bookings SET discount_pence=?, discount_reason=? WHERE id=?", (discount[0], discount[1], bid))
     b = c.execute("SELECT * FROM bookings WHERE id=?", (bid,)).fetchone()
     if status == "confirmed":
         add_attendance(c, b)
@@ -311,7 +354,7 @@ def confirm_basket(c, h, account, raw_items, pay_mode, idempotency_key):
     for l in lines:
         it, outcome = l["item"], l["outcome"]
         kw = dict(account_id=account["id"], checkout_id=cid, price=l["price_pence"], funding=l["funding"],
-                  is_trial=l["trial"])
+                  is_trial=l["trial"], discount=(l["discount_pence"], l["discount_reason"]))
         if outcome == "waitlist":
             b = _insert_booking(c, it, "waitlisted", group="%s:%d" % (ref, it["session"]["id"]), **kw)
         elif outcome == "approval":
@@ -770,7 +813,7 @@ def booking_json(c, b):
            "places": b["places"], "party_adults": b["party_adults"], "party_children": b["party_children"],
            "price_pence": b["price_pence"], "funding": b["funding"], "offer_expires_at": b["offer_expires_at"],
            "approval_reason": b["approval_reason"], "parent_must_stay": bool(s["parent_must_stay"]),
-           "is_trial": bool(b["is_trial"])}
+           "is_trial": bool(b["is_trial"]), "discount_pence": b["discount_pence"], "discount_reason": b["discount_reason"]}
     if b["status"] == "waitlisted":
         out["position"] = c.execute(
             "SELECT COUNT(*) FROM bookings WHERE session_id=? AND status='waitlisted' AND (waitlist_priority>? OR"

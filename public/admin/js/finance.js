@@ -16,6 +16,20 @@ function paymentForm(meta, balance) {
 const paymentBody = (f, number) => ({ invoice_number: number, method: f.method.value, amount_pence: Math.round(parseFloat(f.amount.value) * 100),
   voucher_provider: f.provider.value, received_on: f.on.value, reference: f.reference.value, send_receipt: f.receipt.checked });
 
+async function payoutDetail(id) {
+  let d;
+  try { d = await api("/api/staff/finance/stripe/payouts/" + encodeURIComponent(id)); } catch (x) { return toast(x.message, true); }
+  const t = d.totals;
+  await modal(`Payout ${money(d.payout.amount_pence)}${d.payout.arrival_date ? " · " + day(d.payout.arrival_date) : ""}`,
+    `<p>${d.adds_up ? chip("Adds up", "ok") : chip("Doesn't add up — check in Stripe", "bad")} ${t.unmatched ? chip(t.unmatched + " not matched", "warn") : chip("All matched", "ok")}</p>
+     <p>Taken ${esc(money(t.gross))} − Stripe fees ${esc(money(t.fees))} = <strong>${esc(money(t.net))}</strong></p>
+     ${table([{ label: "Date", get: r => esc(r.date || "") }, { label: "What", get: r => esc(r.type) + (r.ours ? `<br><span class="fhint">${esc(r.ours.ref)} · ${esc(r.ours.name)} ${esc(r.ours.invoices)}</span>` : r.matched ? "" : `<br>${chip("not found here", "warn")}`) },
+       { label: "Gross", cls: "nowrap", get: r => esc(money(r.amount_pence)) }, { label: "Fee", cls: "nowrap", get: r => esc(money(r.fee_pence)) },
+       { label: "Net", cls: "nowrap", get: r => esc(money(r.net_pence)) }], d.rows, { empty: "Nothing in this payout." })}
+     <p><a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/stripe/payouts/${encodeURIComponent(id)}?format=csv">Download CSV</a></p>`,
+    async () => true, "Close");
+}
+
 A.addTab({
   id: "finance", label: "Finance", icon: "💷", perm: "finance.view",
   state: { view: "unpaid", q: "", from: null, to: null },
@@ -34,7 +48,8 @@ A.addTab({
       <div class="acard"><h2>Takings</h2>
         <div class="toolbar"><label>From <input type="date" id="fFrom" value="${esc(st.from)}"></label><label>To <input type="date" id="fTo" value="${esc(st.to)}"></label>
           <a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/payments.csv?${qs({ from: st.from, to: st.to })}">Payments CSV</a>
-          <a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/invoices.csv?${qs({ from: st.from, to: st.to })}">Invoices CSV</a></div>
+          <a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/invoices.csv?${qs({ from: st.from, to: st.to })}">Invoices CSV</a>
+          <a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/accounting.csv?${qs({ from: st.from, to: st.to })}" title="Invoice lines by category, credit notes, payments and refunds — for your accounts software">Accounting export</a></div>
         ${table([{ label: "Method", get: t => esc(t.method) }, { label: "Payments", get: t => t.count }, { label: "Total", get: t => esc(money(t.amount_pence)) }], s.takings, { empty: "Nothing taken in this period." })}
         ${s.refunds_pence ? `<p class="fhint">Refunded in period: ${esc(money(s.refunds_pence))}</p>` : ""}</div>
       ${s.pending_refunds.length ? `<div class="acard"><h2>Refunds to check</h2>${table([
@@ -54,7 +69,32 @@ A.addTab({
           { label: "", cls: "nowrap", get: i => i.balance_pence > 0 && i.status !== "void" ? `${can("payments.record") ? `<button class="abtn abtn--primary abtn--sm" data-pay="${esc(i.number)}">Record payment</button>` : ""}
             <button class="abtn abtn--ghost abtn--sm" data-remind="${esc(i.number)}">Send reminder</button>
             ${can("finance.manage") && !i.paid_pence ? `<button class="abtn abtn--danger abtn--sm" data-void="${esc(i.number)}">Void</button>` : ""}` : "" },
-        ], inv.invoices, { empty: "No invoices here." })}</div>`;
+        ], inv.invoices, { empty: "No invoices here." })}</div>
+      <div class="acard"><h2>Aged debt</h2><p class="fhint">Who owes what, by how long it's been overdue.</p>
+        <div id="agedBox"><button class="abtn abtn--ghost abtn--sm" id="agedBtn">Show aged debt</button></div></div>
+      ${s.card_payments ? `<div class="acard"><h2>Stripe payouts</h2><p class="fhint">Match each payout that reaches the bank to the card payments and refunds in it (Stripe's fees are shown too).</p>
+        <div id="payoutBox"><button class="abtn abtn--ghost abtn--sm" id="payoutBtn">Show recent payouts</button></div></div>` : ""}`;
+    $("#agedBtn", root).onclick = async () => {
+      const d = await api("/api/staff/finance/aged-debt");
+      const t = d.totals;
+      $("#agedBox", root).innerHTML = `<div class="statgrid">${d.buckets.map(b => `<div class="stat"><strong>${esc(money(t[b.key]))}</strong><span>${esc(b.label)}</span></div>`).join("")}</div>
+        <p><a class="abtn abtn--ghost abtn--sm" href="/api/staff/finance/aged-debt.csv">Aged debt CSV</a></p>
+        ${table([{ label: "Bill to", get: r => (r.account_ref ? `<a href="#" data-fam="${esc(r.account_ref)}">${esc(r.name)}</a>` : esc(r.name)) + `<br><span class="fhint">${esc(r.email || "")} ${esc(r.mobile || "")}</span>` },
+          { label: "Invoices", get: r => r.invoices.map(i => `<a href="/admin/invoices/${esc(i.number)}" target="_blank" rel="noopener">${esc(i.number)}</a>${i.days_overdue ? ` <span class="fhint">(${i.days_overdue}d)</span>` : ""}`).join("<br>") },
+          ...d.buckets.map(b => ({ label: b.label, cls: "nowrap", get: r => r[b.key] ? esc(money(r[b.key])) : "" })),
+          { label: "Total", cls: "nowrap", get: r => `<strong>${esc(money(r.total_pence))}</strong>` }], d.rows, { empty: "Nobody owes anything. 🎉" })}`;
+      $$("[data-fam]", root).forEach(a => a.onclick = (e) => { e.preventDefault(); A.openTab("people", { open: { type: "account", ref: a.dataset.fam } }); });
+    };
+    const pb = $("#payoutBtn", root);
+    if (pb) pb.onclick = async () => {
+      try {
+        const d = await api("/api/staff/finance/stripe/payouts");
+        $("#payoutBox", root).innerHTML = table([{ label: "Arrives", get: p => esc(p.arrival_date ? day(p.arrival_date) : "—") },
+          { label: "Amount", get: p => esc(money(p.amount_pence)) }, { label: "Status", get: p => chip(p.status, p.status === "paid" ? "ok" : "muted") },
+          { label: "", get: p => `<button class="abtn abtn--ghost abtn--sm" data-payout="${esc(p.id)}">Match</button>` }], d.payouts, { empty: "No payouts yet." });
+        $$("[data-payout]", root).forEach(b => b.onclick = () => payoutDetail(b.dataset.payout));
+      } catch (x) { toast(x.message, true); }
+    };
     const re = () => this.render(root);
     $("#fFrom", root).onchange = (e) => { st.from = e.target.value; re(); };
     $("#fTo", root).onchange = (e) => { st.to = e.target.value; re(); };

@@ -84,6 +84,10 @@ def line_for(c, booking):
     desc = "%s · %s %s–%s" % (s["title"], day, s["start_time"], s["end_time"])
     note = {"haf": "HAF funded", "free": "Free", "staff_comp": "Complimentary",
             "prepaid_legacy": "Paid via previous booking system"}.get(booking["funding"])
+    if booking["discount_pence"] and booking["price_pence"]:
+        note = "%s: −%s" % (booking["discount_reason"] or "Discount", pounds(booking["discount_pence"]))
+    elif booking["is_trial"] and booking["price_pence"] is not None and booking["funding"] == "paid":
+        note = "Trial session"
     return desc, s["date"], name, booking["price_pence"], note
 
 
@@ -107,9 +111,10 @@ def create_invoice(c, bookings, *, account_id=None, guest_contact_id=None, check
          due_date(issue, first, c=c).isoformat(), "issued" if total else "paid", total, notes, staff_id,
          db.now())).lastrowid
     for b, (desc, day, who, amount, note) in zip(bookings, lines):
+        unit = amount + (b["discount_pence"] if amount else 0)  # the price before any discount
         c.execute("INSERT INTO invoice_lines(invoice_id, booking_id, description, service_date, participant_name,"
                   " unit_pence, amount_pence, funding_note) VALUES (?,?,?,?,?,?,?,?)",
-                  (iid, b["id"], desc, day, who, amount, amount, note))
+                  (iid, b["id"], desc, day, who, unit, amount, note))
     return c.execute("SELECT * FROM invoices WHERE id=?", (iid,)).fetchone()
 
 

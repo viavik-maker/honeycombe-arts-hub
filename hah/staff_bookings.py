@@ -98,6 +98,7 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
         b = bookings._insert_booking(
             c, it, "confirmed", account_id=account["id"], checkout_id=cid, price=0 if comp else l["price_pence"],
             funding=funding, via=via, staff_id=staff["id"], profile_incomplete=incomplete, is_trial=l["trial"],
+            discount=(l["discount_pence"], l["discount_reason"]),
             pay_later=pay["mode"] in ("unpaid", "link"), notes=("Override: " + reason) if override else None)
         booked.append(b)
     invoice = None

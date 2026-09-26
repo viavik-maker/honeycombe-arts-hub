@@ -57,6 +57,7 @@ class FakeStripe:
 
     def __init__(self):
         self.sessions, self.refunds, self.requests = {}, [], []
+        self.payouts, self.balance_txns = [], []  # [{id, amount, ...}], [{..., "payout": po_id}]
         self.fail_next = False
         fake = self
 
@@ -73,6 +74,20 @@ class FakeStripe:
                 self.wfile.write(body)
 
             def do_GET(self):
+                fake.requests.append((self.path, {}, dict(self.headers)))
+                path, _, query = self.path.partition("?")
+                q = dict(urllib.parse.parse_qsl(query))
+                if path == "/v1/payouts":
+                    return self._send(200, {"object": "list", "data": fake.payouts, "has_more": False})
+                if path.startswith("/v1/payouts/"):
+                    p = [x for x in fake.payouts if x["id"] == path.rsplit("/", 1)[-1]]
+                    return self._send(200, p[0]) if p else self._send(404, {"error": {"message": "no such payout"}})
+                if path == "/v1/balance_transactions":
+                    rows = [t for t in fake.balance_txns if t.get("payout") == q.get("payout")]
+                    if q.get("starting_after"):
+                        rows = rows[[t["id"] for t in rows].index(q["starting_after"]) + 1:]
+                    n = int(q.get("limit", 10))
+                    return self._send(200, {"object": "list", "data": rows[:n], "has_more": len(rows) > n})
                 sid = self.path.rsplit("/", 1)[-1]
                 s = fake.sessions.get(sid)
                 return self._send(200, s) if s else self._send(404, {"error": {"message": "no such session"}})

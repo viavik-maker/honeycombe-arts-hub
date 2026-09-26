@@ -174,10 +174,12 @@ def move(h, bid):
         if target["id"] == b["session_id"]:
             raise ValueError("That's the session it's already on.")
         a2 = c.execute("SELECT * FROM activities WHERE id=?", (target["activity_id"],)).fetchone()
-        price = 0 if a2["haf_only"] else catalogue.price_of(a2, target)
-        if price != b["price_pence"]:
+        price = 0 if a2["haf_only"] else (bookings.trial_price(a2, target) if b["is_trial"] and a2["id"] == b["activity_id"]
+                                          else catalogue.price_of(a2, target))
+        was = b["price_pence"] + b["discount_pence"]  # compare list prices; any discount moves with the booking
+        if price != was:
             raise ValueError("That session costs %s, not %s — cancel and rebook instead." % (
-                money.pounds(price), money.pounds(b["price_pence"])))
+                money.pounds(price), money.pounds(was)))
         if waitlist.free_places(c, target) < b["places"] and not d.get("override"):
             raise ValueError("That session is full.")
         if d.get("override") and not h.has_perm("bookings.override"):

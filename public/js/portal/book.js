@@ -208,7 +208,8 @@ export async function review() {
         <td><span class="status ${OUTCOME[l.outcome][1]}">${OUTCOME[l.outcome][0]}</span>
           ${l.problems.map(p => `<br><small>${esc(p.message)}</small>`).join("")}
           ${l.fix_url ? `<br><a href="${esc(l.fix_url + (l.fix_url.includes("?") ? "&" : "?") + "next=/book/review")}">Fix this</a>` : ""}</td>
-        <td class="num">${l.funding === "haf" ? "Free (HAF)" : l.price_pence ? money(l.price_pence) : "Free"}
+        <td class="num">${l.discount_pence ? `<s>${money(l.full_price_pence)}</s> ` : ""}${l.funding === "haf" ? "Free (HAF)" : l.price_pence ? money(l.price_pence) : "Free"}
+          ${l.discount_pence ? `<br><small>${esc(l.discount_reason)}</small>` : ""}
           ${l.trial_available || l.trial ? `<br><label class="check check--sm"><input type="checkbox" data-trial="${i}"${l.trial ? " checked" : ""}> <small>Trial session${l.trial_price_pence != null ? " (" + (l.trial_price_pence ? money(l.trial_price_pence) : "free") + ")" : ""}</small></label>` : ""}</td>
         <td><button class="linklike" data-rm="${i}">Remove</button></td></tr>`).join("")}</tbody>
       <tfoot><tr><td colspan="3">Total to pay${q.counts.waitlist || q.counts.approval ? " (waiting list and approval places are paid for once confirmed)" : ""}</td><td class="num"><strong>${money(q.total_pence)}</strong></td><td></td></tr>

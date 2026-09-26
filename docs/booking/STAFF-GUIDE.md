@@ -83,6 +83,20 @@ see the areas your role uses.
 - **Send reminder** emails the family a link to pay. Unpaid invoices are never cancelled automatically, so follow
   them up here.
 - **Allow pay later** for a family from their record in People (finance role).
+- **Discounts** are set in Booking settings → Discounts. Both are 0 (off) until you choose a percentage.
+  - *Sibling*: off the second and later child of a family on the same session, including when a brother or sister
+    booked earlier.
+  - *Multi-day*: off every session when one child is booked on at least N sessions of an activity at once.
+  - A place gets the bigger discount, never both. Trials, HAF and free places aren't discounted.
+  - Invoices show the full price and the discount.
+- **Aged debt** (Finance → *Show aged debt*) lists who owes what, grouped by how long it's overdue: not due, 1–30,
+  31–60, 61–90 and over 90 days. There's a CSV too.
+- **Accounting export** (next to the takings dates) is one spreadsheet for your accounts software: invoice lines by
+  category (with discounts), credit notes, payments by method and refunds. It contains no children's names.
+- **Stripe payouts.** *Show recent payouts* → **Match** lists each card payment and refund in a payout, with
+  Stripe's fee.
+  - Each line is matched to the family and invoice here. It warns if something isn't matched or the total doesn't
+    add up.
 
 ## Activities
 
