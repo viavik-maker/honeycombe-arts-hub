@@ -309,6 +309,7 @@ export async function myBookings() {
   const draw = async () => {
     d = await api("/api/account/bookings");
     const inc = (await api("/api/account/incidents")).incidents;
+    const orders = (await api("/api/account/shop-orders")).orders;
     const byDate = {};
     d.upcoming.filter(b => b.status !== "offered").forEach(b => (byDate[b.date] = byDate[b.date] || []).push(b));
     const unpaid = d.invoices.filter(i => i.balance_pence > 0);
@@ -341,6 +342,8 @@ export async function myBookings() {
           <span class="status ${CHIP[b.status] || ""}">${esc(b.status_text)}</span>
           <div>${b.status === "pending_payment" ? "" : `<button class="btn btn--sm btn--ghost" data-cancel="${esc(b.ref)}">${b.status === "waitlisted" ? "Leave list" : "Cancel"}</button>`}</div></div>`).join("")}`).join("")
         : `<p>No upcoming bookings. <a href="/book">Book activities</a></p>`}
+      ${orders.length ? `<h2>Shop orders</h2><table class="table-plain"><tbody>${orders.map(o => `<tr><td><strong>${esc(o.ref)}</strong><br><small>${esc(o.lines.map(l => l.quantity + " × " + l.title).join(", "))}</small></td>
+        <td>${esc(o.status_text)}</td><td class="num">${money(o.total_pence)}${o.invoice && o.invoice.balance_pence > 0 ? `<br><a href="/account/invoices/${esc(o.invoice.number)}">Pay</a>` : ""}</td></tr>`).join("")}</tbody></table>` : ""}
       ${d.invoices.length ? `<h2>Invoices</h2><table class="table-plain"><tbody>${d.invoices.map(i => `<tr><td><a href="/account/invoices/${esc(i.number)}">${esc(i.number)}</a></td>
         <td>${esc(niceDate(i.issue_date))}</td><td class="num">${money(i.total_pence)}</td><td>${i.balance_pence > 0 ? "To pay: " + money(i.balance_pence) : esc({ paid: "Paid", credited: "Credited" }[i.status] || i.status)}</td></tr>`).join("")}</tbody></table>` : ""}
       ${inc.some(n => n.acknowledged) ? `<details><summary>Notes from our team (${inc.filter(n => n.acknowledged).length})</summary>${inc.filter(n => n.acknowledged).map(noteCard).join("")}</details>` : ""}

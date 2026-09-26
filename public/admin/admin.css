@@ -275,3 +275,4 @@ select[multiple] { width: 100%; font: inherit; border: 2px solid var(--line); bo
 .bodymap__notes { margin: .4rem 0 0; padding-left: 1.4rem; }
 .bodymap__notes li { margin: .25rem 0; }
 .bodymap__notes input { width: 14rem; max-width: 100%; }
+.table td.minw, .table th.minw { min-width: 12rem; }

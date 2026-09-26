@@ -193,13 +193,14 @@ def pay_with_credit(c, account_id, invoice_id, max_amount=None):
 # ---------------------------------------------------------------- credit notes and refunds
 
 
-def credit_note(c, invoice, bookings, reason, *, staff_id=None, account_id=None, amount=None):
-    """Credit the invoice lines for BOOKINGS (or AMOUNT, if given and smaller).
-    Unpaid money is simply written off the invoice; anything already paid
+def credit_note(c, invoice, bookings, reason, *, staff_id=None, account_id=None, amount=None, invoice_lines=None):
+    """Credit the invoice lines for BOOKINGS, or the given INVOICE_LINES (shop orders), or AMOUNT if given and
+    smaller. Unpaid money is simply written off the invoice; anything already paid
     is returned as `refundable` for the caller to refund or turn into
     account credit. Returns (credit_note_row or None, refundable_pence)."""
-    lines = [c.execute("SELECT * FROM invoice_lines WHERE invoice_id=? AND booking_id=?", (invoice["id"], b["id"]))
-             .fetchone() for b in bookings]
+    lines = list(invoice_lines) if invoice_lines is not None else [
+        c.execute("SELECT * FROM invoice_lines WHERE invoice_id=? AND booking_id=?", (invoice["id"], b["id"]))
+        .fetchone() for b in bookings]
     lines = [l for l in lines if l and l["amount_pence"] > 0]
     already = {r[0]: r[1] for r in c.execute(
         "SELECT invoice_line_id, SUM(amount_pence) FROM credit_note_lines WHERE invoice_line_id IN (%s)"

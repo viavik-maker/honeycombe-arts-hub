@@ -4,7 +4,7 @@ belongs to another family simply isn't found."""
 import datetime
 import json
 
-from . import audit, db, family, formspec, intray, outbox, security
+from . import audit, booking_settings, db, family, formspec, intray, outbox, security
 from .validate import Invalid
 from .web import route
 
@@ -86,6 +86,7 @@ def me(h):
             "participants": people,
             "contacts": family.contacts(c, who["id"]),
             "acknowledged": all(k in acks for k in formspec.ACKNOWLEDGEMENTS),
+            "shop_live": bool(booking_settings.get("shop_live", c)),
             "csrf": who["csrf"],
             # signed in as an extra carer rather than the account holder
             "carer": {"ref": who["carer_ref"], "first_name": who["carer_first_name"],

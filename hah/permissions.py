@@ -21,7 +21,7 @@ _ALL_BUT_SENSITIVE = {
     "bookings.override", "payments.record", "finance.view", "finance.manage", "registers.view",
     "registers.mark", "people.view_basic", "people.view_health", "people.edit", "incidents.log",
     "incidents.view", "incidents.manage", "messaging.service", "messaging.marketing",
-    "reports.view", "import.run", "settings.manage", "staff.manage", "system.view",
+    "reports.view", "import.run", "settings.manage", "staff.manage", "system.view", "shop.manage",
 }
 
 ROLE_PERMS = {
@@ -32,7 +32,7 @@ ROLE_PERMS = {
         "bookings.override", "payments.record", "finance.view", "registers.view", "registers.mark",
         "people.view_basic", "people.view_health", "people.edit", "incidents.log", "incidents.view",
         "incidents.manage", "messaging.service", "messaging.marketing", "reports.view", "send.view",
-        "system.view",
+        "system.view", "shop.manage",
     },
     "session_staff": {
         "activities.view", "bookings.view", "payments.record", "registers.view", "registers.mark",

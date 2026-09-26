@@ -16,6 +16,7 @@ PAGES = {
     "/activate": ("activate", "Activate your account"),
     "/carer-invite": ("carer-invite", "Accept an invitation"),
     "/handover": ("handover", "Your own account"),
+    "/shop": ("shop", "Shop"),
     "/account": ("account", "My account"),
     "/account/family/new": ("child-new", "Add a child"),
     "/account/details": ("details", "Your details"),

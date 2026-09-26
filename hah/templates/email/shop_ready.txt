@@ -1,0 +1,8 @@
+Subject: Your order {{ref}} is ready
+Hello {{first_name}},
+
+Good news — your order {{ref}} is ready.
+
+{{collection}}
+
+Questions? Just reply to this email or call us on 07932 772905.

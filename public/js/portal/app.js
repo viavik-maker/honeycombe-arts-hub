@@ -5,6 +5,7 @@ import * as book from "./book.js";
 import * as guest from "./guest.js";
 import * as privacy from "./privacy.js";
 import * as send from "./send.js";
+import * as shop from "./shop.js";
 
 const PAGES = {
   "register": account.registerChooser,
@@ -28,6 +29,7 @@ const PAGES = {
   "send": send.sendSupport,
   "carer-invite": account.carerInvite,
   "handover": account.handover,
+  "shop": shop.shop,
 };
 
 const page = document.body.dataset.portal;

@@ -1,0 +1,14 @@
+Subject: Your Honeycombe Arts Hub order {{ref}}
+Hello {{first_name}},
+
+Thank you for your order. Here's what you ordered:
+
+{{lines}}
+
+Total: {{total}} (invoice {{invoice}}).
+
+{{payment}}
+
+{{collection}} We'll email you when it's ready.
+
+Questions? Just reply to this email or call us on 07932 772905.

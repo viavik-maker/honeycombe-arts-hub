@@ -73,6 +73,20 @@ see the areas your role uses.
     a day, or 2 hours if the session is soon. Brothers and sisters are offered together.
   - Bookings → **Waiting list** lets you offer a place yourself or change someone's priority.
 
+## The shop
+
+- Families buy things like T-shirts, art packs or gift vouchers at `/shop`. It stays closed until you tick *The shop
+  is open* in Booking settings.
+- **Products** (Admin → Shop): name, price, a picture from the Gallery, how many you have (empty = no limit), the most
+  per order, and whether it's on sale.
+- **Orders:**
+  - Families pay by card or when they collect.
+  - Every order is an invoice, so it shows in Finance like a booking. Take payment at collection with **Record
+    payment**, quoting the invoice number.
+  - Mark an order **Ready** (the family is emailed), then **Collected** or **Posted**.
+  - **Cancel** puts the items back in stock and refunds anything paid: to the card, or as account credit.
+  - Card orders nobody pays for within a day are cancelled automatically.
+
 ## Searching and bulk actions
 
 - In **People**, search for children or families. Filters include age, needs, form level and HAF.

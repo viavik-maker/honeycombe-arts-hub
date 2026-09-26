@@ -1316,7 +1316,7 @@ Per session, the list shows position, family, child, joined date and status (wai
 | **Under approval** | Pending approvals |
 | **Waiting list** | Waitlisted and offered entries |
 | **Staff** | Name, role, status, 2FA on/off |
-| E-shop orders | **Not available** (greyed out, tooltip "Not part of the new system yet"; Q4) |
+| E-shop orders | Admin → Shop (search by order ref, name or email). Built in Phase 2 as a general shop, off by default, until Q4 is answered |
 
 - **Implementation.** `search.py` has a whitelist of filters per entity. Each filter maps to a parameterised SQL fragment, so no string-built SQL. Matching is `LIKE … COLLATE NOCASE`, which is fine at this scale. Pages are 50 rows, sortable by whitelisted columns.
 - **Export CSV** (`/api/staff/search/export.csv`): `csv_safe` cells; health columns only with `people.view_health`; audited with the filter spec and row count.

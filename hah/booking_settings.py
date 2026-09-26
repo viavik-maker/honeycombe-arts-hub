@@ -52,6 +52,9 @@ DEFAULTS = {
     "retention_message_years": 2,          # the message archive
     "retention_audit_years": 6,            # the audit log (never less than 6)
     "turned_18_days": 90,                  # a child who turns 18 leaves the parent's account after this
+    # the shop
+    "shop_live": False,                    # the Shop page is open to families
+    "shop_collection_note": "Collect your order from reception at your next session.",
     # messages
     "sms_segment_pence": 4,                # what one text (160 characters) costs, for estimates
 }

@@ -69,6 +69,7 @@ export function renderNav(active) {
       <span class="portal-nav__hi">Hi ${esc(state.me.carer ? state.me.carer.first_name : state.me.account.first_name)}</span>
       ${link("/book", "Book activities", "book")}
       ${link("/account/bookings", state.me.carer ? "Bookings" : "My bookings", "bookings")}
+      ${state.me.shop_live ? link("/shop", "Shop", "shop") : ""}
       ${link("/account", state.me.carer ? esc(state.me.account.first_name) + "'s family" : "My family", "family")}
       ${state.me.carer ? "" : link("/account/details", "My details", "details")}
       <button type="button" id="signOut">Sign out</button></div>`;

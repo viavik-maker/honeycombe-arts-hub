@@ -316,6 +316,7 @@ const GROUPS = [
   ["Notifications", [["dsl_notify_emails", "list", "Safeguarding lead email(s)"], ["finance_notify_emails", "list", "Finance email(s)"],
     ["send_notify_emails", "list", "SEND lead email(s) — told when a support request arrives (no details in the email)"],
     ["send_response_days", "int", "SEND lead gets in touch within (working days)"]]],
+  ["The shop", [["shop_live", "bool", "The shop is open to families (/shop)"], ["shop_collection_note", "text", "How families get their orders (shown in the shop and emails)"]]],
   ["Messages", [["sms_segment_pence", "int", "Cost of one text message, in pence (for estimates in Messages)"]]],
   ["Data retention", [["retention_inactive_years", "int", "Delete accounts not used for (years) — families are warned 30 days before"],
     ["retention_register_years", "int", "Clear collection details from registers after (years)"],

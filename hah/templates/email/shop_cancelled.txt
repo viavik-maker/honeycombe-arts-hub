@@ -1,0 +1,8 @@
+Subject: Your order {{ref}} has been cancelled
+Hello {{first_name}},
+
+We didn't receive the card payment for your order {{ref}}, so we've cancelled it and put the items back on sale. Nothing has been taken from your card.
+
+If you'd still like them, you can order again here: {{shop_url}}
+
+Questions? Just reply to this email or call us on 07932 772905.
