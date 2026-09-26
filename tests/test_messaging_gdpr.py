@@ -173,3 +173,59 @@ class GdprTest(ServerTestCase):
         ok(owner.post_json("/api/staff/people/accounts/%s/restore" % ref, {}))
         with db.read() as c:
             self.assertEqual(c.execute("SELECT status FROM accounts WHERE ref=?", (ref,)).fetchone()[0], "active")
+
+
+class SelfServiceExportTest(ServerTestCase):
+    def setUp(self):
+        set_settings(booking_live=True)
+        ratelimit.reset()
+
+    def test_family_downloads_their_own_data(self):
+        from tests.booking_helpers import future
+        from tests.test_registers import book_today
+        fam = register_family()
+        child = complete_child(fam)
+        sid, bid = book_today(fam, child)
+        staff = self.admin(roles=("session_staff",))
+        base = {"kind": "injury", "occurred_at_local": future(0) + "T11:15", "session_id": sid, "first_aid_given": True,
+                "action_taken": "Plaster", "people": [{"booking_id": bid, "role": "injured"}]}
+        ok(staff.post_json("/api/staff/incidents", dict(base, description="Grazed knee", notify_mode="now")))
+        ok(staff.post_json("/api/staff/incidents", dict(base, description="Bumped head, not told yet",
+                                                        notify_mode="not_notified", not_notified_reason="Tiny bump")))
+        # password first, once the sign-in is more than a few minutes old
+        with db.tx() as c:
+            c.execute("UPDATE account_sessions SET reauth_at='2000-01-01T00:00:00Z'")
+        r = fam.post_json("/api/account/data-export/check", {})
+        self.assertEqual(r.status, 403)
+        self.assertTrue(r.json()["reauth"])
+        self.assertEqual(fam.get("/api/account/data-export").status, 403)
+        ok(fam.post_json("/api/account/reauth", {"password": "our family passphrase"}))
+        ok(fam.post_json("/api/account/data-export/check", {}))
+        r = ok(fam.get("/api/account/data-export?format=json"))
+        self.assertIn("attachment", r.header("Content-Disposition"))
+        self.assertEqual(r.header("Cache-Control"), "no-store")
+        data = r.json()
+        self.assertEqual(data["people"][0]["health"][0]["allergies"], "Peanuts")
+        self.assertEqual([i["description"] for i in data["people"][0]["incidents"]], ["Grazed knee"])
+        self.assertNotIn("password_hash", r.text)
+        self.assertNotIn("collection_pw_hash", r.text)
+        page = ok(fam.get("/api/account/data-export"))
+        self.assertTrue(page.header("Content-Type").startswith("text/html"))
+        self.assertIn("sandbox", page.header("Content-Security-Policy"))
+        self.assertIn("Peanuts", page.text)
+        self.assertIn("Grazed knee", page.text)
+        self.assertNotIn("Bumped head", page.text)
+        self.assertIn("downloaded", last_email_to(fam.email))
+        with db.read() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM audit_log WHERE action='gdpr.self_export'").fetchone()[0], 2)
+        # the staff export (for a subject access request) still has everything that isn't restricted
+        with db.read() as c:
+            ref = c.execute("SELECT ref FROM accounts WHERE email=?", (fam.email,)).fetchone()[0]
+        full = ok(self.admin(roles=("dsl",)).get("/api/staff/people/accounts/%s/export" % ref)).json()
+        self.assertEqual(len(full["people"][0]["incidents"]), 2)
+        # signed out: nothing
+        self.assertEqual(self.client().get("/api/account/data-export").status, 401)
+        # a limit on repeated downloads
+        for _ in range(8):
+            fam.get("/api/account/data-export?format=json")
+        self.assertEqual(fam.get("/api/account/data-export?format=json").status, 429)

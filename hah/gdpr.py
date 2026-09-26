@@ -9,13 +9,15 @@ Deleting an account:
   3. the nightly job erases it, keeping only what the law makes us keep:
      invoices (6 years, as issued), accident and injury records (until the
      child is 25), and safeguarding information, which the DSL reviews.
-Asking for their data raises an in-tray item; staff download the export
-from the family's record (DSL-written material and restricted incidents
-are left out)."""
+Families can download their own data straight away (after re-entering
+their password), or ask us for it, which raises an in-tray item; staff then
+download the export from the family's record. DSL-written material and
+restricted incidents are always left out."""
 import datetime
+import html
 import json
 
-from . import audit, bookings, catalogue, db, intray, marketing, money, outbox, worker
+from . import audit, bookings, catalogue, db, intray, marketing, money, outbox, ratelimit, worker
 from .web import route
 
 COOLING_OFF_DAYS = 14
@@ -84,6 +86,109 @@ def data_request(h):
     return h.json({"ok": True, "message": "Thanks — we'll email you your data within a month (usually much sooner)."})
 
 
+@route("POST", "/api/account/data-export/check", auth="account")
+def data_export_check(h):
+    """Asks for the password first if it hasn't been entered recently (the portal shows the prompt)."""
+    from .accounts import recently_reauthenticated
+    if not recently_reauthenticated(h.principal("account")):
+        return h.json({"error": "Please enter your password to download your data.", "reauth": True}, 403)
+    return h.json({"ok": True})
+
+
+@route("GET", "/api/account/data-export", auth="account")
+def data_export(h):
+    """A family downloads everything we hold about them: readable (HTML) or JSON."""
+    from .accounts import recently_reauthenticated
+    who = h.principal("account")
+    if not recently_reauthenticated(who):
+        return h.send(403, b"Please go back and enter your password again.", "text/plain; charset=utf-8")
+    if not ratelimit.hit("data_export", who["id"]):
+        return h.send(429, b"You've downloaded your data several times in the last hour - please try later.",
+                      "text/plain; charset=utf-8")
+    fmt = "json" if h.query().get("format") == "json" else "html"
+    with db.tx() as c:
+        a = c.execute("SELECT * FROM accounts WHERE id=?", (who["id"],)).fetchone()
+        data = export_account(c, a, self_service=True)
+        audit.record(c, h, "gdpr.self_export", entity_type="account", entity_id=a["id"], account_id=a["id"],
+                     details={"format": fmt})
+        outbox.email(c, a["email"], "data_downloaded", {"first_name": a["first_name"]}, account_id=a["id"])
+    stamp = catalogue.uk_today().isoformat()
+    headers = {"Cache-Control": "no-store", "Content-Security-Policy": "default-src 'none'; style-src 'unsafe-inline'; sandbox"}
+    if fmt == "json":
+        body = json.dumps(data, indent=2, default=str).encode()
+        headers["Content-Disposition"] = 'attachment; filename="honeycombe-my-data-%s.json"' % stamp
+        return h.send(200, body, "application/json; charset=utf-8", headers)
+    headers["Content-Disposition"] = 'attachment; filename="honeycombe-my-data-%s.html"' % stamp
+    return h.send(200, render_export_html(data).encode(), "text/html; charset=utf-8", headers)
+
+
+LABELS = {"account": "Your account", "emergency_contacts": "Emergency contacts", "people": "Your family",
+          "details": "Details", "health": "Health", "gp": "Doctor (GP)", "family_information": "What you told us about "
+          "your family", "attendance": "Attendance", "incidents": "Accidents and incidents", "consents": "Consents "
+          "and permissions", "bookings": "Bookings", "invoices": "Invoices", "payments": "Payments",
+          "messages": "Messages we've sent you", "contact_form_messages": "Messages you sent us",
+          "marketing_preferences": "News preferences", "guest_bookings": "One-off (guest) bookings",
+          "send_support_requests": "SEND support requests", "exported_at": "Downloaded at"}
+
+
+def _label(k):
+    return LABELS.get(k) or str(k).replace("_", " ").capitalize()
+
+
+def _cell(v):
+    if v is None or v == "":
+        return "<span class=m>—</span>"
+    if isinstance(v, (dict, list)):
+        return _block(v)
+    return html.escape(str(v)).replace("\n", "<br>")
+
+
+def _shown(k):
+    return k != "id" and not str(k).endswith("_id")  # internal database numbers mean nothing to a family
+
+
+def _block(v):
+    if isinstance(v, dict):
+        return "<table>%s</table>" % "".join("<tr><th>%s</th><td>%s</td></tr>" % (html.escape(_label(k)), _cell(x))
+                                             for k, x in v.items() if _shown(k))
+    if isinstance(v, list):
+        if not v:
+            return "<p class=m>None.</p>"
+        if all(isinstance(x, dict) for x in v):
+            cols = []
+            for x in v:
+                cols += [k for k in x if k not in cols and _shown(k)]
+            if any(isinstance(x.get(k), (dict, list)) for x in v for k in cols):
+                return "".join("<div class=item>%s</div>" % _block(x) for x in v)
+            return "<table><tr>%s</tr>%s</table>" % (
+                "".join("<th>%s</th>" % html.escape(_label(k)) for k in cols),
+                "".join("<tr>%s</tr>" % "".join("<td>%s</td>" % _cell(x.get(k)) for k in cols) for x in v))
+        return "<ul>%s</ul>" % "".join("<li>%s</li>" % _cell(x) for x in v)
+    return "<p>%s</p>" % _cell(v)
+
+
+def render_export_html(data):
+    parts = []
+    for k, v in data.items():
+        if k == "people":
+            for p in v:
+                name = " ".join(filter(None, [p["details"].get("first_name"), p["details"].get("last_name")]))
+                parts.append("<h2>%s</h2>" % html.escape(name or "Family member"))
+                parts += ["<h3>%s</h3>%s" % (html.escape(_label(sk)), _block(sv)) for sk, sv in p.items()]
+        elif k != "exported_at":
+            parts.append("<h2>%s</h2>%s" % (html.escape(_label(k)), _block(v)))
+    return ("<!doctype html><html lang=en><head><meta charset=utf-8><title>Your data - Honeycombe Arts Hub</title>"
+            "<meta name=viewport content='width=device-width,initial-scale=1'><style>"
+            "body{font:15px/1.5 system-ui,sans-serif;max-width:60em;margin:2em auto;padding:0 1em;color:#222}"
+            "h1{margin-bottom:.2em}h2{margin-top:2em;border-bottom:2px solid #f2b705}h3{margin-bottom:.3em}"
+            "table{border-collapse:collapse;width:100%%;margin:.5em 0}th,td{border:1px solid #ddd;padding:.3em .5em;"
+            "text-align:left;vertical-align:top}th{background:#faf6ec;font-weight:600}.m{color:#888}"
+            ".item{margin:.8em 0}@media print{h2{break-after:avoid}}</style></head><body>"
+            "<h1>The information Honeycombe Arts Hub holds about you</h1><p>Downloaded %s. Keep this file safe: it"
+            " includes your family's health details. A machine-readable (JSON) copy is also available from your"
+            " account.</p>%s</body></html>") % (html.escape(str(data.get("exported_at", ""))), "".join(parts))
+
+
 # ---------------------------------------------------------------- staff
 
 
@@ -138,8 +243,12 @@ def _rows(c, sql, args, drop=()):
 SECRET_COLS = ("password_hash", "collection_pw_hash", "token_hash", "secret")
 
 
-def export_account(c, a):
+def export_account(c, a, self_service=False):
+    """Everything we hold about a family. SELF_SERVICE (the family downloading it themselves) leaves out incidents
+    they haven't been told about yet and ones where their child was only a witness; staff check those by hand."""
     aid = a["id"]
+    incident_filter = (" AND i.notify_mode<>'not_notified' AND ip.role<>'witness' AND (i.parent_notified_at IS NOT"
+                       " NULL OR i.discussed_at IS NOT NULL)") if self_service else ""
     out = {"account": {k: a[k] for k in a.keys() if k not in SECRET_COLS + ("staff_notes",)},
            "emergency_contacts": _rows(c, "SELECT full_name, relationship, phone, can_collect FROM emergency_contacts"
                                           " WHERE account_id=?", (aid,)),
@@ -159,7 +268,7 @@ def export_account(c, a):
                                    " WHERE at.participant_id=? ORDER BY s.date", (pid,)),
             "incidents": _rows(c, "SELECT i.occurred_at, i.kind, i.description, i.action_taken, i.first_aid_given,"
                                   " ip.acknowledged_at FROM incidents i JOIN incident_people ip ON ip.incident_id=i.id"
-                                  " WHERE ip.participant_id=? AND i.restricted=0", (pid,)),
+                                  " WHERE ip.participant_id=? AND i.restricted=0" + incident_filter, (pid,)),
         })
     out["consents"] = _rows(c, "SELECT t.key, t.version, t.label, x.value, x.source, x.created_at, x.superseded_at,"
                                " p.first_name AS person FROM consents x JOIN consent_types t ON t.id=x.consent_type_id"

@@ -93,7 +93,7 @@ function reauthenticate() {
     const d = document.createElement("dialog");
     d.className = "pcard";
     d.innerHTML = `<form method="dialog"><h2>Confirm it's you</h2>
-      <p>For your family's safety, please enter your account password to confirm this change.</p>
+      <p>For your family's safety, please enter your account password to continue.</p>
       <div class="field"><label for="reauthPw">Password</label>
         <input type="password" id="reauthPw" autocomplete="current-password" required></div>
       <p class="field__error" hidden></p>

@@ -98,8 +98,11 @@ see the areas your role uses.
 
 - Families change their own details, contacts, health information, permissions and collection password in their
   account. Changes to collection details need their password again and send them a confirmation.
-- **Request my data**: the in-tray tells you. Open the family → **Download their data**, check it, and email it
-  to them within a month.
+- **Their own copy.** Families can download their data themselves from *Your data & messages*, after re-entering
+  their password. They get a readable page or a JSON file, and an email tells them it happened. Incidents they
+  haven't been told about, and ones where their child was only a witness, are left out.
+- **Request my data**: if they'd rather we send it, the in-tray tells you. Open the family → **Download their data**,
+  check it, and email it to them within a month.
 - **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
   **Restore** it before then.
 - Only the DSL sees family safeguarding information. Viewing health details is logged.

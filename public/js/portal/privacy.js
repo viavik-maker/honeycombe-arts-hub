@@ -13,8 +13,11 @@ export async function privacy() {
       ${p.has_mobile ? `<label class="check"><input type="checkbox" name="sms_news"${p.sms_news ? " checked" : ""}> <span>Text me news about events and activities</span></label>` : ""}
       <div class="pcard__actions"><button class="btn btn--orange" type="submit">Save</button><span class="pcard__saved" id="prefSaved" hidden>Saved ✓</span></div></form>
     <div class="pcard"><h2>A copy of your data</h2>
-      <p>Ask for a copy of everything we hold about you and your family. We'll email it within a month.</p>
-      <button class="btn btn--ghost" id="dataBtn">Request my data</button></div>
+      <p>Download everything we hold about you and your family: your details, health information, bookings, invoices, consents and the messages we've sent. We'll ask for your password first.</p>
+      <div class="btn-row"><button class="btn btn--orange" data-export="html">Download my data</button>
+        <button class="btn btn--ghost" data-export="json">Download as JSON</button></div>
+      <p class="form-note">The first is easy to read and print. JSON is for moving your data to another service. Keep the file safe: it includes health details.</p>
+      <p class="form-note">Prefer us to send it, or want something explained? <button class="linklike" id="dataBtn">Ask us for a copy</button> and we'll email it within a month.</p></div>
     <div class="pcard"><h2>Delete your account</h2>
       <p>We'll cancel your upcoming bookings and delete your account and your family's details after 14 days (call us before then if you change your mind).
       We have to keep invoices for six years, and any accident records until a child turns 25.</p>
@@ -26,6 +29,10 @@ export async function privacy() {
     await busy($("button[type=submit]", f), () => api("/api/account/preferences", { email_news: f.email_news.checked, sms_news: f.sms_news ? f.sms_news.checked : false }));
     $("#prefSaved").hidden = false;
   };
+  document.querySelectorAll("[data-export]").forEach(b => b.onclick = async () => {
+    await busy(b, () => api("/api/account/data-export/check", {}));
+    location.assign("/api/account/data-export?format=" + b.dataset.export);
+  });
   $("#dataBtn").onclick = async () => {
     const r = await busy($("#dataBtn"), () => api("/api/account/data-request", {}));
     $("#dataBtn").insertAdjacentHTML("afterend", notice(esc(r.message), "ok"));

@@ -9,6 +9,7 @@ from collections import deque
 LIMITS = {
     "public_form": (30, 60 * 60),
     "csp_report": (60, 60 * 60),
+    "data_export": (10, 60 * 60),
 }
 MAX_KEYS = 20_000  # bound memory if someone sprays many addresses
 
