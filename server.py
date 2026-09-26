@@ -27,7 +27,8 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
 ROOT = os.path.dirname(os.path.abspath(__file__))
 PUBLIC = os.path.join(ROOT, "public")
-DATA = os.path.join(ROOT, "data")
+# HAH_DATA_DIR lets tests (and staging) point the server at a throwaway folder
+DATA = os.environ.get("HAH_DATA_DIR") or os.path.join(ROOT, "data")
 UPLOADS = os.path.join(DATA, "uploads")  # all editable state lives under data/
 SEED = os.path.join(ROOT, "seed")  # bundled defaults, copied into DATA on first boot
 PARTIALS = os.path.join(ROOT, "partials")

@@ -1,4 +1,5 @@
-# Deploys to Render on every merge to main.
+# Deploys to Render on every merge to main — but only once the test suite
+# (ci.yml) has passed on that commit.
 #
 # Needs one repository secret: RENDER_DEPLOY_HOOK_URL
 #   Render dashboard → the service → Settings → Deploy Hook → copy the URL
@@ -14,7 +15,11 @@ on:
   workflow_dispatch:
 
 jobs:
+  test:
+    uses: ./.github/workflows/ci.yml
+
   deploy:
+    needs: test
     runs-on: ubuntu-latest
     steps:
       - name: Trigger the Render deploy hook

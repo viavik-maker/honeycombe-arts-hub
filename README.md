@@ -56,7 +56,21 @@ data/uploads/        — images uploaded through the admin
 public/              — the website (pages, css, js, images)
 public/docs/         — Policy Handbook PDF
 partials/            — shared header/footer used by every page
+tests/               — automated checks (see below)
+docs/booking/        — design of the new booking system (replacing MagicBooking)
 ```
+
+## Tests
+
+```bash
+python3 -m unittest -v
+```
+
+This runs the real server against a throwaway data folder, so it never
+touches `data/`. GitHub runs the same tests on every pull request, and the
+deploy workflow only deploys a commit once they pass. To make Render's own
+auto-deploy wait for them too: Render dashboard → the service → *Settings →
+Auto-Deploy* → **After CI checks pass**.
 
 ## Going live (hosting)
 
