@@ -17,7 +17,8 @@ _n = itertools.count(1)
 
 
 def future(days):
-    return (datetime.date.today() + datetime.timedelta(days=days)).isoformat()
+    from hah import catalogue  # the app's (UK) date, so tests agree with it around midnight
+    return (catalogue.uk_today() + datetime.timedelta(days=days)).isoformat()
 
 
 def set_settings(**kw):

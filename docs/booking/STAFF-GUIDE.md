@@ -6,6 +6,14 @@ see the areas your role uses.
 
 ## Every day
 
+- **Morning email.** In *My account*, tick *Email me each morning* for a summary before you arrive:
+  - today's sessions and places booked;
+  - new bookings;
+  - overdue invoices (finance roles only);
+  - what's waiting in the in-tray.
+
+  It never includes names or health details.
+
 - **In-tray.** Things waiting for someone:
   - bookings to approve, HAF claims to check, voucher payments;
   - absences and cancellations;
@@ -109,6 +117,10 @@ see the areas your role uses.
 - The system won't publish an activity with no upcoming places, or a paid one with no way to pay. It tells you
   what's missing.
 - **Duplicate for next term** copies an activity and its sessions onto the same weekdays.
+- **Age checked on**:
+  - *The first session*, or *Each session's date*;
+  - *By school year*: the child's age on the 31 August before the school year, as schools count it, so a whole
+    year group is in or out together.
 - **Trial sessions.** Tick *Offer a trial session* under Price, and set a trial price if you like: leave it empty for
   the normal price, or enter 0 for free.
   - Families then see "Trial session" on the Book page, and can tick it for a child's first session when they review
@@ -125,6 +137,9 @@ see the areas your role uses.
   families, whatever their marketing choices. Use these for changes, reminders and cancellations.
 - **News** goes only to people who opted in. Every news email has an unsubscribe link.
 - Always **Preview** first. It shows how many people will get it.
+- **Email wording** (Messages → Email wording, owner and admin): the system's own emails, such as booking
+  confirmations and invoices, have fixed wording. You can add a short note that appears after the greeting in any of
+  them, e.g. "This summer we start at 9:30." Clear the box to remove it.
 - **By age.** *Everyone booked (upcoming) for a child of a certain age* reaches families with a booking for a child in
   that age range. For news, the age boxes narrow the list to opted-in families with a child that age.
 - **Texts cost money.** The preview shows how many texts each person gets and roughly what it will cost. Set the price
@@ -158,6 +173,11 @@ see the areas your role uses.
   check it, and email it to them within a month.
 - **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
   **Restore** it before then.
+- **Card payments that arrive late.** If a family pays after their held place has gone to someone else, the system
+  refunds the card (and any account credit used) automatically, emails the family, and leaves a note in the
+  in-tray.
+- **Disk space.** If the server's disk gets nearly full, owners get an email and the in-tray says so. Ask your web
+  developer to add space before backups stop.
 - Only the DSL sees family safeguarding information. Viewing health details is logged.
 - **Turning 18.** On a child's 18th birthday the parent is emailed and you get an in-tray item.
   - The parent can choose *Give them their own account* on their family page. The young person gets an email, sets a

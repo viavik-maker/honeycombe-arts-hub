@@ -19,7 +19,8 @@ def new_ref(prefix):
 
 
 def today():
-    return datetime.date.today()
+    from .catalogue import uk_today  # the charity's date, not the server's (UTC)
+    return uk_today()
 
 
 def age_years(dob, on=None):

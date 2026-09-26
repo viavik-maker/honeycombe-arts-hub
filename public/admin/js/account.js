@@ -22,6 +22,10 @@ A.addTab({
         <p class="fhint">Left the admin signed in on a shared computer? Sign out everywhere except here.</p>
         <button class="abtn abtn--ghost" id="revokeBtn">Sign out other devices</button>
       </div>
+      <div class="acard"><h2>Morning email</h2>
+        <label class="fcheck"><input type="checkbox" id="digest"${m.daily_digest ? " checked" : ""}> Email me each morning with today's sessions and what's waiting in the in-tray</label>
+        <p class="fhint">Numbers only: it never includes names or health details.</p>
+      </div>
       <div class="acard"><h2>Two-step sign-in</h2>
         <p class="fhint">${m.totp_enabled ? "On — you sign in with a code from your authenticator app." :
           "Not set up."} Lost your phone? Ask an administrator for a reset link.</p>
@@ -32,6 +36,10 @@ A.addTab({
         $("#pwCur").value = ""; $("#pwNew").value = "";
         toast("Password changed 🔒");
       } catch (e) { toast(e.message, true); }
+    };
+    $("#digest", root).onchange = async (e) => {
+      try { await post("/api/staff/me/digest", { on: e.target.checked }); m.daily_digest = e.target.checked; toast(e.target.checked ? "You'll get the morning email" : "Morning email off"); }
+      catch (x) { toast(x.message, true); }
     };
     $("#revokeBtn", root).onclick = async () => {
       try { const d = await post("/api/staff/sessions/revoke-others", {}); toast(`Signed out ${d.revoked} other session(s)`); }

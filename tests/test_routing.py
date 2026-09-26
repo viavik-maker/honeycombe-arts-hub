@@ -30,7 +30,7 @@ class PatternTest(unittest.TestCase):
                     if r.mfa:
                         self.assertTrue(r.perm or pattern in (
                             "/api/staff/me", "/api/staff/password", "/api/staff/logout",
-                            "/api/staff/sessions/revoke-others",
+                            "/api/staff/sessions/revoke-others", "/api/staff/me/digest",
                             # the in-tray filters each item by the permission it names
                             "/api/staff/intray", "/api/staff/intray/(?P<iid>[^/]+)"), "no permission set")
 

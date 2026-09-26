@@ -56,8 +56,8 @@ def booked_within(c, pid, days):
         return c.execute(
             "SELECT 1 FROM bookings b JOIN activity_sessions s ON s.id=b.session_id WHERE b.participant_id=?"
             " AND b.status IN ('confirmed','pending_payment','pending_approval') AND s.date BETWEEN ? AND ?",
-            (pid, datetime.date.today().isoformat(),
-             (datetime.date.today() + datetime.timedelta(days=days)).isoformat())).fetchone() is not None
+            (pid, family.today().isoformat(),
+             (family.today() + datetime.timedelta(days=days)).isoformat())).fetchone() is not None
     except Exception:  # bookings tables not created yet
         return False
 

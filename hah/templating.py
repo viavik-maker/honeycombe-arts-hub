@@ -34,16 +34,27 @@ def fill(text, context):
     return _VAR_RE.sub(sub, text)
 
 
-def render_email(key, context):
-    """(subject, text body, html body)."""
+INTRO = "\u0003INTRO\u0003"
+
+
+def render_email(key, context, intro=None):
+    """(subject, text body, html body). INTRO is a short note staff added in Admin (after the greeting)."""
     raw = _read("email", key)
     first, _, body = raw.partition("\n")
     if not first.startswith("Subject:"):
         raise ValueError("email template %s must start with 'Subject:'" % key)
     subject = " ".join(fill(first[len("Subject:"):], context).split())
     body = body.strip("\n")
+    intro = (intro or "").strip()
+    if intro:
+        greeting, sep, rest = body.partition("\n\n")
+        body = greeting + "\n\n" + INTRO + ("\n\n" + rest if sep else "")
     text = fill(body, context)
-    return subject, plain_link(text) + "\n", html_layout(subject, _html_body(body, context))
+    html_body = _html_body(body, context)
+    if intro:
+        text = text.replace(INTRO, intro.replace("**", ""))
+        html_body = html_body.replace("<p>%s</p>" % INTRO, rich(intro)).replace(INTRO, esc_html(intro))
+    return subject, plain_link(text) + "\n", html_layout(subject, html_body)
 
 
 def _html_body(body, context):

@@ -93,8 +93,9 @@ function editor(root, act, back) {
         <div class="fgroup"><label>Youngest age</label><span class="agepair"><input type="number" name="min_y" min="0" max="99" value="${lo.y}"> y <input type="number" name="min_m" min="0" max="11" value="${lo.m}"> m</span></div>
         <div class="fgroup"><label>Oldest age</label><span class="agepair"><input type="number" name="max_y" min="0" max="99" value="${hi.y}"> y <input type="number" name="max_m" min="0" max="11" value="${hi.m}"> m</span><p class="fhint">Inclusive: “6–12” is 6y 0m to 12y 11m.</p></div>
         <div class="fgroup"><label>Age checked on</label><select name="age_basis">
-          <option value="first_session"${a.age_basis === "first_session" ? " selected" : ""}>The first session</option>
-          <option value="session_date"${a.age_basis === "session_date" ? " selected" : ""}>Each session's date</option></select></div>
+          <option value="first_session"${a.age_basis === "first_session" && !a.age_by_school_year ? " selected" : ""}>The first session</option>
+          <option value="session_date"${a.age_basis === "session_date" && !a.age_by_school_year ? " selected" : ""}>Each session's date</option>
+          <option value="school_year"${a.age_by_school_year ? " selected" : ""}>By school year (age on 31 August)</option></select></div>
       </div>
       <input type="hidden" name="min_age_months"><input type="hidden" name="max_age_months">
       <div class="fgroup"><label>Registration form families complete</label><select name="registration_level">${Object.entries(m.levels).map(([k, v]) => `<option value="${k}"${k === a.registration_level ? " selected" : ""}>${esc(v)}</option>`).join("")}</select></div>
@@ -131,7 +132,8 @@ function editor(root, act, back) {
       title: f.title.value, category_id: f.category_id.value, centre_id: f.centre_id.value, summary: f.summary.value,
       description: f.description.value, image: f.image.value, event_id: f.event_id.value,
       min_age_months: (+f.min_y.value || 0) * 12 + (+f.min_m.value || 0), max_age_months: (+f.max_y.value || 0) * 12 + (+f.max_m.value || 0),
-      age_basis: f.age_basis.value, registration_level: f.registration_level.value, haf_allowance_days: f.haf_allowance_days.value,
+      age_basis: f.age_basis.value === "school_year" ? "first_session" : f.age_basis.value, age_by_school_year: f.age_basis.value === "school_year",
+      registration_level: f.registration_level.value, haf_allowance_days: f.haf_allowance_days.value,
       capacity_counts: f.capacity_counts.value, booking_opens_at_local: f.booking_opens_at_local.value,
       booking_closes_hours: f.booking_closes_hours.value, capacity_default: f.capacity_default.value,
       max_party_size: f.max_party_size.value, waitlist_mode: f.waitlist_mode.value,

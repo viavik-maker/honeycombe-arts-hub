@@ -9,7 +9,7 @@ A.addTab({
   async render(root) {
     const st = this.state;
     if (this.options) { st.view = "compose"; Object.assign(st.draft, this.options); this.options = null; }
-    const tabs = `<div class="segtabs">${[["compose", "Write a message"], ["sent", "Sent"], ["archive", "Archive"]].map(([k, l]) =>
+    const tabs = `<div class="segtabs">${[["compose", "Write a message"], ["sent", "Sent"], ["archive", "Archive"], ...(can("settings.manage") ? [["wording", "Email wording"]] : [])].map(([k, l]) =>
       `<button class="abtn abtn--sm ${k === st.view ? "abtn--honey" : "abtn--ghost"}" data-view="${k}">${l}</button>`).join("")}</div>`;
     if (st.view === "sent") {
       const d = await api("/api/staff/messages");
@@ -25,6 +25,21 @@ A.addTab({
         if (!await confirmBox("Cancel this scheduled message? Nobody will get it.", "Cancel message")) return;
         try { await post(`/api/staff/messages/${b.dataset.cancel}/cancel`, {}); toast("Cancelled"); this.render(root); }
         catch (x) { toast(x.message, true); }
+      });
+    } else if (st.view === "wording") {
+      const d = await api("/api/staff/email-wording");
+      root.innerHTML = `<h1>Messages</h1>${tabs}
+        <p class="fhint">The emails the system sends by itself. The standard wording can't be changed (it includes things we must say), but you can add a short note that appears after the greeting: a reminder about the new start time, say. Leave it empty to remove it.</p>
+        ${d.templates.map(t => `<details class="acard"><summary><strong>${esc(t.subject)}</strong> <span class="fhint">${esc(t.key)}</span>${t.intro ? " " + chip("has a note", "info") : ""}</summary>
+          <div class="fgroup"><label>Your note (optional, up to ${d.max} characters)</label><textarea data-intro="${esc(t.key)}" maxlength="${d.max}">${esc(t.intro)}</textarea></div>
+          <p><button class="abtn abtn--primary abtn--sm" data-save="${esc(t.key)}">Save note</button></p>
+          <pre class="msgbody" data-preview="${esc(t.key)}">${esc(t.text)}</pre></details>`).join("")}`;
+      $$("[data-save]", root).forEach(b => b.onclick = async () => {
+        const key = b.dataset.save;
+        try {
+          const r = await post("/api/staff/email-wording/" + encodeURIComponent(key), { intro: $(`[data-intro="${key}"]`, root).value });
+          $(`[data-preview="${key}"]`, root).textContent = r.text; toast("Saved");
+        } catch (x) { toast(x.message, true); }
       });
     } else if (st.view === "archive") {
       const d = await api("/api/staff/messages/archive?q=" + encodeURIComponent(st.q));

@@ -1,0 +1,6 @@
+Subject: Action needed: the booking system's disk is nearly full
+Hello {{first_name}},
+
+The server that runs the booking system has only {{free_mb}} MB ({{free_pct}}%) of disk space left. If it fills up, backups will stop and bookings may fail.
+
+Please ask your web developer to increase the disk size in Render, or to clear out old backups and uploads.

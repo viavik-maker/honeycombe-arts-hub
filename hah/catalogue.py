@@ -100,10 +100,15 @@ def first_session_date(c, activity_id):
 
 
 def age_on(activity, session, first_date):
-    """The date a child's age is checked on for this session."""
+    """The date a child's age is checked on for this session. By school year, it's the 31 August before that
+    school year starts (so a whole class is in or out together)."""
     if activity["age_basis"] == "first_session" and first_date:
-        return datetime.date.fromisoformat(first_date)
-    return datetime.date.fromisoformat(session["date"])
+        day = datetime.date.fromisoformat(first_date)
+    else:
+        day = datetime.date.fromisoformat(session["date"])
+    if activity["age_by_school_year"]:
+        return datetime.date(day.year if day.month >= 9 else day.year - 1, 8, 31)
+    return day
 
 
 def months_between(dob, on):

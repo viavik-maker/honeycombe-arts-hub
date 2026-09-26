@@ -2,7 +2,7 @@
 import datetime
 import os
 
-from . import audit, backup, config, db, mail, outbox, sms, validate, worker
+from . import audit, backup, config, db, mail, outbox, sms, validate, worker, ops
 from .web import route
 
 # the running Worker (set by app.main; tests make their own)
@@ -65,6 +65,7 @@ def system_status(h):
                   "staff_notify_to": bool(mail.staff_notify_address())},
         "sms": {"configured": sms.configured(), "provider": sms.provider_name()},
         "outbox": outbox.stats(),
+        "disk": ops.disk(),
     })
 
 

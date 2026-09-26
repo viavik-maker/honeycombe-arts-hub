@@ -135,7 +135,7 @@ def fields(section):
 
 def age_months(dob, on=None):
     """Whole months between DOB and ON (inclusive-bound friendly)."""
-    on = on or datetime.date.today()
+    on = on or _uk_today()
     return (on.year - dob.year) * 12 + (on.month - dob.month) - (1 if on.day < dob.day else 0)
 
 
@@ -190,7 +190,7 @@ def clean(section, data, level):
             value = v
         elif typ == "date":
             d = validate.date(value)
-            if not d or d > datetime.date.today() or d.year < 1900:
+            if not d or d > _uk_today() or d.year < 1900:
                 errors[key] = "Enter a real date of birth."
             value = d.isoformat() if d else None
         elif typ in ("select", "radio"):
@@ -223,3 +223,8 @@ def public_spec():
     """SPEC plus the contact rules, for the portal's form renderer."""
     return {"sections": SPEC, "contacts": CONTACTS, "acknowledgements": list(ACKNOWLEDGEMENTS),
             "go_home_alone_min_months": GO_HOME_ALONE_MIN_MONTHS}
+
+
+def _uk_today():
+    from .catalogue import uk_today  # the charity's date, not the server's (UTC)
+    return uk_today()

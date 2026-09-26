@@ -42,6 +42,7 @@ TYPE_NAMES = {
     "activation_problem": "Activation problem", "walkin_follow_up": "Walk-in to follow up", "haf_claim": "HAF claim",
     "contact_message": "Contact message", "send_intake": "SEND support request", "import_review": "Import to review",
     "message_failed": "Scheduled message not sent", "turned_18": "Turned 18", "retention_review": "Retention review",
+    "disk_low": "Disk nearly full",
 }
 
 

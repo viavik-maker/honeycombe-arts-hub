@@ -31,7 +31,9 @@ def email(c, to, template, context=None, *, kind="service", to_name=None, secret
     to = validate.email(to)
     if not to:
         return None
-    subject, text, html_body = templating.render_email(template, context or {})
+    intro = c.execute("SELECT intro FROM email_intros WHERE template_key=?", (template,)).fetchone() \
+        if kind != "staff" else None
+    subject, text, html_body = templating.render_email(template, context or {}, intro[0] if intro else None)
     cur = c.execute(
         "INSERT INTO message_deliveries(campaign_id, template_key, channel, kind, to_address, to_name, subject,"
         " body_text, body_html, headers, secret, account_id, staff_id, participant_id, booking_id,"

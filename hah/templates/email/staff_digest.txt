@@ -1,0 +1,10 @@
+Subject: Honeycombe Arts Hub — {{day}}
+Good morning {{first_name}},
+
+Here's today at a glance:
+
+{{summary}}
+
+Open the admin: {{admin_url}}
+
+(You asked for this daily email. Turn it off in the admin under My account.)

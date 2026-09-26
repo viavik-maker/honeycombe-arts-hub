@@ -16,7 +16,7 @@ import io
 import json
 import re
 
-from . import accounts, audit, db, family, validate, worker
+from . import accounts, audit, catalogue, db, family, validate, worker
 from .web import route
 
 FIELDS = {
@@ -72,7 +72,7 @@ def parse_dob(value, order):
         return None
     a, b, y = int(m.group(1)), int(m.group(2)), int(m.group(3))
     if y < 100:
-        y += 2000 if y <= datetime.date.today().year % 100 else 1900
+        y += 2000 if y <= catalogue.uk_today().year % 100 else 1900
     day_, month = (a, b) if order == "dmy" else (b, a)
     try:
         return datetime.date(y, month, day_)
@@ -121,7 +121,7 @@ def plan(c, headers, rows, mapping, order="dmy"):
             continue
         cl = validate.text(get(r, "child_last_name"), 60) or last
         dob = parse_dob(get(r, "child_dob"), order)
-        if not dob or dob > datetime.date.today() or dob.year < 1990:
+        if not dob or dob > catalogue.uk_today() or dob.year < 1990:
             results.append((n, "error", "Child's date of birth missing or not a date"))
             continue
         if any(k["first_name"].lower() == cf.lower() and k["dob"] == dob.isoformat() for k in fam["children"]):

@@ -142,7 +142,7 @@ def get_activity(h, aid):
 # ---------------------------------------------------------------- editing
 
 BOOL_FIELDS = ("requires_approval", "parent_must_stay", "haf_only", "waitlist_enabled", "allow_pay_later",
-               "allow_trial")
+               "allow_trial", "age_by_school_year")
 INT_FIELDS = {"min_age_months": (0, 1200), "max_age_months": (0, 1200), "price_pence": (0, 100000),
               "adult_price_pence": (0, 100000), "capacity_default": (0, 500), "max_party_size": (1, 30),
               "booking_closes_hours": (0, 720)}

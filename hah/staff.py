@@ -52,7 +52,7 @@ def current_staff(h):
     with db.read() as c:
         row = c.execute(
             "SELECT s.id AS session_id, s.csrf_token, s.mfa_passed, s.last_seen_at, s.idle_expires_at,"
-            " s.expires_at, u.id, u.email, u.name, u.status, u.totp_enabled"
+            " s.expires_at, u.id, u.email, u.name, u.status, u.totp_enabled, u.daily_digest"
             " FROM staff_sessions s JOIN staff_users u ON u.id = s.staff_id WHERE s.token_hash=?",
             (security.hash_token(token),)).fetchone()
         if not row or row["status"] != "active" or row["expires_at"] <= now or row["idle_expires_at"] <= now:
@@ -67,7 +67,7 @@ def current_staff(h):
         "id": row["id"], "email": row["email"], "name": row["name"], "roles": roles,
         "perms": permissions.perms_for(roles), "csrf": row["csrf_token"],
         "mfa_passed": bool(row["mfa_passed"]), "totp_enabled": bool(row["totp_enabled"]),
-        "session_id": row["session_id"],
+        "session_id": row["session_id"], "daily_digest": bool(row["daily_digest"]),
     }
 
 
@@ -269,7 +269,7 @@ def me_(h):
         "staff": {"id": me["id"], "name": me["name"], "email": me["email"], "roles": me["roles"]},
         "perms": sorted(me["perms"]) if me["mfa_passed"] else [],
         "csrf": me["csrf"], "mfa_passed": me["mfa_passed"], "totp_enabled": me["totp_enabled"],
-        "mfa_required": mfa_required(),
+        "mfa_required": mfa_required(), "daily_digest": bool(me.get("daily_digest")),
     })
 
 
