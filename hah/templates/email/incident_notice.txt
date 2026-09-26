@@ -1,0 +1,4 @@
+Subject: A note about {{child}}'s session
+Hello {{first_name}},
+
+We've added a note about {{child}}'s session today. Please [sign in to read it]({{account_url}}), or call us on 07932 772905 if you'd like to talk it through.

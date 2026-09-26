@@ -298,10 +298,17 @@ export async function myBookings() {
   let d;
   const draw = async () => {
     d = await api("/api/account/bookings");
+    const inc = (await api("/api/account/incidents")).incidents;
     const byDate = {};
     d.upcoming.filter(b => b.status !== "offered").forEach(b => (byDate[b.date] = byDate[b.date] || []).push(b));
     const unpaid = d.invoices.filter(i => i.balance_pence > 0);
+    const noteCard = (n) => `<div class="pcard${n.acknowledged ? "" : " pcard--todo"}"><h2>A note about ${esc(n.child || "your child")}'s session</h2>
+        <p class="pcard__intro">${esc(new Date(n.occurred_at).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }))} · ${esc(n.kind)}</p>
+        <p>${esc(n.description)}</p>${n.action_taken ? `<p><strong>What we did:</strong> ${esc(n.action_taken)}${n.first_aid_given ? " (first aid given)" : ""}</p>` : ""}
+        ${n.acknowledged ? `<p class="pcard__saved">Read ✓</p>` : `<button class="btn btn--sm btn--orange" data-ack="${esc(n.ref)}">I've read this</button>`}
+        <p class="hint">Questions? Call us on 07932 772905.</p></div>`;
     root().innerHTML = `<h1>My bookings</h1>
+      ${inc.filter(n => !n.acknowledged).map(noteCard).join("")}
       ${d.credit_pence ? notice(`You have <strong>${money(d.credit_pence)}</strong> account credit — it's used automatically on your next booking.`, "ok") : ""}
       ${d.offers.map(b => `<div class="pcard pcard--todo"><h2>A place has come up!</h2>
         <p><strong>${esc(b.activity)}</strong>, ${esc(niceDate(b.date))} ${esc(b.start_time)}–${esc(b.end_time)}${b.who ? " for " + esc(b.who.first_name) : ""}.
@@ -326,6 +333,7 @@ export async function myBookings() {
         : `<p>No upcoming bookings. <a href="/book">Book activities</a></p>`}
       ${d.invoices.length ? `<h2>Invoices</h2><table class="table-plain"><tbody>${d.invoices.map(i => `<tr><td><a href="/account/invoices/${esc(i.number)}">${esc(i.number)}</a></td>
         <td>${esc(niceDate(i.issue_date))}</td><td class="num">${money(i.total_pence)}</td><td>${i.balance_pence > 0 ? "To pay: " + money(i.balance_pence) : esc({ paid: "Paid", credited: "Credited" }[i.status] || i.status)}</td></tr>`).join("")}</tbody></table>` : ""}
+      ${inc.some(n => n.acknowledged) ? `<details><summary>Notes from our team (${inc.filter(n => n.acknowledged).length})</summary>${inc.filter(n => n.acknowledged).map(noteCard).join("")}</details>` : ""}
       ${d.past.length ? `<details><summary>Past sessions (${d.past.length})</summary><ul>${d.past.slice().reverse().map(b => `<li>${esc(niceDate(b.date))} — ${esc(b.activity)}${b.who ? " (" + esc(b.who.first_name) + ")" : ""}</li>`).join("")}</ul></details>` : ""}`;
     wire();
   };
@@ -345,6 +353,10 @@ export async function myBookings() {
       catch (x) { alertBox(x.message); }
     });
     $$("[data-cancel]").forEach(b => b.onclick = () => cancelDialog(b.dataset.cancel));
+    $$("[data-ack]").forEach(b => b.onclick = async () => {
+      try { await busy(b, () => api(`/api/account/incidents/${encodeURIComponent(b.dataset.ack)}/acknowledge`, {})); await draw(); }
+      catch (x) { alertBox(x.message); }
+    });
   };
 
   const cancelDialog = async (ref) => {
