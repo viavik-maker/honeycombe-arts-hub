@@ -25,6 +25,7 @@ DEFAULTS = {
     "go_home_alone_min_age": 11,
     "bank_holidays": [],                   # skipped by the session generator
     "session_reminder_sms": False,
+    "reporting_year_start_month": 1,       # 1 = calendar year, 4 = April, 9 = September
     # invoices
     "issuer_name": "Honeycombe Arts Hub",
     "issuer_address": "Boscombe, Bournemouth",
@@ -43,7 +44,8 @@ DEFAULTS = {
 
 LIMITS = {"hold_minutes": (31, 120), "cancel_cutoff_hours": (0, 720), "refund_days": (0, 90),
           "waitlist_offer_hours": (1, 168), "waitlist_offer_hours_soon": (1, 48),
-          "manual_waitlist_release_hours": (1, 336), "payment_terms_days": (0, 90), "go_home_alone_min_age": (8, 18)}
+          "manual_waitlist_release_hours": (1, 336), "payment_terms_days": (0, 90), "go_home_alone_min_age": (8, 18),
+          "reporting_year_start_month": (1, 12)}
 
 
 def get_all(c=None):

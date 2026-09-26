@@ -56,7 +56,8 @@ img { max-width: 100%; }
 .login__err { color: var(--red); font-weight: 800; margin-top: 1em; }
 
 /* ---------- layout ---------- */
-.app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
+.app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh;
+  background: linear-gradient(90deg, var(--navy-d) 250px, transparent 250px); }
 .side {
   background: var(--navy-d); color: #c4cae2; padding: 1.6rem 1rem; display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain;
@@ -262,3 +263,6 @@ dialog.dlg.dlg--wide { width: min(760px, 94vw); max-width: 94vw; }
 .bad { color: var(--red); }
 select[multiple] { width: 100%; font: inherit; border: 2px solid var(--line); border-radius: 12px; padding: .4em; }
 .msgbody { white-space: pre-wrap; font-family: inherit; background: var(--cream); padding: .8em 1em; border-radius: 10px; max-height: 320px; overflow: auto; }
+.chart { width: 100%; height: auto; display: block; margin-bottom: .6rem; }
+.legend { display: flex; flex-wrap: wrap; gap: .4rem 1rem; font-size: .85rem; color: var(--muted); }
+.legend i { display: inline-block; width: .8em; height: .8em; border-radius: 3px; margin-right: .35em; vertical-align: -1px; }
