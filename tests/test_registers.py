@@ -1,4 +1,5 @@
 """Registers (sign in/out, collection checks, printing, HAF export) and incidents."""
+import json
 import uuid
 
 from hah import db, ratelimit
@@ -154,3 +155,47 @@ class RegisterTest(ServerTestCase):
         self.assertIn("Maya", r.text)
         self.assertIn(future(0), r.text)
         self.assertEqual(self.admin(roles=("session_staff",)).get("/api/staff/reports/haf.csv").status, 403)
+
+
+class OfflineRegisterTest(ServerTestCase):
+    def setUp(self):
+        set_settings(booking_live=True)
+        ratelimit.reset()
+        self.fam = register_family()
+        self.child = complete_child(self.fam)
+        with db.tx() as c:
+            c.execute("UPDATE participant_safeguarding SET family_info='Private family matter' WHERE participant_id=?",
+                      (participant_id(self.child),))
+        self.sid, self.bid = book_today(self.fam, self.child)
+
+    def test_pack_and_catching_up(self):
+        import datetime as _dt
+        staff = self.admin(roles=("session_staff",))
+        pack = ok(staff.get("/api/staff/registers/offline-pack")).json()
+        s = [x for x in pack["sessions"] if x["id"] == self.sid][0]
+        row = [r for r in s["rows"] if r["booking_id"] == self.bid][0]
+        self.assertIn("ALLERGY: Peanuts", row["person"]["needs"])
+        text = json.dumps(pack)
+        self.assertNotIn("Private family matter", text)  # never safeguarding
+        self.assertNotIn("collection_pw", text)
+        self.assertNotIn("blue tiger", text)
+        with db.read() as c:
+            self.assertTrue(c.execute("SELECT 1 FROM audit_log WHERE action='register.offline_pack'").fetchone())
+        # changes made offline arrive later with their real times
+        url = "/api/staff/attendance/%d" % self.bid
+        t_in = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=40)).strftime("%Y-%m-%dT%H:%M:%S.123Z")
+        ok(staff.post_json(url, {"action": "in", "offline": True, "at": t_in}))
+        self.assertTrue(ok(staff.post_json(url, {"action": "in", "offline": True, "at": t_in})).json()["already"])
+        self.assertEqual(staff.post_json(url, {"action": "out", "offline": True, "at": t_in, "method": "password",
+                                               "password": "blue tiger", "collected_by_name": "Jo"}).status, 400)
+        old = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(hours=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        self.assertEqual(staff.post_json(url, {"action": "out", "offline": True, "at": old,
+                                               "method": "known_adult_verified", "collected_by_name": "Jo"}).status, 400)
+        t_out = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
+        ok(staff.post_json(url, {"action": "out", "offline": True, "at": t_out, "method": "known_adult_verified",
+                                 "collected_by_name": "Jo Jones"}))
+        with db.read() as c:
+            a = c.execute("SELECT signed_in_at, signed_out_at FROM attendance WHERE booking_id=?", (self.bid,)).fetchone()
+            self.assertEqual((a["signed_in_at"], a["signed_out_at"]), (t_in.replace(".123Z", "Z"), t_out))
+            self.assertTrue(c.execute("SELECT 1 FROM audit_log WHERE action='attendance.out' AND details LIKE '%offline%'")
+                            .fetchone())

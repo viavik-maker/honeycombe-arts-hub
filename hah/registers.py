@@ -9,6 +9,7 @@ Collection passwords are never shown or printed: staff type what the adult
 says and the server checks it. After too many wrong tries the child's record
 isn't locked — staff switch to the phone-verification procedure."""
 import datetime
+import re
 
 from . import audit, booking_settings, catalogue, db, family, ratelimit, security, validate
 from .web import route
@@ -224,11 +225,26 @@ def _row(c, bid):
     return b
 
 
+def _offline_time(d):
+    """When an action made on an offline tablet really happened (sent when it syncs). None = now."""
+    if not d.get("offline"):
+        return None
+    try:  # browsers send 2026-07-21T10:15:03.123Z
+        at = catalogue.parse_utc(re.sub(r"\.\d+Z$", "Z", str(d.get("at") or "")))
+    except ValueError:
+        raise ValueError("That register change has no time — mark it again.")
+    now = datetime.datetime.now(datetime.timezone.utc)
+    if not now - datetime.timedelta(hours=24) <= at <= now + datetime.timedelta(minutes=2):
+        raise ValueError("That register change is more than a day old, so it can't be added now — tell a manager.")
+    return catalogue.utc_iso(at)
+
+
 @route("POST", "/api/staff/attendance/<bid>", auth="staff", perm="registers.mark")
 def mark(h, bid):
     d = h.json_body() or {}
     action = d.get("action")
     staff = h.staff()
+    offline_at = _offline_time(d)
     with db.tx() as c:
         b = _row(c, bid)
         s = _session(c, b["session_id"])
@@ -237,7 +253,14 @@ def mark(h, bid):
         from . import bookings
         bookings.add_attendance(c, b)
         att = c.execute("SELECT * FROM attendance WHERE booking_id=?", (b["id"],)).fetchone()
-        now = db.now()
+        now = offline_at or db.now()
+        if offline_at:
+            # a tablet catching up: the same change sent twice (or already made online) is fine
+            if (action == "in" and att["signed_in_at"]) or (action == "out" and att["signed_out_at"]) or \
+                    (action == "absent" and att["status"] in ("absent", "absent_notified")):
+                return h.json({"ok": True, "already": True, "status": att["status"]})
+            if action == "out" and d.get("method") == "password":
+                return h.json({"error": "Collection passwords can't be checked offline — use the phone check."}, 400)
         if action == "in":
             c.execute("UPDATE attendance SET status='present', signed_in_at=COALESCE(signed_in_at, ?), signed_in_by=?,"
                       " late=?, arrived_count=?, updated_at=? WHERE id=?",
@@ -255,7 +278,7 @@ def mark(h, bid):
                 c.execute("UPDATE attendance SET status='expected', signed_in_at=NULL, signed_in_by=NULL, late=0,"
                           " updated_at=? WHERE id=?", (now, att["id"]))
         elif action == "out":
-            problem = _sign_out(c, h, b, s, att, d)
+            problem = _sign_out(c, h, b, s, att, d, when=now)
             if problem:
                 return h.json(problem, 409 if problem.get("to_discuss") else 400)
         elif action == "note":
@@ -263,15 +286,17 @@ def mark(h, bid):
                       (validate.long_text(d.get("notes"), 500) or None, now, att["id"]))
         else:
             raise ValueError("Unknown register action.")
+        details = {"method": d.get("method")} if action == "out" else {}
+        if offline_at:
+            details.update(offline=True, at=offline_at)
         audit.record(c, h, "attendance.%s" % action, entity_type="booking", entity_id=b["id"],
-                     participant_id=b["participant_id"],
-                     details={"method": d.get("method")} if action == "out" else None)
+                     participant_id=b["participant_id"], details=details or None)
         att = c.execute("SELECT * FROM attendance WHERE booking_id=?", (b["id"],)).fetchone()
     return h.json({"ok": True, "status": att["status"], "signed_in_at": att["signed_in_at"],
                    "signed_out_at": att["signed_out_at"], "release_method": att["release_method"]})
 
 
-def _sign_out(c, h, b, s, att, d):
+def _sign_out(c, h, b, s, att, d, when=None):
     """Returns a problem dict, or None once signed out."""
     if not att["signed_in_at"]:
         return {"error": "Sign them in first."}
@@ -309,7 +334,7 @@ def _sign_out(c, h, b, s, att, d):
             return {"error": "There's no permission for them to go home alone."}
     elif method == "parent_stayed" and not s["parent_must_stay"] and b["kind"] != "party":
         return {"error": "This isn't a stay-and-play session — choose another way."}
-    now = db.now()
+    now = when or db.now()
     c.execute("UPDATE attendance SET signed_out_at=?, signed_out_by=?, release_method=?, collected_by_name=?,"
               " collected_by_relationship=?, incident_discussed=?, updated_at=? WHERE id=?",
               (now, h.staff()["id"], method, name or None, validate.text(d.get("collected_by_relationship"), 60) or None,
@@ -320,6 +345,54 @@ def _sign_out(c, h, b, s, att, d):
                   " (SELECT incident_id FROM incident_people WHERE participant_id=?)",
                   (now, h.staff()["id"], now, now, p["id"]))
     return None
+
+
+# ---------------------------------------------------------------- offline registers (staff tablets)
+
+
+def _offline_person(p, r):
+    hl = p["health"] or {}
+    return {"first_name": p["first_name"], "last_name": p["last_name"], "age": p["age"],
+            "needs": [x for x in (
+                ("ALLERGY: " + hl["allergies"]) if hl.get("allergies") else "",
+                "ANAPHYLAXIS" + (" (pen)" if hl.get("adrenaline_pen") else "") if hl.get("anaphylaxis") else "",
+                ("Medical: " + hl["medical_conditions"]) if hl.get("medical_conditions") else "",
+                ("Medication: " + hl["medication"]) if hl.get("medication") else "",
+                ("Diet: " + hl["dietary"]) if hl.get("dietary") else "",
+                "SEND" if p["flags"]["send"] else "", "SEMH" if p["flags"]["semh"] else "",
+                ("Support plan: " + p["support_plan"]) if p.get("support_plan") else "") if x],
+            "photo": p["photo"], "go_home_alone": p["go_home_alone"], "collection_alert": bool(p["collection_alert"]),
+            "collectors": [{"name": x["full_name"], "relationship": x["relationship"], "phone": x["phone"]}
+                           for x in p["collectors"]],
+            "parent": p["parent"]}
+
+
+@route("GET", "/api/staff/registers/offline-pack", auth="staff", perm="registers.view")
+def offline_pack(h):
+    """Today's registers for a tablet to keep (encrypted) in case the connection drops. The same details as the
+    printed register: never collection passwords or safeguarding information; collection alerts only as a flag."""
+    today = catalogue.uk_today().isoformat()
+    out = []
+    with db.tx() as c:
+        for s in c.execute("SELECT id FROM activity_sessions WHERE date=? AND status='scheduled' ORDER BY start_time",
+                           (today,)).fetchall():
+            s = _session(c, s["id"])
+            rows = []
+            for r in register_rows(c, h, s):
+                row = {"booking_id": r["booking_id"], "status": r["status"], "signed_in_at": r["signed_in_at"],
+                       "signed_out_at": r["signed_out_at"], "to_discuss": bool(r["to_discuss"])}
+                if "person" in r:
+                    row["person"] = _offline_person(r["person"], r)
+                else:
+                    pa = r["party"]
+                    row["party"] = {"contact": pa["contact"], "adults": pa["adults"], "children": pa["children"],
+                                    "places": pa["places"], "named": [_offline_person(k, r) for k in pa["named"]]}
+                rows.append(row)
+            out.append({"id": s["id"], "title": s["title"], "start_time": s["start_time"], "end_time": s["end_time"],
+                        "centre": s["centre"], "theme": s["theme"], "parent_must_stay": bool(s["parent_must_stay"]),
+                        "rows": rows})
+        audit.record(c, h, "register.offline_pack", details={"date": today, "sessions": len(out)})
+    return h.json({"date": today, "generated_at": db.now(), "sessions": out, "staff": h.staff()["name"]})
 
 
 # ---------------------------------------------------------------- printing

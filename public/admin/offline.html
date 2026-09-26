@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="robots" content="noindex">
+  <title>Offline registers — Honeycombe Arts Hub</title>
+  <link rel="icon" type="image/png" href="/img/favicon.png">
+  <link rel="stylesheet" href="/css/fonts.css">
+  <link rel="stylesheet" href="/admin/admin.css">
+</head>
+<body class="offline-page">
+  <header class="offline-head">
+    <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="offline-head__logo">
+    <div><strong>Registers (works offline)</strong><br><span id="netState" class="fhint"></span></div>
+    <div class="offline-head__btns"><button class="abtn abtn--ghost abtn--sm" id="syncBtn" hidden>Send changes</button>
+      <a class="abtn abtn--ghost abtn--sm" href="/admin">Full admin</a></div>
+  </header>
+  <main id="offlineRoot" class="offline-main"><p>Loading…</p></main>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="/admin/js/offline.js"></script>
+</body>
+</html>

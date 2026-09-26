@@ -32,6 +32,17 @@ see the areas your role uses.
     - A **COLLECTION ALERT** means see a manager before the child leaves.
   - **Print** gives a paper copy (no passwords, no safeguarding details) for when the tablet isn't available.
     Shred it after use.
+- **If the Wi-Fi is unreliable**, open Registers → *Use offline on this tablet* before the session. Choose a PIN
+  (6+ digits) and download today's registers.
+  - They keep working with no connection, even if the page is reloaded.
+  - Sign-ins and sign-outs are saved on the tablet and sent, with the right times, when the connection comes back.
+    The header shows how many are waiting.
+  - Collection passwords can't be checked offline: call the parent to confirm who's collecting, then choose *Known
+    adult, checked by phone*.
+  - The copy on the tablet is encrypted with your PIN, locks after 15 minutes idle, and is wiped after 5 wrong PINs
+    and the next day. It holds only what the printed register shows.
+  - If a change isn't accepted when it's sent (for example, someone already signed the child out on another
+    device), it's listed at the top so you can put it right in the full admin.
 - **Log incident** (on a register row or under Incidents). Choose how the parent will be told:
   - **Now**: they get an email saying there's a note to read. The email never contains details.
   - **At collection**: the register won't let the child be signed out until you tick that you've talked it

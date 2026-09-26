@@ -25,6 +25,7 @@ PRETTY = {
     "/privacy": "privacy.html",
     "/safeguarding": "safeguarding.html",
     "/admin": "admin/index.html",
+    "/admin/offline-register": "admin/offline.html",
 }
 
 INCLUDE_RE = re.compile(r"<!--#include\s+([\w.-]+)\s*-->")

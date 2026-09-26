@@ -24,7 +24,8 @@ A.addTab({
         <input type="date" id="regDate" value="${esc(st.date)}">
         <button class="abtn abtn--ghost abtn--sm" data-shift="1">Next day →</button>
         ${d.centres.length > 1 ? `<select id="regCentre"><option value="">All centres</option>${d.centres.map(c => `<option value="${c.id}"${String(c.id) === st.centre ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : ""}
-        ${can("reports.view") ? `<button class="abtn abtn--ghost abtn--sm" id="hafExport">HAF export…</button>` : ""}</div>
+        ${can("reports.view") ? `<button class="abtn abtn--ghost abtn--sm" id="hafExport">HAF export…</button>` : ""}
+        <a class="abtn abtn--ghost abtn--sm" href="/admin/offline-register" title="Keeps today's registers on this tablet in case the connection drops">Use offline on this tablet</a></div>
       ${d.sessions.length ? `<div class="regcards">${d.sessions.map(s => `<button class="regcard" data-sid="${s.id}"${s.allowed ? "" : " disabled"}>
         <strong>${esc(s.start_time)}–${esc(s.end_time)} · ${esc(s.title)}</strong>
         <span>${esc(s.centre)}${s.theme ? " · " + esc(s.theme) : ""}${s.status === "cancelled" ? " · CANCELLED" : ""}</span>
