@@ -25,6 +25,10 @@ atexit.register(shutil.rmtree, DATA_DIR, ignore_errors=True)
 os.environ["HAH_DATA_DIR"] = DATA_DIR
 os.environ["ADMIN_PASSWORD"] = ADMIN_PASSWORD = "test-admin-password"
 os.environ["HAH_PBKDF2_ITERATIONS"] = "1000"  # real hashing is deliberately slow
+os.environ["MAIL_BACKEND"] = "memory"          # emails are kept in hah.mail.SENT
+os.environ["SMS_PROVIDER"] = "log"              # texts are kept in hah.sms.SENT
+for _k in [k for k in os.environ if k.startswith(("SMTP_", "TWILIO_", "BACKUP_S3_"))]:
+    del os.environ[_k]
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 

@@ -7,7 +7,7 @@ import threading
 from http.server import ThreadingHTTPServer
 
 # importing these modules registers their routes and jobs
-from . import cms, config, db, pages, staff, system  # noqa: F401
+from . import cms, config, db, outbox, pages, staff, system  # noqa: F401
 from .content import bootstrap_seed
 from .web import Handler
 from .worker import Worker
@@ -20,6 +20,9 @@ def prepare_data():
     applied = db.migrate()
     if applied:
         print("  database: applied migrations %s" % ", ".join("%04d" % v for v in applied))
+    moved = cms.migrate_messages_json()
+    if moved:
+        print("  inbox: moved %d contact messages into the database" % moved)
 
 
 def make_server(address):

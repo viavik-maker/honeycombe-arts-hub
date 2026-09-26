@@ -222,14 +222,14 @@ class CsvSafetyTest(ServerTestCase):
 
 class StorageIntegrityTest(ServerTestCase):
     def test_corrupt_file_is_kept_not_overwritten(self):
-        with open(data_path("messages.json"), "w") as f:
-            f.write('[{"id": "1", "name": "Important"')  # truncated
-        r = self.client().post_json("/api/contact", {"name": "New", "email": "n@example.com", "message": "hi"})
+        with open(data_path("subscribers.json"), "w") as f:
+            f.write('[{"email": "important@example.com"')  # truncated
+        r = self.client().post_json("/api/newsletter", {"email": "new@example.com"})
         self.assertEqual(r.status, 200)
-        aside = [n for n in os.listdir(os.path.dirname(data_path("x"))) if n.startswith("messages.json.corrupt-")]
+        aside = [n for n in os.listdir(os.path.dirname(data_path("x"))) if n.startswith("subscribers.json.corrupt-")]
         self.assertEqual(len(aside), 1)
         with open(data_path(aside[0])) as f:
-            self.assertIn("Important", f.read())
+            self.assertIn("important@example.com", f.read())
 
     def test_concurrent_signups_are_all_kept(self):
         emails = ["fan%d@example.com" % i for i in range(15)]

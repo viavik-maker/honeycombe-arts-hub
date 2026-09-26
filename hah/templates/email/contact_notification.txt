@@ -1,0 +1,9 @@
+Subject: New website message from {{name}}
+**{{name}}** sent a message through the website contact form.
+
+Email: {{email}}
+Phone: {{phone}}
+
+{{message}}
+
+Reply straight to {{email}}, or read it in the admin Inbox.

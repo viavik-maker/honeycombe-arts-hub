@@ -997,8 +997,24 @@
           <tr><td>Copies on the server</td><td>${esc(st.local_backups.length)} (kept for a week)</td></tr>
           <tr><td>Database size</td><td>${esc(st.database_kb)} KB</td></tr>
           <tr><td>Background jobs</td><td>${st.worker_running ? "running" : "not running"}</td></tr>
-        </tbody></table>`
+          <tr><td>Email</td><td>${st.email.configured ? "set up" + (st.email.source === "admin settings" ? " (using the SMTP box below — please move it to the server settings)" : "") : "not set up"}</td></tr>
+          <tr><td>Text messages</td><td>${st.sms.configured ? "set up (" + esc(st.sms.provider) + ")" : "not set up"}</td></tr>
+          <tr><td>Waiting to send</td><td>${esc(((st.outbox.counts.email || {}).queued || 0) + ((st.outbox.counts.sms || {}).queued || 0))} · failed: ${esc(((st.outbox.counts.email || {}).failed || 0) + ((st.outbox.counts.sms || {}).failed || 0))}</td></tr>
+        </tbody></table>
+        ${st.outbox.recent_failures.length ? `<p class="fhint">Recent failures: ${st.outbox.recent_failures.map(f => esc(f.channel + " " + (f.template_key || "") + ": " + (f.error || ""))).join(" · ")}</p>` : ""}
+        <p><button class="abtn abtn--ghost abtn--sm" id="testEmailBtn">Send me a test email</button>
+           <button class="abtn abtn--ghost abtn--sm" id="testSmsBtn">Send a test text</button></p>`
       ].join("");
+      $("#testEmailBtn").onclick = async () => {
+        try { const d = await post("/api/admin/test-email", {}); toast("Test email queued to " + d.to); setTimeout(loadSystem, 12000); }
+        catch (e) { toast(e.message, true); }
+      };
+      $("#testSmsBtn").onclick = async () => {
+        const to = prompt("UK mobile number to text:");
+        if (!to) return;
+        try { await post("/api/admin/test-sms", { to }); toast("Test text queued"); setTimeout(loadSystem, 12000); }
+        catch (e) { toast(e.message, true); }
+      };
     } catch (e) {
       body.innerHTML = `<p class="fhint">Couldn't load system status: ${esc(e.message)}</p>`;
     }

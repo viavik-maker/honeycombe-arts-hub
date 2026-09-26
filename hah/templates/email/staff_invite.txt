@@ -1,0 +1,12 @@
+Subject: Your Honeycombe Arts Hub staff account
+Hello {{name}},
+
+{{inviter}} has set up a staff account for you on the Honeycombe Arts Hub admin.
+
+Choose your password here (the link works once, for {{hours}} hours):
+
+{{SECRET}}
+
+You'll then set up two-step sign-in with an authenticator app on your phone (for example Google or Microsoft Authenticator).
+
+If you weren't expecting this, you can ignore this email.

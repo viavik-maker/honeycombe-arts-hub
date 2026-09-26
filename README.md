@@ -70,7 +70,7 @@ last published version. A backup of the previous version is kept automatically
 server.py            — start the site: python3 server.py
 hah/                 — the web server + CMS API (zero dependencies)
 data/content.json    — all editable website content
-data/messages.json   — contact form inbox
+data/booking.db also holds the contact-form inbox (moved from messages.json)
 data/subscribers.json— newsletter signups
 data/uploads/        — images uploaded through the admin
 data/booking.db      — booking system database (SQLite)
@@ -167,6 +167,34 @@ Practise a restore at least once before launch.
 Admin → Settings → *System & backups* shows when the last backup ran and warns
 if one hasn't succeeded in the last 26 hours. `/healthz` is Render's health
 check (it confirms the site and database are answering).
+
+## Email and text messages
+
+The site sends email (booking confirmations, invoices, staff invites,
+contact-form alerts…) and texts (waiting-list offers, session changes) through
+an **outbox**: messages are queued with the change that causes them and sent
+by the background worker within seconds, with automatic retries. Admin →
+Settings → *System & backups* shows what's waiting or failed, and has
+**Send me a test email** / **Send a test text** buttons.
+
+Set these in Render → the service → *Environment* (never in the admin):
+
+| Variable | Example |
+|---|---|
+| `SMTP_HOST`, `SMTP_PORT` | your email provider's SMTP server; port `587` (STARTTLS) or `465` |
+| `SMTP_USER`, `SMTP_PASSWORD` | the sending mailbox's login |
+| `MAIL_FROM` | `Honeycombe Arts Hub <bookings@honeycombeartshub.org.uk>` |
+| `MAIL_REPLY_TO` | `info@honeycombeartshub.org.uk` |
+| `STAFF_NOTIFY_TO` | where contact-form messages are sent |
+| `SMS_PROVIDER` | `twilio` (or `disabled`) |
+| `TWILIO_ACCOUNT_SID`, `TWILIO_AUTH_TOKEN` | from the Twilio console |
+| `TWILIO_FROM` | an alphanumeric sender such as `HoneycombeH` (UK, one-way) or a Twilio number |
+
+Ask whoever manages the domain to set up **SPF, DKIM and DMARC** for the
+sending address, or emails will land in spam. The old SMTP box in admin →
+Settings still works until `SMTP_HOST` is set, then it's ignored. Emails never
+contain health or safeguarding details, and one-time links (password set-up,
+invites) are never stored in the message archive.
 
 ## Security settings
 

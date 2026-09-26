@@ -6,14 +6,12 @@ import os
 import re
 import secrets
 import sys
-import threading
 import time
 from email.parser import BytesParser
 from email.policy import HTTP
 
-from . import audit, config, db, images, ratelimit
+from . import audit, config, db, images, mail, outbox, ratelimit
 from .content import public_content, site_content
-from .mail import try_send_email
 from .markup import csv_safe
 from .storage import load_json, replace_json, update_json
 from .web import route
@@ -43,19 +41,14 @@ def contact(h):
     message = (d.get("message") or "").strip()[:5000]
     if not name or not email or not message or "@" not in email:
         return h.json({"error": "Please fill in your name, email and message."}, 400)
-    entry = {
-        "id": secrets.token_hex(8),
-        "name": name, "email": email, "phone": phone, "message": message,
-        "date": time.strftime("%Y-%m-%d %H:%M"),
-        "read": False,
-    }
-    update_json("messages.json", [], lambda msgs: [entry] + msgs)
-    settings = load_json("content.json", {}).get("settings", {})
-    threading.Thread(target=try_send_email, args=(
-        settings,
-        f"New website message from {name}",
-        f"From: {name} <{email}>  {phone}\n\n{message}",
-    ), daemon=True).start()
+    with db.tx() as c:
+        c.execute("INSERT INTO contact_messages(ref, name, email, phone, message, created_at) VALUES (?,?,?,?,?,?)",
+                  (secrets.token_hex(8), name, email, phone, message, db.now()))
+        notify = mail.staff_notify_address()
+        if notify:
+            outbox.email(c, notify, "contact_notification", {"name": name, "email": email, "phone": phone or "—",
+                                                             "message": message}, kind="staff",
+                         headers={"Reply-To": email} if "@" in email else None)
     return h.json({"ok": True})
 
 
@@ -91,7 +84,7 @@ def newsletter(h):
 def overview(h):
     return h.json({
         "content": site_content(),
-        "messages": load_json("messages.json", []),
+        "messages": inbox(),
         "subscribers": load_json("subscribers.json", []),
     })
 
@@ -167,21 +160,53 @@ def upload(h):
 @route("POST", "/api/admin/messages", auth="staff", perm="site.content")
 def messages(h):
     d = h.json_body() or {}
-
-    def change(msgs):
+    with db.tx() as c:
         if d.get("action") == "read":
-            for msg in msgs:
-                if msg["id"] == d.get("id"):
-                    msg["read"] = bool(d.get("read", True))
+            c.execute("UPDATE contact_messages SET read_at=?, handled_by=? WHERE ref=?",
+                      (db.now() if d.get("read", True) else None, h.staff()["id"], str(d.get("id"))))
         elif d.get("action") == "delete":
-            msgs = [msg for msg in msgs if msg["id"] != d.get("id")]
-        return msgs
+            if c.execute("DELETE FROM contact_messages WHERE ref=?", (str(d.get("id")),)).rowcount:
+                audit.record(c, h, "inbox.message_deleted")
+    return h.json({"ok": True, "messages": inbox()})
 
-    msgs = update_json("messages.json", [], change)
-    if d.get("action") == "delete":
-        with db.tx() as c:
-            audit.record(c, h, "inbox.message_deleted")
-    return h.json({"ok": True, "messages": msgs})
+
+def inbox():
+    """Contact-form messages, newest first, in the shape the admin Inbox uses."""
+    with db.read() as c:
+        rows = c.execute("SELECT * FROM contact_messages ORDER BY id DESC").fetchall()
+    return [{"id": r["ref"], "name": r["name"], "email": r["email"], "phone": r["phone"] or "",
+             "message": r["message"], "date": _uk_time(r["created_at"]), "read": r["read_at"] is not None}
+            for r in rows]
+
+
+def _uk_time(iso):
+    import datetime
+    from .worker import LOCAL
+    t = datetime.datetime.strptime(iso, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
+    return t.astimezone(LOCAL).strftime("%Y-%m-%d %H:%M")
+
+
+def migrate_messages_json():
+    """One-off: move data/messages.json into the database (kept as
+    messages.json.migrated). Safe to call on every start."""
+    old = load_json("messages.json", None)
+    if old is None:
+        return 0
+    import datetime
+    from .worker import LOCAL
+    with db.tx() as c:
+        for m in reversed(old):
+            try:
+                local = datetime.datetime.strptime(m.get("date", ""), "%Y-%m-%d %H:%M").replace(tzinfo=LOCAL)
+                created = local.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+            except ValueError:
+                created = db.now()
+            c.execute("INSERT OR IGNORE INTO contact_messages(ref, name, email, phone, message, created_at, read_at)"
+                      " VALUES (?,?,?,?,?,?,?)",
+                      (m.get("id") or secrets.token_hex(8), m.get("name", ""), m.get("email", ""), m.get("phone", ""),
+                       m.get("message", ""), created, created if m.get("read") else None))
+    os.replace(os.path.join(config.DATA, "messages.json"), os.path.join(config.DATA, "messages.json.migrated"))
+    return len(old)
 
 
 @route("POST", "/api/admin/subscribers", auth="staff", perm="site.content")

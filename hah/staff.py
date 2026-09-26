@@ -9,7 +9,7 @@ hash of the session token is stored."""
 import datetime
 import json
 
-from . import audit, auth, config, db, permissions, ratelimit, security
+from . import audit, auth, config, db, mail, outbox, permissions, ratelimit, security
 from .web import authenticator, route
 
 COOKIE = "hah_staff"
@@ -305,12 +305,22 @@ def revoke_others(h):
 
 
 def _new_link(c, h, staff_id, purpose):
+    """Create a one-time link, email it if email is set up, and return
+    (link, emailed)."""
     token = security.new_token()
     c.execute("INSERT INTO auth_tokens(purpose, token_hash, staff_id, expires_at, created_at, created_by)"
               " VALUES (?,?,?,?,?,?)",
               (purpose, security.hash_token(token), staff_id, _utc(hours=INVITE_HOURS), db.now(), h.staff()["id"]))
     # the token rides in the URL fragment, which browsers never send to the server (or its logs)
-    return "%s/admin#%s=%s" % (_site(h), "invite" if purpose == "staff_invite" else "reset", token)
+    link = "%s/admin#%s=%s" % (_site(h), "invite" if purpose == "staff_invite" else "reset", token)
+    emailed = False
+    if mail.configured():
+        user = c.execute("SELECT name, email FROM staff_users WHERE id=?", (staff_id,)).fetchone()
+        outbox.email(c, user["email"], purpose, {"name": user["name"], "inviter": h.staff()["name"],
+                                                 "hours": INVITE_HOURS},
+                     kind="staff", to_name=user["name"], secret=link, staff_id=staff_id)
+        emailed = True
+    return link, emailed
 
 
 def _site(h):
@@ -408,9 +418,9 @@ def invite(h):
         cur = c.execute("INSERT INTO staff_users(email, name, status, created_at, created_by) VALUES (?,?, 'invited', ?, ?)",
                         (email, name, db.now(), h.staff()["id"]))
         c.executemany("INSERT INTO staff_roles VALUES (?,?)", [(cur.lastrowid, r) for r in roles])
-        link = _new_link(c, h, cur.lastrowid, "staff_invite")
+        link, emailed = _new_link(c, h, cur.lastrowid, "staff_invite")
         audit.record(c, h, "staff.invited", entity_type="staff", entity_id=cur.lastrowid, details={"roles": roles})
-    return h.json({"ok": True, "id": cur.lastrowid, "link": link, "expires_hours": INVITE_HOURS})
+    return h.json({"ok": True, "id": cur.lastrowid, "link": link, "emailed": emailed, "expires_hours": INVITE_HOURS})
 
 
 def _owners(c):
@@ -492,9 +502,9 @@ def reset_user(h, int_id):
         c.execute("DELETE FROM staff_sessions WHERE staff_id=?", (row["id"],))
         c.execute("UPDATE auth_tokens SET used_at=? WHERE staff_id=? AND used_at IS NULL", (db.now(), row["id"]))
         purpose = "staff_invite" if row["status"] == "invited" else "staff_reset"
-        link = _new_link(c, h, row["id"], purpose)
+        link, emailed = _new_link(c, h, row["id"], purpose)
         audit.record(c, h, "staff.link_issued", entity_type="staff", entity_id=row["id"], details={"purpose": purpose})
-    return h.json({"ok": True, "link": link, "expires_hours": INVITE_HOURS})
+    return h.json({"ok": True, "link": link, "emailed": emailed, "expires_hours": INVITE_HOURS})
 
 
 @route("POST", "/api/staff/security", auth="staff", perm="staff.manage")

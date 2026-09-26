@@ -2,7 +2,7 @@
 import datetime
 import os
 
-from . import backup, config, db, worker
+from . import audit, backup, config, db, mail, outbox, sms, validate, worker
 from .web import route
 
 # the running Worker (set by app.main; tests make their own)
@@ -61,6 +61,10 @@ def system_status(h):
         "backup_stale": backup_stale(jobs),
         "offsite_backup_configured": backup.offsite_configured(),
         "local_backups": local,
+        "email": {"configured": mail.configured(), "source": (mail.settings() or {}).get("source"),
+                  "staff_notify_to": bool(mail.staff_notify_address())},
+        "sms": {"configured": sms.configured(), "provider": sms.provider_name()},
+        "outbox": outbox.stats(),
     })
 
 
@@ -70,3 +74,30 @@ def backup_now(h):
         return h.json({"error": "The background worker isn't running on this server."}, 503)
     started = WORKER.run_now("nightly_backup", wait=False)
     return h.json({"ok": True, "started": bool(started)}, 202)
+
+
+@route("POST", "/api/admin/test-email", auth="staff", perm="system.view")
+def test_email(h):
+    """Queue a test email to the signed-in staff member."""
+    me = h.staff()
+    if not mail.configured():
+        return h.json({"error": "Email isn't set up yet — see README → Email and text messages."}, 400)
+    with db.tx() as c:
+        outbox.email(c, me["email"], "test_email", {"name": me["name"]}, kind="staff", to_name=me["name"],
+                     staff_id=me["id"])
+        audit.record(c, h, "system.test_email")
+    return h.json({"ok": True, "to": me["email"]})
+
+
+@route("POST", "/api/admin/test-sms", auth="staff", perm="system.view")
+def test_sms(h):
+    d = h.json_body() or {}
+    if not sms.configured():
+        return h.json({"error": "Text messages aren't set up yet — see README → Email and text messages."}, 400)
+    to = validate.uk_mobile(d.get("to"))
+    if not to:
+        return h.json({"error": "Enter a UK mobile number (07…)."}, 400)
+    with db.tx() as c:
+        outbox.text_message(c, to, "test")
+        audit.record(c, h, "system.test_sms")
+    return h.json({"ok": True})

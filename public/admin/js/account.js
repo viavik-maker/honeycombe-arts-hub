@@ -41,8 +41,9 @@ A.addTab({
 });
 
 /* ---------------- Staff ---------------- */
-function linkBox(link, hours, intro) {
-  return modal("Send this link", `<p>${esc(intro)}</p>
+function linkBox(link, hours, intro, emailed) {
+  return modal(emailed ? "Link emailed" : "Send this link", `<p>${esc(intro)}</p>
+    ${emailed ? `<p><strong>We've emailed it to them.</strong> You can also copy it below.</p>` : ""}
     <p class="fhint">It works once, for ${hours} hours. Send it to them directly (email or message) — anyone with the link can set the password.</p>
     <input type="text" readonly value="${esc(link)}" class="linkbox">`,
     async () => { copyText(link); return true; }, "Copy link");
@@ -81,7 +82,7 @@ A.addTab({
         <div class="fgroup"><label>Email</label><input type="email" name="email" required></div>
         <div class="fgroup"><label>Roles</label>${roleBoxes([])}</div>`,
         (f) => post("/api/staff/users/invite", { name: f.name.value, email: f.email.value, roles: chosen(f) }), "Create invite");
-      if (r) { await linkBox(r.link, r.expires_hours, "Their account is ready. They'll choose a password and set up two-step sign-in."); this.render(root); }
+      if (r) { await linkBox(r.link, r.expires_hours, "Their account is ready. They'll choose a password and set up two-step sign-in.", r.emailed); this.render(root); }
     };
     root.onclick = async (e) => {
       const b = e.target.closest("[data-act]"); if (!b) return;
@@ -95,7 +96,7 @@ A.addTab({
         } else if (b.dataset.act === "reset") {
           if (!await confirmBox(`Create a new sign-in link for ${u.name}? Their current sign-ins end now${u.status === "active" ? " and they'll set up two-step sign-in again" : ""}.`, "Create link")) return;
           const r = await post(`/api/staff/users/${u.id}/reset`, {});
-          await linkBox(r.link, r.expires_hours, `Send this to ${u.name}.`);
+          await linkBox(r.link, r.expires_hours, `A new link for ${u.name}.`, r.emailed);
         } else if (b.dataset.act === "disable") {
           if (!await confirmBox(`Disable ${u.name}'s account? They're signed out straight away.`, "Disable")) return;
           await post(`/api/staff/users/${u.id}/status`, { status: "disabled" }); toast("Account disabled");

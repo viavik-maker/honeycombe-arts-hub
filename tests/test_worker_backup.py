@@ -217,7 +217,7 @@ class SystemStatusTest(ServerTestCase):
         self.assertTrue(st["database_ok"])
         self.assertTrue(st["backup_stale"])
         self.assertFalse(st["offsite_backup_configured"])
-        self.assertEqual({j["name"] for j in st["jobs"]}, {"nightly_backup", "db_maintenance"})
+        self.assertEqual({j["name"] for j in st["jobs"]}, {"nightly_backup", "db_maintenance", "outbox"})
 
         self.assertEqual(admin.post_json("/api/admin/backup-now", {}).status, 503)  # no worker here
         system.WORKER = worker.Worker()
