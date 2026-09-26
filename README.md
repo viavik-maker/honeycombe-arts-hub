@@ -48,7 +48,8 @@ last published version. A backup of the previous version is kept automatically
 ## Where things live
 
 ```
-server.py            — the web server + CMS API (zero dependencies)
+server.py            — start the site: python3 server.py
+hah/                 — the web server + CMS API (zero dependencies)
 data/content.json    — all editable website content
 data/messages.json   — contact form inbox
 data/subscribers.json— newsletter signups

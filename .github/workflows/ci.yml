@@ -22,7 +22,7 @@ jobs:
           python-version-file: .python-version
 
       - name: Byte-compile (syntax check)
-        run: python -m compileall -q server.py tests
+        run: python -m compileall -q server.py hah tests
 
       - name: Unit and integration tests
         run: python -m unittest -v

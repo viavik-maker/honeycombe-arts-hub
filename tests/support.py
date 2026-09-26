@@ -27,9 +27,9 @@ os.environ["ADMIN_PASSWORD"] = ADMIN_PASSWORD = "test-admin-password"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-import server as app  # noqa: E402
+from hah import app, web  # noqa: E402
 
-app.Handler.log_message = lambda *args: None  # keep test output readable
+web.Handler.log_message = lambda *args: None  # keep test output readable
 _httpd = None
 
 
@@ -38,9 +38,7 @@ def reset_data():
     for name in os.listdir(DATA_DIR):
         path = os.path.join(DATA_DIR, name)
         shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
-    os.makedirs(app.UPLOADS, exist_ok=True)
-    app.bootstrap_seed()
-    app.init_auth()
+    app.prepare_data()
 
 
 def address():
@@ -48,7 +46,7 @@ def address():
     global _httpd
     if _httpd is None:
         reset_data()
-        _httpd = app.ThreadingHTTPServer(("127.0.0.1", 0), app.Handler)
+        _httpd = app.make_server(("127.0.0.1", 0))
         threading.Thread(target=_httpd.serve_forever, daemon=True).start()
     return _httpd.server_address[:2]
 
