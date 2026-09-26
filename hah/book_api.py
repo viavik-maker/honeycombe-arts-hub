@@ -80,6 +80,8 @@ def catalogue_api(h):
                 "parent_must_stay": bool(a["parent_must_stay"]), "haf_only": bool(a["haf_only"]),
                 "requires_approval": bool(a["requires_approval"]), "adult_price_pence": a["adult_price_pence"],
                 "max_party_size": a["max_party_size"], "waitlist": bool(a["waitlist_enabled"]),
+                "trial": bool(a["allow_trial"]) and not a["haf_only"] and a["registration_level"] != "guest",
+                "trial_price_pence": a["trial_price_pence"],
                 "sessions": sessions})
     return h.json(out)
 

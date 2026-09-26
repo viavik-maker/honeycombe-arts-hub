@@ -182,3 +182,5 @@ dialog.pcard::backdrop { background: rgba(35, 43, 73, .45); }
   padding: 1rem 1.2rem; margin: 0 0 1.4rem; }
 .send-callout span { font-size: 1.5rem; }
 .send-callout p { margin: .2em 0 0; color: var(--muted); }
+.check--sm { justify-content: flex-end; font-weight: 400; margin: .3em 0 0; }
+.check--sm input { width: 1em; height: 1em; }

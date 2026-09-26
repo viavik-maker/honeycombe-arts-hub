@@ -68,8 +68,28 @@ def resolve_items(c, account, raw):
             if (s["id"], p["id"]) in seen:
                 continue
             seen.add((s["id"], p["id"]))
-            out.append({"kind": "participant", "session": s, "activity": a, "participant": p})
+            out.append({"kind": "participant", "session": s, "activity": a, "participant": p,
+                        "trial": it.get("trial") is True})
     return out
+
+
+# ---------------------------------------------------------------- trials
+
+
+def trial_price(activity, session):
+    tp = activity["trial_price_pence"]
+    return catalogue.price_of(activity, session) if tp is None else min(tp, catalogue.price_of(activity, session))
+
+
+def trial_used(c, activity_id, participant_id):
+    """Has this child had (or got) a place on this activity already? Then it's not their first go."""
+    return bool(c.execute("SELECT 1 FROM bookings WHERE activity_id=? AND participant_id=? AND status IN "
+                          + catalogue.HOLDING_SQL, (activity_id, participant_id)).fetchone())
+
+
+def can_trial(c, activity, participant):
+    return bool(activity["allow_trial"]) and not activity["haf_only"] and not trial_used(c, activity["id"],
+                                                                                        participant["id"])
 
 
 def _places(item):
@@ -87,17 +107,17 @@ def _price(item):
         return 0
     unit = catalogue.price_of(a, s)
     if item["kind"] == "participant":
-        return unit
+        return trial_price(a, s) if item.get("trial") else unit
     return unit * len(item["children"]) + a["adult_price_pence"] * item["adults"]
 
 
 def assess(c, account, items):
     """Work out what would happen to each item. Returns (lines, quote)."""
     checker = eligibility.Checker(c, account)
-    allocated, basket, lines = {}, [], []
+    allocated, basket, lines, trials = {}, [], [], set()
     for it in items:
         a, s = it["activity"], it["session"]
-        problems = []
+        problems, trial_ok = [], False
         if not catalogue.is_bookable(a):
             problems.append(("unavailable", "%s isn't taking bookings." % a["title"]))
         state, opens = catalogue.window(a, s)
@@ -112,6 +132,14 @@ def assess(c, account, items):
             problems += checker.problems(a, s, p, basket)
             basket.append((s, p["id"]))
             who, ref = p["first_name"], p["ref"]
+            # one trial per child per activity: the first session they pick for it
+            trial_ok = (a["id"], p["id"]) not in trials and can_trial(c, a, p)
+            if it.get("trial"):
+                if trial_ok:
+                    trials.add((a["id"], p["id"]))
+                else:
+                    problems.append(("trial", "%s can only have one trial session of %s, before booking it "
+                                              "normally." % (p["first_name"], a["title"])))
         else:
             for p in it["children"]:
                 problems += [x for x in checker.problems(a, s, p, basket) if x[0] in ("age", "booked", "account",
@@ -145,6 +173,8 @@ def assess(c, account, items):
             "item": it, "session_id": s["id"], "participant": ref, "who": who, "activity": a["title"],
             "activity_slug": a["slug"], "date": s["date"], "start_time": s["start_time"], "end_time": s["end_time"],
             "theme": s["theme"], "price_pence": price, "places": places, "funding": funding, "outcome": outcome,
+            "trial": bool(it.get("trial")), "trial_available": trial_ok,
+            "trial_price_pence": trial_price(a, s) if trial_ok else None,
             "approval_reason": ("activity" if a["requires_approval"] else "haf_claim") if outcome == "approval" else None,
             "problems": [{"code": k, "message": m} for k, m in problems],
             "fix_url": "/account/family/%s?for=%s" % (ref, a["registration_level"])
@@ -280,7 +310,8 @@ def confirm_basket(c, h, account, raw_items, pay_mode, idempotency_key):
     booked = []
     for l in lines:
         it, outcome = l["item"], l["outcome"]
-        kw = dict(account_id=account["id"], checkout_id=cid, price=l["price_pence"], funding=l["funding"])
+        kw = dict(account_id=account["id"], checkout_id=cid, price=l["price_pence"], funding=l["funding"],
+                  is_trial=l["trial"])
         if outcome == "waitlist":
             b = _insert_booking(c, it, "waitlisted", group="%s:%d" % (ref, it["session"]["id"]), **kw)
         elif outcome == "approval":
@@ -738,7 +769,8 @@ def booking_json(c, b):
            "end_time": s["end_time"], "theme": s["theme"], "session_status": s["status"], "who": who,
            "places": b["places"], "party_adults": b["party_adults"], "party_children": b["party_children"],
            "price_pence": b["price_pence"], "funding": b["funding"], "offer_expires_at": b["offer_expires_at"],
-           "approval_reason": b["approval_reason"], "parent_must_stay": bool(s["parent_must_stay"])}
+           "approval_reason": b["approval_reason"], "parent_must_stay": bool(s["parent_must_stay"]),
+           "is_trial": bool(b["is_trial"])}
     if b["status"] == "waitlisted":
         out["position"] = c.execute(
             "SELECT COUNT(*) FROM bookings WHERE session_id=? AND status='waitlisted' AND (waitlist_priority>? OR"

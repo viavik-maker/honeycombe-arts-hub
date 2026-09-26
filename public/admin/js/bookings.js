@@ -4,7 +4,7 @@ import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, post, qs, ta
 
 const A = window.HAHAdmin;
 const QUICK = [["upcoming", "Upcoming"], ["approval", "Under approval"], ["waitlist", "Waiting list"], ["unpaid", "Unpaid"],
-  ["cancelled", "Cancelled"], ["", "All"]];
+  ["trials", "Trials"], ["cancelled", "Cancelled"], ["", "All"]];
 const CHIP = { confirmed: "ok", pending_approval: "warn", pending_payment: "warn", waitlisted: "muted", offered: "info",
   cancelled: "bad", expired: "muted", pending_confirmation: "warn" };
 const REASON = { activity: "needs approval", haf_claim: "HAF claim to check", voucher: "paying by vouchers/TFC" };
@@ -61,11 +61,12 @@ async function openBooking(id, refresh) {
   if (manage && ["confirmed", "pending_approval", "offered"].includes(b.status)) acts.push(["cancel", "Cancel…", "abtn--danger"]);
   if (manage && ["confirmed", "pending_approval"].includes(b.status)) acts.push(["move", "Move…"]);
   if (manage && b.family && b.family.email) acts.push(["resend", "Resend email"]);
+  if (manage && b.kind === "participant" && b.status !== "cancelled") acts.push(["trial", b.is_trial ? "Not a trial" : "Mark as trial"]);
   const inv = b.invoice_detail;
   const d = document.createElement("dialog");
   d.className = "dlg dlg--form dlg--wide";
   d.innerHTML = `<h2>${esc(b.activity)} · ${esc(day(b.date))}</h2>
-    <p>${chip(b.status_text, CHIP[b.status])} <span class="fhint">Ref ${esc(b.ref)} · booked ${esc(when(b.created_at))} (${esc(b.created_via)})</span></p>
+    <p>${chip(b.status_text, CHIP[b.status])}${b.is_trial ? " " + chip("Trial", "info") : ""} <span class="fhint">Ref ${esc(b.ref)} · booked ${esc(when(b.created_at))} (${esc(b.created_via)})</span></p>
     <table class="table"><tbody>
       <tr><th>Who</th><td>${b.who ? esc(b.who.first_name + " " + (b.who.last_name || "")) + (b.who.age != null ? ` (${b.who.age})` : "") + (b.who.haf_status && b.who.haf_status !== "unknown" ? ` · HAF: ${esc(b.who.haf_status.replace("_", " "))}` : "") : esc(b.places + " place(s)")}</td></tr>
       <tr><th>Family</th><td>${b.family ? esc(b.family.name) + `<br><span class="fhint">${esc(b.family.email || "")} ${esc(b.family.mobile || "")}</span>` : "—"}</td></tr>
@@ -120,7 +121,8 @@ async function openBooking(id, refresh) {
         const r = await modal("Waiting-list priority", `<div class="fgroup"><label>Priority (higher goes first; 0 = normal)</label><input type="number" name="p" min="-10" max="10" value="${b.waitlist_priority}"></div>`,
           (f) => post(`/api/staff/bookings/${id}/priority`, { priority: +f.p.value }), "Save");
         if (!r) return;
-      } else if (k === "resend") { await post(`/api/staff/bookings/${id}/resend`, {}); toast("Email queued"); }
+      } else if (k === "trial") { await post(`/api/staff/bookings/${id}/trial`, { is_trial: !b.is_trial }); toast(b.is_trial ? "No longer a trial" : "Marked as a trial"); }
+      else if (k === "resend") { await post(`/api/staff/bookings/${id}/resend`, {}); toast("Email queued"); }
       refresh();
     } catch (x) { toast(x.message, true); }
   };

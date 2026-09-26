@@ -1,5 +1,5 @@
 /* Reports: the attendance dashboard (inline SVG chart with a table behind it). */
-import { $, $$, api, esc, qs, table } from "./ui.js";
+import { $, $$, api, can, esc, qs, table } from "./ui.js";
 
 const A = window.HAHAdmin;
 const COLOURS = ["#2e7d32", "#f57c00", "#6a1b9a", "#1565c0", "#ad1457", "#00838f", "#4e342e", "#78909c"];
@@ -39,7 +39,9 @@ A.addTab({
   async render(root) {
     const st = this.state;
     st.date = st.date || isoToday();
-    const d = await api("/api/staff/reports/attendance?" + qs({ period: st.period, date: st.date }));
+    const [d, tr] = await Promise.all([api("/api/staff/reports/attendance?" + qs({ period: st.period, date: st.date })),
+      api("/api/staff/reports/trials?" + qs({ period: st.period, date: st.date }))]);
+    const tt = tr.totals;
     const t = d.totals;
     const rate = t.present + t.absent + t.absent_notified ? Math.round(100 * t.present / (t.present + t.absent + t.absent_notified)) : null;
     root.innerHTML = `<h1>Attendance</h1><p class="sub">${esc(d.label)} · from registers (only sessions that have happened count as attended)</p>
@@ -61,9 +63,20 @@ A.addTab({
           { label: "Attended", get: s => s.present }], d.series)}</details></div>
       <div class="acard"><h2>By type of session</h2>${table([{ label: "Category", get: c => esc(c.category) }, { label: "Attended", get: c => c.present },
         { label: "Absent", get: c => c.absent }, { label: "Not marked yet", get: c => c.expected }], d.categories, { empty: "No sessions in this period." })}</div>
+      <div class="acard"><h2>Trial sessions</h2>
+        <p class="fhint">A trial “converts” when the child is booked again (not as a trial) within ${tr.convert_days} days.</p>
+        <div class="statgrid">
+          <div class="stat"><strong>${tt.trials}</strong><span>trials${tt.upcoming ? ` (${tt.upcoming} still to come)` : ""}</span></div>
+          <div class="stat"><strong>${tt.attended}</strong><span>came (${tt.no_shows} no-shows)</span></div>
+          <div class="stat"><strong>${tt.converted}</strong><span>booked again (${tt.converted_same} the same activity)</span></div>
+          <div class="stat"><strong>${tt.rate == null ? "—" : tt.rate + "%"}</strong><span>conversion rate</span></div></div>
+        ${table([{ label: "Activity", get: a => esc(a.title) }, { label: "Trials", get: a => a.trials }, { label: "Came", get: a => a.attended },
+          { label: "Booked again", get: a => a.converted }], tr.activities, { empty: "No trial sessions in this period." })}
+        ${can("bookings.view") ? `<p><a href="#" id="trialList">See trial bookings →</a></p>` : ""}</div>
       <div class="acard"><h2>Top activities</h2>${table([{ label: "Activity", get: a => esc(a.title) }, { label: "Attended", get: a => a.present },
         { label: "Absent", get: a => a.absent }], d.activities, { empty: "—" })}</div>`;
     $$("[data-p]", root).forEach(b => b.onclick = () => { st.period = b.dataset.p; this.render(root); });
+    if ($("#trialList", root)) $("#trialList", root).onclick = (e) => { e.preventDefault(); A.openTab("bookings", { quick: "trials" }); };
     $("#rDate", root).onchange = (e) => { st.date = e.target.value || isoToday(); this.render(root); };
   },
 });

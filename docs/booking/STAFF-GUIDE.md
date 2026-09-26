@@ -77,6 +77,15 @@ see the areas your role uses.
 - The system won't publish an activity with no upcoming places, or a paid one with no way to pay. It tells you
   what's missing.
 - **Duplicate for next term** copies an activity and its sessions onto the same weekdays.
+- **Trial sessions.** Tick *Offer a trial session* under Price, and set a trial price if you like: leave it empty for
+  the normal price, or enter 0 for free.
+  - Families then see "Trial session" on the Book page, and can tick it for a child's first session when they review
+    their booking.
+  - Each child gets one trial per activity, and only if they haven't been booked on it before.
+  - To book a trial for a family, tick *trial* when you book on their behalf. To flag an existing booking, open it and
+    choose **Mark as trial**; this doesn't change the price.
+  - Reports → *Trial sessions* shows how many children came and how many were booked again within 90 days. Bookings →
+    **Trials** lists them.
 
 ## Messages
 

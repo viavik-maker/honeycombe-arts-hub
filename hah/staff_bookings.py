@@ -12,7 +12,7 @@ from .validate import Invalid
 from .web import route, site_url
 
 SOFT = {"level", "reconfirm", "account", "not_open", "closed"}           # staff may simply go ahead
-OVERRIDE = {"age", "full", "haf", "overlap", "unavailable", "adult", "haf_allowance"}  # needs bookings.override
+OVERRIDE = {"age", "full", "haf", "overlap", "unavailable", "adult", "haf_allowance", "trial"}  # needs bookings.override
 PAY_MODES = ("record", "unpaid", "link", "comp")
 
 
@@ -60,6 +60,8 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
                     via="staff"):
     """Book sessions for a family as a member of staff. Returns (bookings, invoice)."""
     staff = h.staff()
+    if is_trial and isinstance(raw_items, list):
+        raw_items = [dict(it, trial=True) if isinstance(it, dict) else it for it in raw_items]
     items = bookings.resolve_items(c, account, raw_items)
     lines, quote = bookings.assess(c, account, items)
     problems = []
@@ -95,7 +97,7 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
         incomplete = any(p["code"] == "level" for p in l["problems"])
         b = bookings._insert_booking(
             c, it, "confirmed", account_id=account["id"], checkout_id=cid, price=0 if comp else l["price_pence"],
-            funding=funding, via=via, staff_id=staff["id"], profile_incomplete=incomplete, is_trial=is_trial,
+            funding=funding, via=via, staff_id=staff["id"], profile_incomplete=incomplete, is_trial=l["trial"],
             pay_later=pay["mode"] in ("unpaid", "link"), notes=("Override: " + reason) if override else None)
         booked.append(b)
     invoice = None

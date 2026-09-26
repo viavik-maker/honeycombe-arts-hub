@@ -219,6 +219,16 @@ def clean_activity(c, d, current=None):
                 raise ValueError
         except (TypeError, ValueError):
             errors["haf_allowance_days"] = "Enter a number of days from 1 to 60, or leave it empty."
+    tp = get("trial_price_pence")
+    if tp in (None, ""):
+        out["trial_price_pence"] = None
+    else:
+        try:
+            out["trial_price_pence"] = int(tp)
+            if not 0 <= out["trial_price_pence"] <= 100000:
+                raise ValueError
+        except (TypeError, ValueError):
+            errors["trial_price_pence"] = "Enter a trial price, or leave it empty to charge the normal price."
     if out.get("haf_only") and out.get("price_pence"):
         errors["price_pence"] = "HAF places are free — set the price to £0."
     try:

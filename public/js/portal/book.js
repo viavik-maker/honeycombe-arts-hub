@@ -69,7 +69,8 @@ export async function book() {
 
   const activityBlock = (a, people) => {
     const tags = [a.age_text ? `Ages ${esc(a.age_text)}` : "", a.parent_must_stay ? "Parent stays" : "",
-      a.haf_only ? "Free (HAF)" : "", a.requires_approval ? "Places confirmed by staff" : "", esc(a.centre)].filter(Boolean);
+      a.haf_only ? "Free (HAF)" : "", a.trial ? (a.trial_price_pence == null ? "Trial session available" : a.trial_price_pence ? `Trial session ${money(a.trial_price_pence)}` : "Free trial session") : "",
+      a.requires_approval ? "Places confirmed by staff" : "", esc(a.centre)].filter(Boolean);
     return `<section class="act pcard" aria-labelledby="act-${a.id}">
       <div class="act__head"><div><h2 id="act-${a.id}">${esc(a.title)}</h2>
         ${a.summary ? `<p class="pcard__intro">${esc(a.summary)}</p>` : ""}
@@ -207,7 +208,8 @@ export async function review() {
         <td><span class="status ${OUTCOME[l.outcome][1]}">${OUTCOME[l.outcome][0]}</span>
           ${l.problems.map(p => `<br><small>${esc(p.message)}</small>`).join("")}
           ${l.fix_url ? `<br><a href="${esc(l.fix_url + (l.fix_url.includes("?") ? "&" : "?") + "next=/book/review")}">Fix this</a>` : ""}</td>
-        <td class="num">${l.funding === "haf" ? "Free (HAF)" : l.price_pence ? money(l.price_pence) : "Free"}</td>
+        <td class="num">${l.funding === "haf" ? "Free (HAF)" : l.price_pence ? money(l.price_pence) : "Free"}
+          ${l.trial_available || l.trial ? `<br><label class="check check--sm"><input type="checkbox" data-trial="${i}"${l.trial ? " checked" : ""}> <small>Trial session${l.trial_price_pence != null ? " (" + (l.trial_price_pence ? money(l.trial_price_pence) : "free") + ")" : ""}</small></label>` : ""}</td>
         <td><button class="linklike" data-rm="${i}">Remove</button></td></tr>`).join("")}</tbody>
       <tfoot><tr><td colspan="3">Total to pay${q.counts.waitlist || q.counts.approval ? " (waiting list and approval places are paid for once confirmed)" : ""}</td><td class="num"><strong>${money(q.total_pence)}</strong></td><td></td></tr>
       ${q.credit_pence ? `<tr><td colspan="3">Your account credit</td><td class="num">−${money(q.credit_pence)}</td><td></td></tr>
@@ -221,6 +223,12 @@ export async function review() {
         <div class="btn-row"><a class="btn btn--ghost" href="/book">← Add more</a>
           <button class="btn btn--orange" type="submit"${q.blocked ? " disabled" : ""}>${q.needs_payment && pays[0] === "card" && q.due_now_pence ? "Continue to payment" : "Confirm booking"}</button></div>
       </form>`;
+    $$("[data-trial]").forEach(b => b.onchange = async () => {
+      const l = lines[+b.dataset.trial];
+      basket = basket.map(it => it.session_id === l.session_id && it.participant === l.participant ? { ...it, trial: b.checked } : it);
+      saveBasket(basket);
+      await quote(); draw();
+    });
     $$("[data-rm]").forEach(b => b.onclick = async () => {
       const l = lines[+b.dataset.rm];
       basket = basket.filter(it => !(it.session_id === l.session_id && (it.participant || null) === (l.participant || null)));

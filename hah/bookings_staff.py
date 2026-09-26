@@ -222,6 +222,24 @@ def notes(h, bid):
     return h.json({"ok": True})
 
 
+@route("POST", "/api/staff/bookings/<bid>/trial", auth="staff", perm="bookings.manage")
+def mark_trial(h, bid):
+    """Mark (or unmark) a booking as a trial, for the conversion report. The price doesn't change."""
+    d = h.json_body() or {}
+    on = d.get("is_trial") is True
+    with db.tx() as c:
+        b = _booking(c, bid)
+        if b["kind"] != "participant":
+            raise ValueError("Only a child's or young adult's booking can be a trial.")
+        if on and c.execute("SELECT 1 FROM bookings WHERE activity_id=? AND participant_id=? AND is_trial=1 AND id<>?"
+                            " AND status IN " + catalogue.HOLDING_SQL,
+                            (b["activity_id"], b["participant_id"], b["id"])).fetchone():
+            raise ValueError("They already have a trial of this activity.")
+        c.execute("UPDATE bookings SET is_trial=?, updated_at=? WHERE id=?", (1 if on else 0, db.now(), b["id"]))
+        audit.record(c, h, "booking.trial", entity_type="booking", entity_id=b["id"], details={"is_trial": on})
+    return h.json({"ok": True})
+
+
 # ---------------------------------------------------------------- waiting list
 
 

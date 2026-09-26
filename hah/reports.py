@@ -126,3 +126,64 @@ def attendance_csv(h):
         rows = [[s["key"]] + [s["by_category"].get(k, 0) for k in cats] + [s["present"]] for s in data["series"]]
         audit.record(c, h, "report.attendance_export", details={"from": first.isoformat(), "to": last.isoformat()})
     return h.csv("attendance-%s-to-%s.csv" % (first, last), ["Date"] + cats + ["Total attended"], rows)
+
+
+# ---------------------------------------------------------------- trials
+
+CONVERT_DAYS = 90
+
+
+def trials(c, first, last):
+    """Trial sessions in the period: did they come, and did they book again
+    (a paid or funded, non-trial booking made after the trial, within 90 days)?"""
+    today = catalogue.uk_today().isoformat()
+    rows = c.execute(
+        "SELECT b.id, b.participant_id, b.activity_id, b.status, b.created_at, s.date, act.title, a.status AS att"
+        " FROM bookings b JOIN activity_sessions s ON s.id=b.session_id JOIN activities act ON act.id=b.activity_id"
+        " LEFT JOIN attendance a ON a.booking_id=b.id WHERE b.is_trial=1 AND b.participant_id IS NOT NULL"
+        " AND s.date BETWEEN ? AND ? AND b.status IN ('confirmed','cancelled')",
+        (first.isoformat(), last.isoformat())).fetchall()
+    totals = {"trials": 0, "attended": 0, "no_shows": 0, "cancelled": 0, "upcoming": 0, "converted": 0,
+              "converted_same": 0}
+    by_act = {}
+    for r in rows:
+        act = by_act.setdefault(r["activity_id"], {"title": r["title"], "trials": 0, "attended": 0, "converted": 0})
+        if r["status"] == "cancelled":
+            totals["cancelled"] += 1
+            continue
+        totals["trials"] += 1
+        act["trials"] += 1
+        if r["date"] > today:
+            totals["upcoming"] += 1
+            continue
+        if r["att"] == "present":
+            totals["attended"] += 1
+            act["attended"] += 1
+        elif r["att"] in ("absent", "absent_notified"):
+            totals["no_shows"] += 1
+        until = (datetime.date.fromisoformat(r["date"]) + datetime.timedelta(days=CONVERT_DAYS)).isoformat()
+        later = c.execute(
+            "SELECT b.activity_id FROM bookings b JOIN activity_sessions s ON s.id=b.session_id"
+            " WHERE b.participant_id=? AND b.is_trial=0 AND b.status IN " + catalogue.HOLDING_SQL +
+            " AND b.id<>? AND b.created_at>=? AND s.date>=? AND b.created_at<=?",
+            (r["participant_id"], r["id"], r["created_at"], r["date"], until + "T23:59:59Z")).fetchall()
+        if later:
+            totals["converted"] += 1
+            act["converted"] += 1
+            if any(x["activity_id"] == r["activity_id"] for x in later):
+                totals["converted_same"] += 1
+    past = totals["trials"] - totals["upcoming"]
+    totals["rate"] = round(100 * totals["converted"] / past) if past else None
+    return {"totals": totals, "activities": sorted((a for a in by_act.values() if a["trials"]),
+                                                   key=lambda a: -a["trials"])}
+
+
+@route("GET", "/api/staff/reports/trials", auth="staff", perm="reports.view")
+def trials_api(h):
+    q = h.query()
+    period = q.get("period") if q.get("period") in PERIODS else "month"
+    day = validate.date(q.get("date")) or catalogue.uk_today()
+    with db.read() as c:
+        first, last, label, _ = period_range(period, day, booking_settings.get("reporting_year_start_month", c))
+        data = trials(c, first, last)
+    return h.json(dict(data, label=label, first=first.isoformat(), last=last.isoformat(), convert_days=CONVERT_DAYS))

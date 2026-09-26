@@ -116,6 +116,8 @@ function editor(root, act, back) {
     <div class="acard"><h2>Price</h2>
       <div class="frow"><div class="fgroup"><label>Price per session (£)</label><input type="text" inputmode="decimal" name="price" value="${pounds(a.price_pence)}"></div>
         <div class="fgroup"><label>Adult price for one-off events (£)</label><input type="text" inputmode="decimal" name="adult_price" value="${pounds(a.adult_price_pence)}"></div></div>
+      ${chk("allow_trial", "Offer a trial session", "A child's first session of this activity can be booked as a trial. One trial per child.")}
+      <div class="fgroup"><label>Trial price (£, optional)</label><input type="text" inputmode="decimal" name="trial_price" value="${a.trial_price_pence == null ? "" : pounds(a.trial_price_pence)}"><p class="fhint">Empty = the normal price. Enter 0 for a free trial.</p></div>
     </div>
     ${manage ? `<p><button class="abtn abtn--primary" type="submit">${act ? "Save changes" : "Create draft"}</button></p>` : ""}
     </form>
@@ -134,8 +136,9 @@ function editor(root, act, back) {
       booking_closes_hours: f.booking_closes_hours.value, capacity_default: f.capacity_default.value,
       max_party_size: f.max_party_size.value, waitlist_mode: f.waitlist_mode.value,
       price_pence: toPence(f.price.value) || 0, adult_price_pence: toPence(f.adult_price.value) || 0,
+      trial_price_pence: f.trial_price.value.trim() === "" ? null : (Number.isNaN(toPence(f.trial_price.value)) ? f.trial_price.value : toPence(f.trial_price.value)),
     };
-    for (const k of ["parent_must_stay", "requires_approval", "haf_only", "waitlist_enabled", "allow_pay_later"]) body[k] = f[k].checked;
+    for (const k of ["parent_must_stay", "requires_approval", "haf_only", "waitlist_enabled", "allow_pay_later", "allow_trial"]) body[k] = f[k].checked;
     try {
       const r = await post(act ? `/api/staff/activities/${a.id}/update` : "/api/staff/activities", body);
       toast(act ? "Saved" : "Draft created");

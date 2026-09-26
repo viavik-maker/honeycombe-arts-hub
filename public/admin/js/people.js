@@ -232,6 +232,7 @@ async function bookForFamily(accountRef, people) {
       <div class="fgroup"><label>Reference (never a card number)</label><input type="text" name="reference"></div></div>
     ${can("bookings.override") ? `<label class="fcheck"><input type="checkbox" name="override"> Override rules (age, full, HAF…)</label>
       <div class="fgroup"><label>Reason for overriding</label><input type="text" name="reason"></div>` : ""}
+    <label class="fcheck"><input type="checkbox" name="trial"> Trial session (their first go at this activity; the trial price applies)</label>
     <label class="fcheck"><input type="checkbox" name="notify" checked> Email the family</label>`,
     async (f) => {
       const who = $$("input[name=who]:checked", f).map(i => i.value);
@@ -239,7 +240,7 @@ async function bookForFamily(accountRef, people) {
       if (!who.length || !sids.length) throw new Error("Choose who and at least one session.");
       const items = sids.flatMap(sid => who.map(ref => ({ session_id: sid, participant: ref })));
       try {
-        const r = await post("/api/staff/bookings/create", { account_ref: accountRef, items, notify: f.notify.checked,
+        const r = await post("/api/staff/bookings/create", { account_ref: accountRef, items, notify: f.notify.checked, is_trial: f.trial.checked,
           override: f.override ? f.override.checked : false, reason: f.reason ? f.reason.value : "",
           payment: { mode: f.mode.value, method: f.method.value, reference: f.reference.value } });
         toast(`${r.bookings.length} booked`);
