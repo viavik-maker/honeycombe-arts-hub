@@ -8,8 +8,8 @@ from http.server import ThreadingHTTPServer
 
 # importing these modules registers their routes and jobs
 from . import (accounts, activities, book_api, booking_settings, bookings_staff, cms, config, db,  # noqa: F401
-               family_api, incidents, outbox, pages, payments_stripe, portal_pages, registers, staff, system,
-               waitlist)
+               family_api, finance, guests, importer, incidents, intray, outbox, pages, payments_stripe,
+               people, portal_pages, registers, staff, staff_bookings, system, waitlist)
 from .content import bootstrap_seed
 from .web import Handler
 from .worker import Worker

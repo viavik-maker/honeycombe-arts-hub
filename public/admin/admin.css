@@ -59,14 +59,14 @@ img { max-width: 100%; }
 .app { display: grid; grid-template-columns: 250px 1fr; min-height: 100vh; }
 .side {
   background: var(--navy-d); color: #c4cae2; padding: 1.6rem 1rem; display: flex; flex-direction: column;
-  position: sticky; top: 0; height: 100vh;
+  position: sticky; top: 0; height: 100vh; overflow-y: auto; overscroll-behavior: contain;
 }
 .side__logo { width: 150px; margin: 0 auto 1.8rem; background: #fff; padding: 10px 14px; border-radius: 14px; }
-.side__nav { display: flex; flex-direction: column; gap: .25rem; flex: 1; }
+.side__nav { display: flex; flex-direction: column; gap: .15rem; flex: 1 0 auto; }
 .side__nav button {
   display: flex; align-items: center; gap: .7em; text-align: left;
   font-family: "Fredoka", sans-serif; font-weight: 500; font-size: .98rem;
-  background: none; border: 0; color: #c4cae2; padding: .65em .9em; border-radius: 12px; cursor: pointer; transition: .15s;
+  background: none; border: 0; color: #c4cae2; padding: .5em .9em; border-radius: 12px; cursor: pointer; transition: .15s;
 }
 .side__nav button:hover { background: rgba(255,255,255,.07); color: #fff; }
 .side__nav button.active { background: var(--honey); color: var(--navy-d); }
@@ -258,3 +258,6 @@ dialog.dlg.dlg--wide { width: min(760px, 94vw); max-width: 94vw; }
 .regrow__btns { display: flex; gap: .35rem; flex-wrap: wrap; }
 .regrow__health { margin: .5em 0 0; font-size: .9rem; color: #7a2d10; }
 .dlg__warn { background: #fdecec; color: var(--red); border-radius: 10px; padding: .6em .8em; }
+.ok { color: #2f5a1d; font-weight: 800; }
+.bad { color: var(--red); }
+select[multiple] { width: 100%; font: inherit; border: 2px solid var(--line); border-radius: 12px; padding: .4em; }

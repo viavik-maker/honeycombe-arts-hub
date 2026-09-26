@@ -21,6 +21,7 @@ PAGES = {
     "/book": ("book", "Book activities"),
     "/book/review": ("book-review", "Your booking"),
     "/book/done": ("book-done", "Booking complete"),
+    "/book/guest/confirm": ("guest-confirm", "Confirm your booking"),
 }
 
 
@@ -41,3 +42,8 @@ for _path, (_name, _title) in PAGES.items():
 @route("GET", "/account/family/<ref>")
 def child_page(h, ref):
     return shell(h, "child", "Your child's details")
+
+
+@route("GET", "/book/<slug>/guest")
+def guest_page(h, slug):
+    return shell(h, "guest", "Book a place")

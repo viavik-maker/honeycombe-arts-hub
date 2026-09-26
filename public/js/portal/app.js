@@ -2,6 +2,7 @@
 import { fail } from "./core.js";
 import * as account from "./account.js";
 import * as book from "./book.js";
+import * as guest from "./guest.js";
 
 const PAGES = {
   "register": account.registerChooser,
@@ -18,6 +19,8 @@ const PAGES = {
   "book-review": book.review,
   "book-done": book.done,
   "bookings": book.myBookings,
+  "guest": guest.guest,
+  "guest-confirm": guest.guestConfirm,
 };
 
 const page = document.body.dataset.portal;

@@ -30,7 +30,9 @@ class PatternTest(unittest.TestCase):
                     if r.mfa:
                         self.assertTrue(r.perm or pattern in (
                             "/api/staff/me", "/api/staff/password", "/api/staff/logout",
-                            "/api/staff/sessions/revoke-others"), "no permission set")
+                            "/api/staff/sessions/revoke-others",
+                            # the in-tray filters each item by the permission it names
+                            "/api/staff/intray", "/api/staff/intray/(?P<iid>[^/]+)"), "no permission set")
 
     def test_signed_in_posts_are_csrf_protected(self):
         for r in web.ROUTES:

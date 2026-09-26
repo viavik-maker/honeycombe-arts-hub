@@ -1,0 +1,8 @@
+Subject: Please complete {{child}}'s details
+Hello {{first_name}},
+
+We've booked {{child}} in with you. Before their first session on {{before}}, please complete their details online — health, contacts and permissions — so we can look after them properly.
+
+[Complete {{child}}'s details]({{details_url}})
+
+If you haven't signed in to your new account yet, use the "Activate your account" email we sent, or "Forgotten password" on the sign-in page.

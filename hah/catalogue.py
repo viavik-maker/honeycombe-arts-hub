@@ -10,8 +10,8 @@ from . import config
 UK = zoneinfo.ZoneInfo(config.TIMEZONE)
 
 # bookings in these states hold a place
-HOLDING = ("pending_payment", "pending_approval", "offered", "confirmed")
-HOLDING_SQL = "('pending_payment','pending_approval','offered','confirmed')"
+HOLDING = ("pending_payment", "pending_approval", "offered", "confirmed", "pending_confirmation")
+HOLDING_SQL = "('pending_payment','pending_approval','offered','confirmed','pending_confirmation')"
 FEW_LEFT = 3
 
 

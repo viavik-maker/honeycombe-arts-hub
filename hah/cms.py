@@ -10,7 +10,7 @@ import time
 from email.parser import BytesParser
 from email.policy import HTTP
 
-from . import audit, config, db, images, mail, outbox, ratelimit
+from . import audit, config, db, images, intray, mail, outbox, ratelimit
 from .content import public_content, site_content
 from .markup import csv_safe
 from .storage import load_json, replace_json, update_json
@@ -42,8 +42,10 @@ def contact(h):
     if not name or not email or not message or "@" not in email:
         return h.json({"error": "Please fill in your name, email and message."}, 400)
     with db.tx() as c:
-        c.execute("INSERT INTO contact_messages(ref, name, email, phone, message, created_at) VALUES (?,?,?,?,?,?)",
-                  (secrets.token_hex(8), name, email, phone, message, db.now()))
+        mid = c.execute("INSERT INTO contact_messages(ref, name, email, phone, message, created_at) VALUES (?,?,?,?,?,?)",
+                        (secrets.token_hex(8), name, email, phone, message, db.now())).lastrowid
+        intray.add(c, "contact_message", "Website message from %s" % name[:60], perm="site.content",
+                   entity_type="contact_message", entity_id=mid)
         notify = mail.staff_notify_address()
         if notify:
             outbox.email(c, notify, "contact_notification", {"name": name, "email": email, "phone": phone or "—",

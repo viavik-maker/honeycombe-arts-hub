@@ -75,6 +75,8 @@ def resolve_items(c, account, raw):
 def _places(item):
     if item["kind"] == "participant":
         return 1
+    if item.get("places"):  # a guest party: counted from the numbers they gave
+        return item["places"]
     n = len(item["children"])
     return n + (item["adults"] if item["activity"]["capacity_counts"] == "all_people" else 0) or 1
 

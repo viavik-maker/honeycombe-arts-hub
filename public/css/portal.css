@@ -156,3 +156,4 @@ fieldset.field legend { font-weight: 800; font-size: .92rem; color: var(--navy);
 dialog.pcard { max-width: min(520px, 92vw); border: 0; }
 dialog.pcard::backdrop { background: rgba(35, 43, 73, .45); }
 @media (max-width: 640px) { .session-row__act { align-items: flex-start; } .elig-notes { text-align: left; } }
+.hp { position: absolute; left: -10000px; width: 1px; height: 1px; overflow: hidden; }

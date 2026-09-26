@@ -1,0 +1,8 @@
+Subject: Please confirm your booking: {{activity}}
+Hello,
+
+To confirm your places at **{{activity}}** ({{when}} — {{places}}), please use this link within 30 minutes:
+
+{{SECRET}}
+
+If you don't confirm, the places will be released for someone else. If you didn't make this booking, you can ignore this email.

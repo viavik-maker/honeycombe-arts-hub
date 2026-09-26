@@ -194,6 +194,13 @@ def add_participant(h):
         audit.record(c, h, "participant.added", entity_type="participant", entity_id=pid, participant_id=pid,
                      account_id=who["id"])
         family.compute_level(c, pid)
+        if c.execute("SELECT 1 FROM participants WHERE lower(first_name)=lower(?) AND lower(last_name)=lower(?) AND dob=?"
+                     " AND account_id<>? AND status='active'",
+                     (child["first_name"], child["last_name"], child["dob"], who["id"])).fetchone():
+            # the same child on two accounts: could be separated parents, could be a mistake — the DSL checks
+            intray.add(c, "duplicate_child", "A child with the same name and date of birth is on another account",
+                       perm="safeguarding.view", entity_type="participant", entity_id=pid, participant_id=pid,
+                       account_id=who["id"])
     return h.json({"ok": True, "ref": ref})
 
 

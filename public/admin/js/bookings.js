@@ -48,6 +48,7 @@ A.addTab({
       catch (x) { toast(x.message, true); }
     };
     $$("[data-open]", root).forEach(b => b.onclick = () => openBooking(+b.dataset.open, () => this.render(root)));
+    if (st.openId) { const id = st.openId; st.openId = null; openBooking(id, () => this.render(root)); }
   },
 });
 
