@@ -818,6 +818,11 @@
           <div class="fgroup"><label>New password (8+ characters)</label><input type="password" id="pwNew" autocomplete="new-password"></div>
         </div>
         <button class="abtn abtn--primary" id="pwBtn">Change password</button>
+      </div>
+
+      <div class="acard"><h2>System &amp; backups</h2>
+        <div id="sysBody"><p class="fhint">Checking…</p></div>
+        <button class="abtn abtn--ghost abtn--sm" id="backupBtn" style="margin-top:.8em">Back up now</button>
       </div>`;
 
     root.addEventListener("input", (e) => {
@@ -830,6 +835,14 @@
         dirty();
       }
     });
+    $("#backupBtn", root).addEventListener("click", async () => {
+      try {
+        await post("/api/admin/backup-now", {});
+        toast("Backup started — it takes a minute or two");
+        setTimeout(loadSystem, 4000);
+      } catch (e) { toast(e.message, true); }
+    });
+    loadSystem();
     $("#pwBtn", root).addEventListener("click", async () => {
       try {
         await post("/api/admin/password", { current: $("#pwCur").value, new: $("#pwNew").value });
@@ -837,6 +850,33 @@
         toast("Password changed 🔒");
       } catch (e) { toast(e.message, true); }
     });
+  }
+
+  /* System & backups card (Settings): read-only status from the server */
+  async function loadSystem() {
+    const body = $("#sysBody");
+    if (!body) return;
+    const when = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "never";
+    try {
+      const st = await api("/api/admin/system-status");
+      const backupJob = st.jobs.find(j => j.name === "nightly_backup") || {};
+      const warn = (text) => `<p class="fhint" style="color:var(--red);font-weight:800">⚠️ ${esc(text)}</p>`;
+      body.innerHTML = [
+        st.database_ok ? "" : warn("The booking database isn't answering."),
+        st.backup_stale ? warn("No successful backup in the last 26 hours.") : "",
+        st.offsite_backup_configured ? "" :
+          warn("Off-site backup isn't set up yet — required before real family data is stored (see README → Backups)."),
+        `<table class="table"><tbody>
+          <tr><td>Last backup</td><td>${esc(when(backupJob.last_finished_at))} — ${esc(backupJob.last_status || "not run yet")}</td></tr>
+          <tr><td>Result</td><td>${esc(backupJob.last_error || backupJob.last_detail || "—")}</td></tr>
+          <tr><td>Copies on the server</td><td>${esc(st.local_backups.length)} (kept for a week)</td></tr>
+          <tr><td>Database size</td><td>${esc(st.database_kb)} KB</td></tr>
+          <tr><td>Background jobs</td><td>${st.worker_running ? "running" : "not running"}</td></tr>
+        </tbody></table>`
+      ].join("");
+    } catch (e) {
+      body.innerHTML = `<p class="fhint">Couldn't load system status: ${esc(e.message)}</p>`;
+    }
   }
 
   /* ---------------- render all ---------------- */

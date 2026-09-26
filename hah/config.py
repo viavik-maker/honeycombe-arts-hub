@@ -26,3 +26,19 @@ REQUEST_TIMEOUT = 30  # seconds a client may take to send its request
 # Content-Security-Policy: "report" (browsers only report violations) while we
 # check nothing legitimate breaks, then "enforce".
 CSP_MODE = os.environ.get("HAH_CSP", "report")
+
+# ---------------------------------------------------------------- booking system
+
+DB_PATH = os.path.join(DATA, "booking.db")  # SQLite; never inside content.json
+BACKUPS = os.path.join(DATA, "backups")      # local nightly snapshots (kept a week)
+TIMEZONE = "Europe/London"                   # sessions, registers and job times are UK local
+
+# Off-site backups (optional until real family data is stored — then required).
+# The archive is encrypted to the trustees' certificate before it leaves the
+# server; only whoever holds the matching private key (offline) can open it.
+BACKUP_CERT = os.environ.get("BACKUP_CERT", "")               # PEM certificate text
+BACKUP_S3_ENDPOINT = os.environ.get("BACKUP_S3_ENDPOINT", "")  # e.g. https://s3.eu-west-2.amazonaws.com
+BACKUP_S3_REGION = os.environ.get("BACKUP_S3_REGION", "")      # e.g. eu-west-2
+BACKUP_S3_BUCKET = os.environ.get("BACKUP_S3_BUCKET", "")
+BACKUP_S3_ACCESS_KEY = os.environ.get("BACKUP_S3_ACCESS_KEY", "")
+BACKUP_S3_SECRET_KEY = os.environ.get("BACKUP_S3_SECRET_KEY", "")

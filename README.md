@@ -54,6 +54,8 @@ data/content.json    — all editable website content
 data/messages.json   — contact form inbox
 data/subscribers.json— newsletter signups
 data/uploads/        — images uploaded through the admin
+data/booking.db      — booking system database (SQLite)
+data/backups/        — nightly backups (kept a week)
 public/              — the website (pages, css, js, images)
 public/docs/         — Policy Handbook PDF
 partials/            — shared header/footer used by every page
@@ -104,6 +106,48 @@ To have contact-form messages forwarded to a real email inbox, fill in the SMTP
 details under admin → Settings (your email host — e.g. Google Workspace,
 Zoho, or your registrar's mail service — supplies these). Messages always
 appear in the admin Inbox regardless.
+
+## Backups
+
+Every night at 02:30 (UK time) the site writes a backup of everything under
+`data/` to `data/backups/`: the booking database (a consistent snapshot, even
+while people are using the site), the JSON content, inbox and newsletter
+files, and uploaded images. Seven days of these are kept. They sit on the same
+disk as the live data, so they protect against mistakes rather than losing the
+disk, which Render's own daily disk snapshots cover.
+
+**Before any real family data goes in, set up off-site backups.** Each night the
+archive is then encrypted and uploaded to a storage bucket in the UK or EU. The
+server only has the *public* certificate, so it can't read its own backups. The
+trustees keep the private key offline (e.g. on an encrypted USB stick in the
+safe, plus a second copy held by another trustee).
+
+1. On a trustee's computer, make the key pair once:
+   ```bash
+   openssl req -x509 -newkey rsa:4096 -nodes -days 3650 -subj "/CN=Honeycombe Arts Hub backups" \
+       -keyout trustees-backup.key -out trustees-backup.crt
+   ```
+   Keep `trustees-backup.key` offline. **Without it, the backups can't be opened.**
+2. Create a bucket with any S3-compatible provider in a UK/EU region, with
+   object lock / versioning (≥ 35 days) switched on, and an access key that can
+   only upload to that bucket.
+3. In Render → the service → *Environment*, set `BACKUP_CERT` (paste the whole
+   `trustees-backup.crt` text), `BACKUP_S3_ENDPOINT`, `BACKUP_S3_REGION`,
+   `BACKUP_S3_BUCKET`, `BACKUP_S3_ACCESS_KEY` and `BACKUP_S3_SECRET_KEY`.
+4. Admin → Settings → *System & backups* → **Back up now**, and check that the
+   result says "off-site copy uploaded".
+
+To restore, download the `.p7m` file and run:
+```bash
+openssl cms -decrypt -inform DER -binary -in hah-YYYYMMDD-HHMMSS.tar.gz.p7m \
+    -inkey trustees-backup.key -out backup.tar.gz
+tar -xzf backup.tar.gz      # booking.db, *.json, uploads/
+```
+Practise a restore at least once before launch.
+
+Admin → Settings → *System & backups* shows when the last backup ran and warns
+if one hasn't succeeded in the last 26 hours. `/healthz` is Render's health
+check (it confirms the site and database are answering).
 
 ## Security settings
 

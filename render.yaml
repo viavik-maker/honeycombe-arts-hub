@@ -7,7 +7,7 @@ services:
     plan: starter            # paid tier required for the persistent disk below
     buildCommand: "echo 'no build needed'"
     startCommand: "python3 server.py"
-    healthCheckPath: /
+    healthCheckPath: /healthz   # web process + database (never blocked by background jobs)
     disk:
       name: hah-data
       mountPath: /opt/render/project/src/data
