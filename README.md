@@ -215,6 +215,10 @@ Card payments use **Stripe Checkout**. In the charity's Stripe account:
    `charge.dispute.created`. Copy its signing secret into
    `STRIPE_WEBHOOK_SECRET`.
 
+For the switch from MagicBooking, follow `docs/booking/LAUNCH.md` (the cutover
+runbook, verification checklist and load test). `docs/booking/STAFF-GUIDE.md`
+is a short guide for the team.
+
 Without Stripe, families can still book free sessions, and paid ones where
 *pay later* or *vouchers / Tax-Free Childcare* apply. Only booking references
 (never children's names or health details) are sent to Stripe.

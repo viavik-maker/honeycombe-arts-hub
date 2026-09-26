@@ -1,0 +1,96 @@
+# Staff guide: the booking system
+
+Sign in at `/admin` with your email, your password and the 6-digit code from your authenticator app. You'll only
+see the areas your role uses.
+
+## Every day
+
+- **In-tray.** Things waiting for someone:
+  - bookings to approve, HAF claims to check, voucher payments;
+  - absences and cancellations;
+  - health or collection changes for children booked this week;
+  - safeguarding items (DSL only);
+  - website messages.
+
+  Press **Take it** so colleagues know you're on it, **Done ✓** when finished, or **Snooze** it for later.
+- **Registers.** Pick the day and open the session.
+  - **Sign in** each child as they arrive, or mark them **Absent**.
+  - Allergies and needs are shown on each row. **ANAPHYLAXIS** is in red.
+  - **Sign out…**: choose how they're being collected.
+    - If it's by collection password, type what the adult says. You never see the password; the system checks it.
+    - After 5 wrong tries, use the phone check instead: call the parent on the number in *Details*, then choose
+      *Known adult, checked by phone*.
+    - A **COLLECTION ALERT** means see a manager before the child leaves.
+  - **Print** gives a paper copy (no passwords, no safeguarding details) for when the tablet isn't available.
+    Shred it after use.
+- **Log incident** (on a register row or under Incidents). Choose how the parent will be told:
+  - **Now**: they get an email saying there's a note to read. The email never contains details.
+  - **At collection**: the register won't let the child be signed out until you tick that you've talked it
+    through.
+  - **Not at all**: you must give a reason.
+
+  Safeguarding concerns go only to the DSL, and parents aren't told automatically.
+
+## Bookings
+
+- **A family phones to book.** Search in **People**, open the family, then **Book sessions…**.
+  - Choose the children and sessions, and whether they've paid, will pay later, or it's free of charge.
+  - If their child's details aren't complete, the booking still goes through. It's flagged *details incomplete*
+    and the family is emailed to finish them.
+  - Booking outside the rules (too young, a full session) needs the override permission and a reason.
+- **Walk-in at reception.** Use **Walk-in**: parent, child, one emergency contact, allergies, and the photo and
+  first-aid answers. Then the session and the payment. It books, takes the payment and signs the child in in one
+  go, and emails the parent to finish their details online.
+- **Approvals.** Bookings → **Under approval**.
+  - **Approve**: paid places get an invoice; the family is emailed.
+  - **Decline**: give a reason; the place goes to the waiting list.
+  - For HAF, tick the claims and use **Verify HAF…**. The child is then marked eligible, so their next HAF days
+    confirm straight away.
+- **Cancelling.** Open the booking → **Cancel…**, then choose what happens to the money:
+  - account credit;
+  - a refund to their card (online payments);
+  - refunded another way;
+  - nothing back.
+
+  Invoices always get a credit note, so the family never owes for a cancelled place.
+- **Moving a child to another day** at the same price: open the booking → **Move…**.
+- **Cancelling a whole session.** Activities → the activity → **Cancel…** on the session. Everyone is cancelled
+  and refunded (card payments to the card, everything else as credit) and told by email and text.
+- **Waiting list.**
+  - When a place frees up, the next family is offered it automatically (email and text) and it's held for them for
+    a day, or 2 hours if the session is soon. Brothers and sisters are offered together.
+  - Bookings → **Waiting list** lets you offer a place yourself or change someone's priority.
+
+## Money
+
+- **Finance** shows the day's takings by method, unpaid and overdue invoices, and refunds to hand back.
+- **Record payment** when vouchers, Tax-Free Childcare, a bank transfer or cash arrive. Quote the invoice number.
+  **Never write card numbers anywhere.**
+- **Send reminder** emails the family a link to pay. Unpaid invoices are never cancelled automatically, so follow
+  them up here.
+- **Allow pay later** for a family from their record in People (finance role).
+
+## Activities
+
+- New activities start as **drafts** that only staff can see. **Add a run of sessions** makes a term's worth at
+  once: preview it first. Then **Publish now**, or **Schedule…** a time.
+- The system won't publish an activity with no upcoming places, or a paid one with no way to pay. It tells you
+  what's missing.
+- **Duplicate for next term** copies an activity and its sessions onto the same weekdays.
+
+## Messages
+
+- **About a booking** (service messages) go to everyone booked on a session, an activity or a day, or to chosen
+  families, whatever their marketing choices. Use these for changes, reminders and cancellations.
+- **News** goes only to people who opted in. Every news email has an unsubscribe link.
+- Always **Preview** first. It shows how many people will get it.
+
+## Families' data
+
+- Families change their own details, contacts, health information, permissions and collection password in their
+  account. Changes to collection details need their password again and send them a confirmation.
+- **Request my data**: the in-tray tells you. Open the family → **Download their data**, check it, and email it
+  to them within a month.
+- **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
+  **Restore** it before then.
+- Only the DSL sees family safeguarding information. Viewing health details is logged.

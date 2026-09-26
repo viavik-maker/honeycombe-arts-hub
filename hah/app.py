@@ -30,8 +30,15 @@ def prepare_data():
         print("  newsletter: moved %d subscribers into the database" % moved)
 
 
+class Server(ThreadingHTTPServer):
+    # the default listen backlog is 5: in a busy minute (bookings opening) a
+    # burst of visitors would be made to wait a second and retry
+    request_queue_size = 128
+    daemon_threads = True
+
+
 def make_server(address):
-    return ThreadingHTTPServer(address, Handler)
+    return Server(address, Handler)
 
 
 def main():

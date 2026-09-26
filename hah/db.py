@@ -23,6 +23,7 @@ import json
 import os
 import re
 import sqlite3
+import threading
 import time
 
 from . import config
@@ -60,20 +61,33 @@ def read():
         c.close()
 
 
+# The site runs as one process, so writers queue here first: each starts the
+# moment the previous one commits. (Left to SQLite alone, waiting writers
+# poll with growing sleeps, which made busy moments needlessly slow.)
+# SQLite's own lock still protects against any other process.
+_writer = threading.RLock()
+WRITE_WAIT = 30  # seconds
+
+
 @contextlib.contextmanager
 def tx():
     """A write transaction: commits on success, rolls back on any error."""
-    c = _open()
+    if not _writer.acquire(timeout=WRITE_WAIT):
+        raise sqlite3.OperationalError("database is busy")
     try:
-        c.execute("BEGIN IMMEDIATE")
+        c = _open()
         try:
-            yield c
-        except BaseException:
-            c.execute("ROLLBACK")
-            raise
-        c.execute("COMMIT")
+            c.execute("BEGIN IMMEDIATE")
+            try:
+                yield c
+            except BaseException:
+                c.execute("ROLLBACK")
+                raise
+            c.execute("COMMIT")
+        finally:
+            c.close()
     finally:
-        c.close()
+        _writer.release()
 
 
 # ---------------------------------------------------------------- migrations
