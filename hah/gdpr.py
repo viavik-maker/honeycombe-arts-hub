@@ -31,7 +31,7 @@ def _utc(days=0):
 # ---------------------------------------------------------------- families
 
 
-@route("POST", "/api/account/delete", auth="account")
+@route("POST", "/api/account/delete", auth="holder")
 def request_deletion(h):
     from .accounts import recently_reauthenticated
     who = h.principal("account")
@@ -73,7 +73,7 @@ def request_deletion(h):
     return h.json({"ok": True, "erase_on": when}, headers={"Set-Cookie": clear_cookie(h)})
 
 
-@route("POST", "/api/account/data-request", auth="account")
+@route("POST", "/api/account/data-request", auth="holder")
 def data_request(h):
     who = h.principal("account")
     with db.tx() as c:
@@ -86,7 +86,7 @@ def data_request(h):
     return h.json({"ok": True, "message": "Thanks — we'll email you your data within a month (usually much sooner)."})
 
 
-@route("POST", "/api/account/data-export/check", auth="account")
+@route("POST", "/api/account/data-export/check", auth="holder")
 def data_export_check(h):
     """Asks for the password first if it hasn't been entered recently (the portal shows the prompt)."""
     from .accounts import recently_reauthenticated
@@ -95,7 +95,7 @@ def data_export_check(h):
     return h.json({"ok": True})
 
 
-@route("GET", "/api/account/data-export", auth="account")
+@route("GET", "/api/account/data-export", auth="holder")
 def data_export(h):
     """A family downloads everything we hold about them: readable (HTML) or JSON."""
     from .accounts import recently_reauthenticated
@@ -128,7 +128,8 @@ LABELS = {"account": "Your account", "emergency_contacts": "Emergency contacts",
           "and permissions", "bookings": "Bookings", "invoices": "Invoices", "payments": "Payments",
           "messages": "Messages we've sent you", "contact_form_messages": "Messages you sent us",
           "marketing_preferences": "News preferences", "guest_bookings": "One-off (guest) bookings",
-          "send_support_requests": "SEND support requests", "exported_at": "Downloaded at"}
+          "send_support_requests": "SEND support requests", "carers": "Carers who can use your account",
+          "exported_at": "Downloaded at"}
 
 
 def _label(k):
@@ -298,6 +299,8 @@ def export_account(c, a, self_service=False):
     from . import send_support
     out["send_support_requests"] = [send_support.intake_json(c, it) for it in c.execute(
         "SELECT * FROM send_intakes WHERE account_id=?", (aid,)).fetchall()]
+    out["carers"] = _rows(c, "SELECT first_name, last_name, email, relationship, status, invited_at, activated_at"
+                             " FROM carers WHERE account_id=? AND status<>'removed'", (aid,))
     out["exported_at"] = db.now()
     return out
 
@@ -313,6 +316,8 @@ def erase_account(c, aid, h=None):
     now = db.now()
     a = c.execute("SELECT * FROM accounts WHERE id=?", (aid,)).fetchone()
     send_support.erase_for_account(c, aid)
+    from . import carers
+    carers.erase_for_account(c, aid)
     for p in c.execute("SELECT * FROM participants WHERE account_id=?", (aid,)).fetchall():
         pid = p["id"]
         accident = c.execute("SELECT 1 FROM incident_people WHERE participant_id=?", (pid,)).fetchone()

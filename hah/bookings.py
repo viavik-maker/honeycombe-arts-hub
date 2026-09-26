@@ -428,10 +428,13 @@ def send_summary(c, h, account, bookings, invoice=None):
         inv_text = "Invoice %s: total %s%s." % (inv["number"], money.pounds(inv["total_pence"]),
                                                 ", paid in full" if bal <= 0 else ", %s to pay by %s" % (
                                                     money.pounds(bal), catalogue.nice_date(inv["due_date"])))
-    outbox.email(c, account["email"], "booking_received",
-                 {"first_name": account["first_name"], "lines": lines, "notes": "\n".join(notes),
-                  "invoice": inv_text, "bookings_url": site_url(h) + "/account/bookings"},
-                 account_id=account["id"], booking_id=bookings[0]["id"])
+    ctx = {"first_name": account["first_name"], "lines": lines, "notes": "\n".join(notes),
+           "invoice": inv_text, "bookings_url": site_url(h) + "/account/bookings"}
+    outbox.email(c, account["email"], "booking_received", ctx, account_id=account["id"], booking_id=bookings[0]["id"])
+    who = h.principal("account") if h is not None else None
+    if who and who.get("carer_id") and who["id"] == account["id"]:  # booked by an extra carer: they get a copy too
+        outbox.email(c, who["carer_email"], "booking_received", dict(ctx, first_name=who["carer_first_name"]),
+                     account_id=account["id"], booking_id=bookings[0]["id"])
 
 
 # ---------------------------------------------------------------- card checkouts

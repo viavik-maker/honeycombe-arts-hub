@@ -148,7 +148,7 @@ def migrate_subscribers_json():
 # ---------------------------------------------------------------- a family's own preferences
 
 
-@route("GET", "/api/account/preferences", auth="account")
+@route("GET", "/api/account/preferences", auth="holder")
 def my_preferences(h):
     who = h.principal("account")
     with db.read() as c:
@@ -157,7 +157,7 @@ def my_preferences(h):
                    "has_mobile": bool(who["mobile"])})
 
 
-@route("POST", "/api/account/preferences", auth="account")
+@route("POST", "/api/account/preferences", auth="holder")
 def set_preferences(h):
     who = h.principal("account")
     d = h.json_body() or {}

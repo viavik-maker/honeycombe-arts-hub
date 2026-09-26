@@ -240,7 +240,23 @@ def account_record(h, ref):
         out["messages"] = [dict(r) for r in c.execute(
             "SELECT id, channel, template_key, subject, status, created_at FROM message_deliveries WHERE account_id=?"
             " AND secret IS NULL ORDER BY id DESC LIMIT 30", (a["id"],))] if h.has_perm("messaging.service") else []
+        from . import carers
+        out["carers"] = [carers.carer_json(r) for r in c.execute(
+            "SELECT * FROM carers WHERE account_id=? AND status<>'removed' ORDER BY id", (a["id"],))]
         return h.json(out)
+
+
+@route("POST", "/api/staff/people/carers/<ref>/remove", auth="staff", perm="people.edit")
+def remove_carer(h, ref):
+    """E.g. the account holder phones to say a carer should no longer have access."""
+    from . import carers
+    with db.tx() as c:
+        r = c.execute("SELECT * FROM carers WHERE ref=? AND status<>'removed'", (ref,)).fetchone()
+        if not r:
+            raise LookupError
+        carers.remove_carer(c, r)
+        audit.record(c, h, "carer.removed", entity_type="carer", entity_id=r["id"], account_id=r["account_id"])
+    return h.json({"ok": True})
 
 
 @route("GET", "/api/staff/people/participants/<ref>", auth="staff", perm="people.view_basic")

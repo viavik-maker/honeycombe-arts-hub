@@ -193,6 +193,10 @@ async function familyRecord(root, ref, back, open) {
     <div class="acard"><h2>Emergency contacts</h2>${table([
       { label: "Name", get: c => esc(c.full_name) }, { label: "Relationship", get: c => esc(c.relationship) },
       { label: "Phone", get: c => esc(c.phone) }, { label: "Can collect", get: c => c.can_collect ? "Yes" : "" }], d.contacts, { empty: "None yet." })}</div>
+    ${d.carers && d.carers.length ? `<div class="acard"><h2>Carers who can sign in</h2><p class="fhint">Added by the account holder. They can book, pay and see bookings, but can't change the family's details. Being a carer doesn't mean they can collect: check Emergency contacts.</p>${table([
+      { label: "Name", get: x => esc(x.first_name + " " + x.last_name) + (x.relationship ? ` <span class="fhint">(${esc(x.relationship)})</span>` : "") },
+      { label: "Email", get: x => esc(x.email) }, { label: "Status", get: x => chip(x.status === "active" ? "Active" : "Invited", x.status === "active" ? "ok" : "muted") + (x.last_login_at ? `<br><span class="fhint">last signed in ${esc(when(x.last_login_at))}</span>` : "") },
+      { label: "", get: x => can("people.edit") ? `<button class="abtn abtn--ghost abtn--sm" data-rmcarer="${esc(x.ref)}">Remove</button>` : "" }], d.carers)}</div>` : ""}
     ${d.bookings ? `<div class="acard"><h2>Bookings (${d.upcoming} coming up)${d.credit_pence ? ` · ${esc(money(d.credit_pence))} credit` : ""}</h2>${table([
       { label: "Date", get: b => esc(day(b.date)) }, { label: "Activity", get: b => esc(b.activity) },
       { label: "Who", get: b => esc(b.who ? b.who.first_name : b.places + " place(s)") }, { label: "Status", get: b => esc(b.status_text) },
@@ -210,6 +214,10 @@ async function familyRecord(root, ref, back, open) {
   const on = (id, fn) => { const el = $(id, root); if (el) el.onclick = () => fn().catch(x => toast(x.message, true)); };
   on("#bookFor", () => bookForFamily(a.ref, d.participants).then(r => r && reload()));
   on("#msgFam", async () => A.openTab("messages2", { audience: { type: "accounts", refs: [a.ref] } }));
+  $$("[data-rmcarer]", root).forEach(b => b.onclick = async () => {
+    if (!await confirmBox("Remove this carer? They'll be signed out and can't sign in to this family's account again.", "Remove")) return;
+    try { await post(`/api/staff/people/carers/${b.dataset.rmcarer}/remove`, {}); toast("Removed"); reload(); } catch (x) { toast(x.message, true); }
+  });
   on("#restoreFam", async () => { await post(`/api/staff/people/accounts/${a.ref}/restore`, {}); toast("Restored"); reload(); });
   on("#editFam", async () => {
     const r = await modal("Edit family", `<div class="frow"><div class="fgroup"><label>First name</label><input type="text" name="first_name" value="${esc(a.first_name)}"></div>

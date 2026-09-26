@@ -1,0 +1,6 @@
+Subject: Your access to a Honeycombe Arts Hub account has ended
+Hello {{first_name}},
+
+{{holder}} has removed you as a carer on their Honeycombe Arts Hub account, so you can no longer sign in to it.
+
+Questions? Just reply to this email or call us on 07932 772905.

@@ -26,6 +26,7 @@ const PAGES = {
   "privacy": privacy.privacy,
   "unsubscribe": privacy.unsubscribe,
   "send": send.sendSupport,
+  "carer-invite": account.carerInvite,
 };
 
 const page = document.body.dataset.portal;

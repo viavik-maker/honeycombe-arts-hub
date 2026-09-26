@@ -53,10 +53,15 @@ def current_account(h):
     now = db.now()
     with db.read() as c:
         row = c.execute("SELECT s.id AS session_id, s.csrf_token, s.last_seen_at, s.idle_expires_at, s.expires_at,"
-                        " s.reauth_at, a.* FROM account_sessions s JOIN accounts a ON a.id=s.account_id"
+                        " s.reauth_at, s.carer_id, cr.status AS carer_status, cr.first_name AS carer_first_name,"
+                        " cr.last_name AS carer_last_name, cr.email AS carer_email, cr.ref AS carer_ref,"
+                        " cr.password_hash AS carer_password_hash, a.* FROM account_sessions s"
+                        " JOIN accounts a ON a.id=s.account_id LEFT JOIN carers cr ON cr.id=s.carer_id"
                         " WHERE s.token_hash=?", (security.hash_token(token),)).fetchone()
     if not row or row["status"] != "active" or row["expires_at"] <= now or row["idle_expires_at"] <= now:
         return None
+    if row["carer_id"] and row["carer_status"] != "active":
+        return None  # removed by the account holder
     last = datetime.datetime.strptime(row["last_seen_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
     if (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() > TOUCH_EVERY:
         with db.tx() as c:
@@ -67,14 +72,17 @@ def current_account(h):
     return who
 
 
-def start_session(c, h, account_id):
-    """(Set-Cookie value, csrf) for a new signed-in session."""
+def start_session(c, h, account_id, carer_id=None):
+    """(Set-Cookie value, csrf) for a new signed-in session (as an extra carer if CARER_ID)."""
     token, csrf, now = security.new_token(), security.new_token(24), db.now()
     c.execute("INSERT INTO account_sessions(token_hash, account_id, csrf_token, created_at, last_seen_at,"
-              " idle_expires_at, expires_at, reauth_at, ip, user_agent) VALUES (?,?,?,?,?,?,?,?,?,?)",
+              " idle_expires_at, expires_at, reauth_at, ip, user_agent, carer_id) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
               (security.hash_token(token), account_id, csrf, now, now, _utc(days=IDLE_DAYS),
-               _utc(days=SESSION_DAYS), now, h.client_ip(), (h.headers.get("User-Agent") or "")[:200]))
-    c.execute("UPDATE accounts SET last_login_at=? WHERE id=?", (now, account_id))
+               _utc(days=SESSION_DAYS), now, h.client_ip(), (h.headers.get("User-Agent") or "")[:200], carer_id))
+    if carer_id:
+        c.execute("UPDATE carers SET last_login_at=? WHERE id=?", (now, carer_id))
+    else:
+        c.execute("UPDATE accounts SET last_login_at=? WHERE id=?", (now, account_id))
     return "%s=%s; %s; Max-Age=%d" % (COOKIE, token, h.cookie_attrs("Lax"), SESSION_DAYS * 86400), csrf
 
 
@@ -173,6 +181,14 @@ def register(h):
         return h.json({"error": "The server is busy — please try again in a moment."}, 429)
     with db.tx() as c:
         existing = c.execute("SELECT * FROM accounts WHERE email=? AND status <> 'anonymised'", (email,)).fetchone()
+        carer = c.execute("SELECT * FROM carers WHERE email=? AND status<>'removed'", (email,)).fetchone()
+        if carer and not existing:
+            if _can_email(email):  # already a carer on a family account: they sign in with that
+                outbox.email(c, email, "account_exists", {"first_name": carer["first_name"],
+                                                          "signin_url": _site(h) + "/login",
+                                                          "reset_url": _site(h) + "/forgot-password",
+                                                          "activate_url": _site(h) + "/activate"})
+            return h.json({"ok": True, "message": SENT})
         if existing and existing["status"] != "pending_verification":
             if _can_email(email):
                 outbox.email(c, email, "account_exists", {"first_name": existing["first_name"],
@@ -261,15 +277,30 @@ def login(h):
     ip = h.client_ip()
     if ratelimit.blocked("acct_login_ip", ip) or ratelimit.blocked("acct_login_pair", email + "|" + ip):
         return h.json({"error": SLOW_DOWN}, 429)
+    carer = None
     with db.read() as c:
         acct = c.execute("SELECT * FROM accounts WHERE email=? AND status IN ('active','pending_verification')",
                          (email,)).fetchone() if email else None
+        if not acct and email:
+            carer = c.execute("SELECT cr.* FROM carers cr JOIN accounts a ON a.id=cr.account_id WHERE cr.email=?"
+                              " AND cr.status='active' AND a.status='active'", (email,)).fetchone()
     try:
-        ok = bool(acct and acct["password_hash"] and security.verify_password(password, acct["password_hash"]))
-        if not acct or not acct["password_hash"]:
-            security.dummy_verify(password)
+        if carer:
+            ok = bool(carer["password_hash"] and security.verify_password(password, carer["password_hash"]))
+        else:
+            ok = bool(acct and acct["password_hash"] and security.verify_password(password, acct["password_hash"]))
+            if not acct or not acct["password_hash"]:
+                security.dummy_verify(password)
     except security.Busy:
         return h.json({"error": "The server is busy — please try again in a moment."}, 429)
+    if ok and carer:
+        with db.tx() as c:
+            if security.needs_rehash(carer["password_hash"]):
+                c.execute("UPDATE carers SET password_hash=? WHERE id=?", (security.hash_password(password), carer["id"]))
+            cookie, csrf = start_session(c, h, carer["account_id"], carer_id=carer["id"])
+            audit.record(c, h, "carer.login", entity_type="carer", entity_id=carer["id"],
+                         account_id=carer["account_id"], account_actor=carer["account_id"])
+        return h.json({"ok": True, "csrf": csrf}, headers={"Set-Cookie": cookie})
     if not ok:
         ratelimit.hit("acct_login_ip", ip)
         ratelimit.hit("acct_login_pair", email + "|" + ip)
@@ -302,7 +333,8 @@ def reauth(h):
     d = h.json_body() or {}
     if ratelimit.blocked("acct_login_pair", "reauth|%d" % who["id"]):
         return h.json({"error": SLOW_DOWN}, 429)
-    if not security.verify_password(d.get("password") or "", who["password_hash"]):
+    if not security.verify_password(d.get("password") or "",
+                                    who["carer_password_hash"] if who.get("carer_id") else who["password_hash"]):
         ratelimit.hit("acct_login_pair", "reauth|%d" % who["id"])
         return h.json({"error": "That password isn't right."}, 400)
     with db.tx() as c:
@@ -322,6 +354,9 @@ def forgot(h):
     with db.tx() as c:
         acct = c.execute("SELECT * FROM accounts WHERE email=? AND status IN ('active','pending_activation')",
                          (email,)).fetchone() if email else None
+        if not acct and email and _can_email(email):
+            from . import carers
+            carers.send_reset(c, h, email)
         if acct and _can_email(email):
             if acct["status"] == "pending_activation":
                 send_activation(c, h, acct)
@@ -345,6 +380,11 @@ def reset(h):
         return h.json({"error": SLOW_DOWN}, 429)
     with db.tx() as c:
         row = _token_row(c, d.get("token"), "reset_password")
+        if not row:
+            from . import carers
+            done = carers.reset_password(c, h, d.get("token"), d.get("password") or "")
+            if done:  # (body, status, headers)
+                return h.json(*done)
         if not row or row["status"] != "active":
             return h.json({"error": "This link has expired or has already been used. Ask for a new one."}, 400)
         problem = security.password_problem(d.get("password") or "", email=row["email"])

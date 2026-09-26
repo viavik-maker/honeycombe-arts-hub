@@ -14,6 +14,7 @@ PAGES = {
     "/forgot-password": ("forgot", "Forgotten password"),
     "/reset-password": ("reset", "Choose a new password"),
     "/activate": ("activate", "Activate your account"),
+    "/carer-invite": ("carer-invite", "Accept an invitation"),
     "/account": ("account", "My account"),
     "/account/family/new": ("child-new", "Add a child"),
     "/account/details": ("details", "Your details"),

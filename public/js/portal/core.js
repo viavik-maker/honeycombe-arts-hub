@@ -66,11 +66,11 @@ export function renderNav(active) {
   if (!state.me) { nav.hidden = true; return; }
   const link = (href, label, key) => `<a href="${href}"${key === active ? ' aria-current="page"' : ""}>${label}</a>`;
   nav.innerHTML = `<div class="container portal-nav__inner">
-      <span class="portal-nav__hi">Hi ${esc(state.me.account.first_name)}</span>
+      <span class="portal-nav__hi">Hi ${esc(state.me.carer ? state.me.carer.first_name : state.me.account.first_name)}</span>
       ${link("/book", "Book activities", "book")}
-      ${link("/account/bookings", "My bookings", "bookings")}
-      ${link("/account", "My family", "family")}
-      ${link("/account/details", "My details", "details")}
+      ${link("/account/bookings", state.me.carer ? "Bookings" : "My bookings", "bookings")}
+      ${link("/account", state.me.carer ? esc(state.me.account.first_name) + "'s family" : "My family", "family")}
+      ${state.me.carer ? "" : link("/account/details", "My details", "details")}
       <button type="button" id="signOut">Sign out</button></div>`;
   nav.hidden = false;
   $("#signOut").onclick = async () => {
@@ -119,4 +119,10 @@ export function fail(e) {
   if (e && e.message === "redirecting") return;
   root().innerHTML = notice(esc(e.message || "Something went wrong."), "err") +
     `<p><a href="/account">Back to your account</a></p>`;
+}
+
+/* signed in as an extra carer: a note that only the account holder changes details */
+export function carerNote() {
+  const m = state.me;
+  return m && m.carer ? notice(`You're signed in as a carer for ${esc(m.account.first_name)} ${esc(m.account.last_name)}'s family. You can book, pay and see bookings; only ${esc(m.account.first_name)} can change the family's details.`, "info") : "";
 }

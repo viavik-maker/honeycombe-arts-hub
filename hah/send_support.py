@@ -71,7 +71,7 @@ def intake_json(c, it, staff=False):
 # ---------------------------------------------------------------- families
 
 
-@route("GET", "/api/account/send", auth="account")
+@route("GET", "/api/account/send", auth="holder")
 def my_requests(h):
     who = _who(h)
     with db.read() as c:
@@ -90,7 +90,7 @@ def my_requests(h):
                    "response_days": days})
 
 
-@route("POST", "/api/account/send/files", auth="account", body_limit=private_files.MAX_BYTES + 64 * 1024)
+@route("POST", "/api/account/send/files", auth="holder", body_limit=private_files.MAX_BYTES + 64 * 1024)
 def upload(h):
     who = _who(h)
     if not ratelimit.hit("send_upload", "a%d" % who["id"]):
@@ -119,14 +119,14 @@ def _own_file(c, h, ref):
     return f
 
 
-@route("GET", "/api/account/send/files/<ref>", auth="account")
+@route("GET", "/api/account/send/files/<ref>", auth="holder")
 def my_file(h, ref):
     with db.read() as c:
         f = _own_file(c, h, ref)
     return private_files.send(h, f)
 
 
-@route("POST", "/api/account/send/files/<ref>/delete", auth="account")
+@route("POST", "/api/account/send/files/<ref>/delete", auth="holder")
 def remove_file(h, ref):
     with db.tx() as c:
         f = _own_file(c, h, ref)
@@ -170,7 +170,7 @@ def clean(d):
             "consent_professionals": 1 if d.get("consent_professionals") else 0}
 
 
-@route("POST", "/api/account/send", auth="account", body_limit=64 * 1024)
+@route("POST", "/api/account/send", auth="holder", body_limit=64 * 1024)
 def submit(h):
     who = _who(h)
     d = h.json_body() or {}

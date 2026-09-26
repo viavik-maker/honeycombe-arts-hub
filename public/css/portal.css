@@ -184,3 +184,8 @@ dialog.pcard::backdrop { background: rgba(35, 43, 73, .45); }
 .send-callout p { margin: .2em 0 0; color: var(--muted); }
 .check--sm { justify-content: flex-end; font-weight: 400; margin: .3em 0 0; }
 .check--sm input { width: 1em; height: 1em; }
+.notice--info { background: #e8f0fb; color: #1d3a63; }
+.field-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(14em, 1fr)); gap: 0 1rem; }
+.plain-list { list-style: none; padding: 0; margin: 0 0 1em; }
+.plain-list li { padding: .5em 0; border-bottom: 1px solid rgba(0, 0, 0, .08); }
+.plain-list .linklike { margin-left: .6em; }

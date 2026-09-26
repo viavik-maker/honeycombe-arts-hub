@@ -1,6 +1,6 @@
 /* Family portal pages: choose account type, register, sign in, reset,
    activate, the family dashboard and "complete your child's details". */
-import { $, $$, api, busy, esc, fail, go, loadMe, loadSpec, notice, params, renderNav, requireSignIn, root, safeNext, state } from "./core.js";
+import { $, $$, api, busy, carerNote, esc, fail, go, loadMe, loadSpec, notice, params, renderNav, requireSignIn, root, safeNext, state } from "./core.js";
 import { collect, levelWords, sectionFields, showErrors, wireShowIf } from "./forms.js";
 
 const KINDS = {
@@ -254,6 +254,14 @@ export async function accountHome() {
   const me = await requireSignIn();
   renderNav("family");
   const welcome = params.get("welcome") ? notice("Your account is set up. Please check each person's details below before you book.", "ok") : "";
+  if (me.carer) {
+    root().innerHTML = `<h1>Hi ${esc(me.carer.first_name)}</h1>${carerNote()}
+      <div class="people">${me.participants.filter(p => p.status === "active").map(p => `<div class="person">
+        <h3>${esc(p.first_name)} ${esc(p.last_name)}</h3><p>${p.is_account_holder ? "" : "Age " + p.age}</p><p>${levelStatus(p)}</p>
+        <p style="margin-top:.8em"><a class="btn btn--sm btn--ghost" href="/account/family/${esc(p.ref)}">View details</a></p></div>`).join("")}</div>
+      <p><a class="btn btn--orange" href="/book">Book activities</a> <a class="btn btn--ghost" href="/account/bookings">Bookings</a></p>`;
+    return;
+  }
   root().innerHTML = `${welcome}<h1>Hi ${esc(me.account.first_name)}</h1>
     <p class="lead">${me.account.kind === "adult" ? "Your details and bookings." : "Your family's details. Everyone needs their details complete before you can book for them."}</p>
     ${me.acknowledged ? "" : notice(`Before your first booking, please confirm your details are correct — you'll find this at the end of each person's page.`, "warn")}
@@ -318,11 +326,18 @@ export async function childPage() {
   try { data = await api("/api/account/participants/" + encodeURIComponent(ref)); }
   catch (e) { return fail(e); }
   // arriving from the Book page for something that needs the full form
-  if (params.get("for") === "full" && data.summary.target_level === "short" && !data.summary.is_account_holder) {
+  if (params.get("for") === "full" && data.summary.target_level === "short" && !data.summary.is_account_holder && !state.me.carer) {
     await api(`/api/account/participants/${encodeURIComponent(ref)}/target`, { target_level: "full" });
     data = await api("/api/account/participants/" + encodeURIComponent(ref));
   }
-  const draw = () => renderChild(spec, data);
+  const draw = () => {
+    renderChild(spec, data);
+    if (state.me.carer) {  // read-only for extra carers
+      root().insertAdjacentHTML("afterbegin", carerNote());
+      $$("input, select, textarea", root()).forEach(el => { el.disabled = true; });
+      $$("button[data-save], .pcard__actions button, button[type=submit]", root()).forEach(el => { el.hidden = true; });
+    }
+  };
   const refresh = async () => { await loadMe(); data = await api("/api/account/participants/" + encodeURIComponent(ref)); draw(); };
   state.refreshChild = refresh;
   draw();
@@ -503,6 +518,7 @@ function wireChild(spec, level, data) {
 /* ---------------- your details & contacts (without a child) ---------------- */
 export async function details() {
   await requireSignIn();
+  if (state.me.carer) { renderNav("details"); root().innerHTML = `<h1>Details</h1>${carerNote()}`; return; }
   renderNav("details");
   const spec = await loadSpec();
   const me = state.me;
@@ -514,4 +530,76 @@ export async function details() {
       <p class="pcard__intro">Shared by all your children.</p></div></div>${sectionBody(spec, "contacts", level, {}, me)}</section>`;
   state.refreshChild = async () => { await loadMe(); details(); };
   wireChild(spec, level, { summary: {}, consent_questions: [] });
+  if (me.account.kind === "family") carersSection();
+}
+
+/* ---------------- extra carers (account holder only) ---------------- */
+async function carersSection() {
+  const d = await api("/api/account/carers");
+  const box = document.createElement("section");
+  box.className = "pcard"; box.id = "sec-carers";
+  root().appendChild(box);
+  const draw = (list) => {
+    box.innerHTML = `<div class="pcard__head"><span class="pcard__num">3</span><div><h2>Other carers who can sign in</h2>
+      <p class="pcard__intro">Let a partner, grandparent or other carer use this account with their own email and password (up to ${d.max}).
+      They can book, pay, cancel and report absences, and see your children's details, but can't change them.
+      Adding someone here doesn't let them collect a child: that's set in Emergency contacts.</p></div></div>
+      ${list.length ? `<ul class="plain-list">${list.map(x => `<li><strong>${esc(x.first_name)} ${esc(x.last_name)}</strong>${x.relationship ? ` (${esc(x.relationship)})` : ""} · ${esc(x.email)}
+        · ${x.status === "active" ? "can sign in" : "invitation sent"}
+        ${x.status === "invited" ? `<button class="linklike" data-resend="${esc(x.ref)}">Resend</button>` : ""}
+        <button class="linklike" data-remove="${esc(x.ref)}">Remove</button></li>`).join("")}</ul>` : ""}
+      ${list.length < d.max ? `<form id="carerForm" novalidate><div class="field-row">
+        <div class="field"><label for="cr-first_name">First name</label><input id="cr-first_name" name="first_name" required></div>
+        <div class="field"><label for="cr-last_name">Last name</label><input id="cr-last_name" name="last_name" required></div></div>
+        <div class="field-row"><div class="field"><label for="cr-email">Their email</label><input type="email" id="cr-email" name="email" required></div>
+        <div class="field"><label for="cr-relationship">Relationship (optional)</label><input id="cr-relationship" name="relationship" placeholder="e.g. Grandparent"></div></div>
+        <div class="pcard__actions"><button class="btn btn--ghost" type="submit">Send an invitation</button></div></form>` : ""}`;
+    const f = $("#carerForm", box);
+    if (f) f.onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await busy($("button[type=submit]", f), () => api("/api/account/carers", { first_name: f.first_name.value, last_name: f.last_name.value,
+          email: f.email.value, relationship: f.relationship.value }));
+        draw((await api("/api/account/carers")).carers);
+        box.insertAdjacentHTML("beforeend", notice("Invitation sent. They'll get an email to choose a password.", "ok"));
+      } catch (x) { showErrors(f, (x.data && x.data.errors) || {}, "cr", x.message); }
+    };
+    $$("[data-remove]", box).forEach(b => b.onclick = async () => {
+      if (!confirm("Remove this carer? They'll be signed out straight away.")) return;
+      await api(`/api/account/carers/${encodeURIComponent(b.dataset.remove)}/remove`, {});
+      draw((await api("/api/account/carers")).carers);
+    });
+    $$("[data-resend]", box).forEach(b => b.onclick = async () => {
+      await busy(b, () => api(`/api/account/carers/${encodeURIComponent(b.dataset.resend)}/resend`, {}));
+      b.textContent = "Sent ✓"; b.disabled = true;
+    });
+  };
+  draw(d.carers);
+}
+
+/* ---------------- a carer accepts an invitation ---------------- */
+export async function carerInvite() {
+  const token = hashToken();
+  if (!token) return go("/login");
+  let check;
+  try { check = await api("/api/account/carer-invite/check", { token }); }
+  catch (x) { root().innerHTML = `<div class="portal__narrow"><h1>Invitation</h1>${notice(esc(x.message), "err")}</div>`; return; }
+  root().innerHTML = `<div class="portal__narrow"><h1>Welcome, ${esc(check.first_name)}</h1>
+    <p class="lead">${esc(check.holder)} has invited you to help with their family's bookings at Honeycombe Arts Hub.</p>
+    <form id="ciForm" class="pcard" novalidate>
+      <p>You'll sign in as <strong>${esc(check.email)}</strong>.</p>
+      <div class="field"><label for="ci-password">Choose a password</label>
+        <span class="hint">At least 10 characters — three random words works well.</span>
+        <input type="password" id="ci-password" name="password" autocomplete="new-password" required></div>
+      <label class="check"><input type="checkbox" name="agree" id="ci-agree"> <span>I'll keep the family's information private and only use this account to help ${esc(check.holder)} with bookings.</span></label>
+      <div class="btn-row"><span></span><button class="btn btn--orange" type="submit">Accept and sign in</button></div></form></div>`;
+  const form = $("#ciForm");
+  form.onsubmit = async (e) => {
+    e.preventDefault();
+    try {
+      await busy($("button[type=submit]", form), () => api("/api/account/carer-invite/accept", { token, password: form.password.value, agree: form.agree.checked }));
+      history.replaceState(null, "", location.pathname);
+      go("/account");
+    } catch (x) { showErrors(form, (x.data && x.data.errors) || {}, "ci", x.message); }
+  };
 }

@@ -328,9 +328,14 @@ class Handler(BaseHTTPRequestHandler):
         sent and the route must NOT run."""
         if not r.auth:
             return True
-        who = self.principal(r.auth)
+        who = self.principal("account" if r.auth == "holder" else r.auth)
         if who is None:
             self.json({"error": "unauthorised"}, 401)
+            return False
+        if r.auth == "holder" and who.get("carer_id"):
+            # an extra carer signed in to a family's account: only the account holder may do this
+            self.json({"error": "Only %s, who holds this account, can do that." % who["first_name"],
+                       "holder_only": True}, 403)
             return False
         if r.auth == "staff" and r.mfa and not who.get("mfa_passed"):
             self.json({"error": "two-factor check needed", "step": "totp"}, 401)

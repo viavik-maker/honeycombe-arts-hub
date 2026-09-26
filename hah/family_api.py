@@ -87,13 +87,16 @@ def me(h):
             "contacts": family.contacts(c, who["id"]),
             "acknowledged": all(k in acks for k in formspec.ACKNOWLEDGEMENTS),
             "csrf": who["csrf"],
+            # signed in as an extra carer rather than the account holder
+            "carer": {"ref": who["carer_ref"], "first_name": who["carer_first_name"],
+                      "last_name": who["carer_last_name"], "email": who["carer_email"]} if who.get("carer_id") else None,
         })
 
 
 # ---------------------------------------------------------------- your details and contacts
 
 
-@route("POST", "/api/account/details", auth="account")
+@route("POST", "/api/account/details", auth="holder")
 def save_details(h):
     who = _who(h)
     d = h.json_body() or {}
@@ -113,7 +116,7 @@ def save_details(h):
     return me(h)
 
 
-@route("POST", "/api/account/contacts", auth="account")
+@route("POST", "/api/account/contacts", auth="holder")
 def save_contacts(h):
     """Replace the family's emergency contacts (shared by all the children)."""
     who = _who(h)
@@ -156,7 +159,7 @@ def save_contacts(h):
     return me(h)
 
 
-@route("POST", "/api/account/acknowledge", auth="account")
+@route("POST", "/api/account/acknowledge", auth="holder")
 def acknowledge(h):
     who = _who(h)
     d = h.json_body() or {}
@@ -172,7 +175,7 @@ def acknowledge(h):
 # ---------------------------------------------------------------- children
 
 
-@route("POST", "/api/account/participants", auth="account")
+@route("POST", "/api/account/participants", auth="holder")
 def add_participant(h):
     who = _who(h)
     d = h.json_body() or {}
@@ -345,7 +348,7 @@ def _save_section(c, h, p, name, d):
     return True
 
 
-@route("POST", "/api/account/participants/<ref>/archive", auth="account")
+@route("POST", "/api/account/participants/<ref>/archive", auth="holder")
 def archive(h, ref):
     with db.tx() as c:
         p = _own(c, h, ref)
@@ -357,7 +360,7 @@ def archive(h, ref):
     return me(h)
 
 
-@route("POST", "/api/account/participants/<ref>/<section>", auth="account")
+@route("POST", "/api/account/participants/<ref>/<section>", auth="holder")
 def save_section(h, ref, section):
     d = h.json_body() or {}
     with db.tx() as c:

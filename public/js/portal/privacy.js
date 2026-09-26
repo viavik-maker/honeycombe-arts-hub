@@ -1,10 +1,11 @@
 /* Your data & communications: news preferences, a copy of your data, and
    deleting your account. Also the page one-click unsubscribe links open. */
-import { $, api, busy, esc, notice, renderNav, requireSignIn, root } from "./core.js";
+import { $, api, busy, carerNote, esc, notice, renderNav, requireSignIn, root } from "./core.js";
 
 export async function privacy() {
   const me = await requireSignIn();
   renderNav("details");
+  if (me.carer) { root().innerHTML = `<div class="portal__narrow"><h1>Your data & messages</h1>${carerNote()}<p>To stop your carer access, ask ${esc(me.account.first_name)} or call us on 07932 772905.</p></div>`; return; }
   const p = await api("/api/account/preferences");
   root().innerHTML = `<div class="portal__narrow"><h1>Your data & messages</h1>
     <form id="prefForm" class="pcard"><h2>News from us</h2>

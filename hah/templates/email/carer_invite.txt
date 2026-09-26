@@ -1,0 +1,12 @@
+Subject: {{holder}} has invited you to help with their Honeycombe Arts Hub bookings
+Hello {{first_name}},
+
+{{holder}} has added you as a carer on their family's Honeycombe Arts Hub account. You'll be able to see their children's bookings, book sessions, pay and let us know about absences, with your own email and password.
+
+To accept, choose a password here (the link works for {{days}} days):
+
+{{SECRET}}
+
+If you weren't expecting this, you can ignore this email and nothing will happen.
+
+Questions? Just reply to this email or call us on 07932 772905.

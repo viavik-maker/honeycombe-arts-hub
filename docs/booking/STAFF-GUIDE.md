@@ -155,6 +155,13 @@ see the areas your role uses.
 - **Delete my account**: the account closes at once and is erased after 14 days. The owner or DSL can
   **Restore** it before then.
 - Only the DSL sees family safeguarding information. Viewing health details is logged.
+- **Other carers.** In *My details*, an account holder can invite up to 3 carers (a partner or grandparent, say) to
+  sign in with their own email and password.
+  - Carers can see the children's details, book, pay, cancel and report absences.
+  - They can't change any details, consents, collection arrangements or the account.
+  - Being a carer is not permission to collect: that's still set in Emergency contacts.
+  - You'll see carers on the family's record in People. Use **Remove** if the account holder asks (for example
+    after a separation); it signs them out at once.
 
 ## SEND support requests
 
