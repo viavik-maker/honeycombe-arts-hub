@@ -1,0 +1,12 @@
+Subject: Activate your new Honeycombe Arts Hub booking account
+Hello {{first_name}},
+
+We've moved to a new booking system on our own website — no more membership fees, and one simple login for booking clubs and events.
+
+Your family's details have been brought across. To start using it, choose a password here (the link works for {{days}} days):
+
+{{SECRET}}
+
+To keep your family's information safe, we'll ask you to confirm a child's date of birth, then to check their details and permissions before your first booking.
+
+Questions? Just reply to this email or call us on 07932 772905.

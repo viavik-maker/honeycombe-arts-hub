@@ -47,7 +47,13 @@ def reset_data():
     """Empty the data folder and re-seed it, as on a fresh persistent disk."""
     for name in os.listdir(DATA_DIR):
         path = os.path.join(DATA_DIR, name)
-        shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
+        if os.path.isdir(path):
+            shutil.rmtree(path, ignore_errors=True)
+        else:
+            try:
+                os.remove(path)
+            except FileNotFoundError:  # a -wal/-shm file SQLite removed as a connection closed
+                pass
     app.prepare_data()
     ratelimit.reset()
 

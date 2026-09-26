@@ -167,3 +167,61 @@ def new_recovery_codes(n=10):
     """Human-friendly one-time codes (shown once) and their hashes (stored)."""
     codes = ["%s-%s" % (secrets.token_hex(3), secrets.token_hex(3)) for _ in range(n)]
     return codes, [hash_token(c) for c in codes]
+
+
+# ---------------------------------------------------------------- app secrets
+
+_secret_cache = {}
+
+
+def app_secret(name):
+    """A server secret (bytes): HAH_<NAME> from the environment if set (the
+    recommended way), else one generated once and kept in data/secrets.json
+    (mode 0600, included in the encrypted backups)."""
+    import json
+    from . import config
+    if name in _secret_cache:
+        return _secret_cache[name]
+    env = os.environ.get("HAH_" + name.upper())
+    if env:
+        value = env.encode()
+    else:
+        path = os.path.join(config.DATA, "secrets.json")
+        try:
+            with open(path) as f:
+                stored = json.load(f)
+        except (OSError, ValueError):
+            stored = {}
+        if name not in stored:
+            stored[name] = secrets.token_urlsafe(32)
+            tmp = path + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(stored, f)
+            os.chmod(tmp, 0o600)
+            os.replace(tmp, path)
+        value = stored[name].encode()
+    _secret_cache[name] = value
+    return value
+
+
+def signed(message, name="secret_key"):
+    """HMAC-SHA256 of MESSAGE with an app secret, URL-safe (for unsubscribe links etc.)."""
+    mac = hmac.new(app_secret(name), message.encode("utf-8"), hashlib.sha256).digest()
+    return base64.urlsafe_b64encode(mac[:18]).decode().rstrip("=")
+
+
+def hash_collection_password(password):
+    """Collection passwords are short words, so they're peppered with a server
+    secret before hashing: a copy of the database alone can't be guessed at."""
+    return hash_password(_norm_cp(password), iterations=100_000) + "$p"
+
+
+def verify_collection_password(password, stored):
+    if not stored or not stored.endswith("$p"):
+        return False
+    return verify_password(_norm_cp(password), stored[:-2])
+
+
+def _norm_cp(password):
+    norm = " ".join((password or "").casefold().split())
+    return hmac.new(app_secret("pepper"), norm.encode(), hashlib.sha256).hexdigest()

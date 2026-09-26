@@ -8,7 +8,8 @@ Settings come from the host's environment (never content.json):
 Older sites still using the SMTP box in admin → Settings keep working until
 the environment variables are set (the admin shows a reminder).
 
-MAIL_BACKEND=memory keeps messages in SENT instead (tests, local dev)."""
+MAIL_BACKEND=memory keeps messages in SENT instead (tests); MAIL_BACKEND=file
+writes each one to data/mail-outbox/ as an .eml file (local development)."""
 import os
 import smtplib
 import ssl
@@ -48,7 +49,7 @@ def backend():
 
 
 def configured():
-    return backend() == "memory" or settings() is not None
+    return backend() in ("memory", "file") or settings() is not None
 
 
 def staff_notify_address():
@@ -89,7 +90,7 @@ class Connection:
         self.smtp = None
 
     def __enter__(self):
-        if backend() == "memory":
+        if backend() in ("memory", "file"):
             return self
         if not self.cfg:
             raise MailError("email isn't set up (SMTP_HOST)")
@@ -109,6 +110,14 @@ class Connection:
     def send(self, msg):
         if backend() == "memory":
             SENT.append(msg)
+            return msg["Message-ID"]
+        if backend() == "file":
+            import time
+            from . import config
+            folder = os.path.join(config.DATA, "mail-outbox")
+            os.makedirs(folder, exist_ok=True)
+            with open(os.path.join(folder, "%d.eml" % time.time_ns()), "wb") as f:
+                f.write(msg.as_bytes())
             return msg["Message-ID"]
         try:
             self.smtp.send_message(msg)

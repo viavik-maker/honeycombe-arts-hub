@@ -31,7 +31,7 @@ from . import config
 
 KEEP_LOCAL_DAYS = 7
 PREFIX = "hah-"
-_JSON_FILES = ("content.json", "messages.json", "subscribers.json", "auth.json")
+_JSON_FILES = ("content.json", "subscribers.json", "secrets.json")
 
 
 def offsite_configured():

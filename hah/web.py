@@ -17,6 +17,7 @@ import urllib.parse
 from http.server import BaseHTTPRequestHandler
 
 from . import config
+from .validate import Invalid
 
 # ---------------------------------------------------------------- routes
 
@@ -351,5 +352,7 @@ class Handler(BaseHTTPRequestHandler):
                 return
             self.body_limit = r.body_limit
             return r.fn(self, **params)
+        except Invalid as e:
+            return self.json({"error": "Please check the highlighted boxes.", "errors": e.errors}, 422)
         except ValueError as e:
             return self.json({"error": str(e)}, 400)

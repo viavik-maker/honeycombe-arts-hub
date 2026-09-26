@@ -97,8 +97,10 @@ def _with_secret(row):
     if row["secret"]:
         text = text.replace(templating.SECRET, row["secret"])
         if html_body:
-            link = _html.escape(row["secret"], quote=True)
-            html_body = html_body.replace(templating.SECRET, '<a href="%s">%s</a>' % (link, link))
+            value = _html.escape(row["secret"], quote=True)
+            if row["secret"].startswith(("https://", "http://")):
+                value = '<a href="%s">%s</a>' % (value, value)
+            html_body = html_body.replace(templating.SECRET, value)
     return text, html_body
 
 

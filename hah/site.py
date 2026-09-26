@@ -259,7 +259,7 @@ def seo_head(html, canonical, settings):
     ])
 
 
-def render_page(filename, canonical=None, nonce=None):
+def render_page(filename, canonical=None, nonce=None, seo=True, subs=None):
     path = os.path.join(config.PUBLIC, filename)
     with open(path, encoding="utf-8") as f:
         html = f.read()
@@ -276,7 +276,9 @@ def render_page(filename, canonical=None, nonce=None):
     content = public_content()
     if "<!--#block" in html:
         html = BLOCK_RE.sub(lambda m: BLOCKS.get(m.group(1), lambda _c: "")(content), html)
-    if "</head>" in html:
+    for key, value in (subs or {}).items():  # {{name}} values for page shells (already escaped)
+        html = html.replace("{{%s}}" % key, value)
+    if seo and "</head>" in html:
         html = html.replace("</head>", seo_head(html, canonical, content.get("settings", {})) + "\n</head>", 1)
     if "<!--#data-->" in html:
         payload = json.dumps(content, ensure_ascii=False).replace("</", "<\\/")

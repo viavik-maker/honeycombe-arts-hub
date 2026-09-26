@@ -7,14 +7,18 @@ from .site import PRETTY, render_page
 from .web import csp, csp_header, route, set_get_fallback
 
 
-def page(h, filename, canonical=None, status=200):
+def page(h, filename, canonical=None, status=200, private=False, subs=None):
+    """Render a page. PRIVATE pages (sign-in, account, booking) aren't
+    indexed by search engines and carry no sharing/SEO tags."""
     nonce = h.new_nonce()
     try:
-        body = render_page(filename, canonical, nonce=nonce)
+        body = render_page(filename, canonical, nonce=nonce, seo=not private, subs=subs)
     except OSError:
         return h.send(404, b"Not found", "text/plain")
-    return h.send(status, body, "text/html; charset=utf-8",
-                  {"Cache-Control": "no-store", csp_header(): csp(nonce)})
+    headers = {"Cache-Control": "no-store", csp_header(): csp(nonce)}
+    if private:
+        headers["X-Robots-Tag"] = "noindex, nofollow"
+    return h.send(status, body, "text/html; charset=utf-8", headers)
 
 
 def static(h, path):
