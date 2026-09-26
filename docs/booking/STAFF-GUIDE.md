@@ -93,6 +93,16 @@ see the areas your role uses.
   families, whatever their marketing choices. Use these for changes, reminders and cancellations.
 - **News** goes only to people who opted in. Every news email has an unsubscribe link.
 - Always **Preview** first. It shows how many people will get it.
+- **By age.** *Everyone booked (upcoming) for a child of a certain age* reaches families with a booking for a child in
+  that age range. For news, the age boxes narrow the list to opted-in families with a child that age.
+- **Texts cost money.** The preview shows how many texts each person gets and roughly what it will cost. Set the price
+  per text in Booking settings → Messages.
+  - One curly apostrophe (’) or emoji makes every text shorter (70 characters instead of 160), and so dearer. The
+    preview warns you.
+- **Schedule for later** sends at the time you choose (UK time, up to 90 days ahead).
+  - Who gets it is worked out when it goes, so families who book in the meantime are included.
+  - Scheduled messages wait at the top of **Sent**, where you can **Cancel** them.
+  - If a message can't go (for example, its session was deleted), the in-tray tells you.
 
 ## Families' data
 
