@@ -27,7 +27,7 @@ os.environ["ADMIN_PASSWORD"] = ADMIN_PASSWORD = "test-admin-password"
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from hah import app, web  # noqa: E402
+from hah import app, ratelimit, web  # noqa: E402
 
 web.Handler.log_message = lambda *args: None  # keep test output readable
 _httpd = None
@@ -39,6 +39,7 @@ def reset_data():
         path = os.path.join(DATA_DIR, name)
         shutil.rmtree(path) if os.path.isdir(path) else os.remove(path)
     app.prepare_data()
+    ratelimit.reset()
 
 
 def address():

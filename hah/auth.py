@@ -6,7 +6,7 @@ import secrets
 import time
 
 from . import config
-from .storage import load_json, save_json
+from .storage import load_json, save_json, update_json
 
 
 def _hash_password(password, salt, iterations=120_000):
@@ -44,25 +44,26 @@ def set_password(password):
     })
 
 
+def _live(s):
+    now = time.time()
+    return {k: v for k, v in (s or {}).items() if v > now}
+
+
 def sessions():
     s = load_json("sessions.json", {})
-    now = time.time()
-    live = {k: v for k, v in s.items() if v > now}
+    live = _live(s)
     if len(live) != len(s):
-        save_json("sessions.json", live)
+        update_json("sessions.json", {}, _live)
     return live
 
 
 def new_session():
     tok = secrets.token_urlsafe(32)
-    s = sessions()
-    s[tok] = time.time() + config.SESSION_TTL
-    save_json("sessions.json", s)
+    update_json("sessions.json", {},
+                lambda s: {**_live(s), tok: time.time() + config.SESSION_TTL})
     return tok
 
 
 def drop_session(tok):
-    s = sessions()
-    if tok in s:
-        del s[tok]
-        save_json("sessions.json", s)
+    update_json("sessions.json", {},
+                lambda s: {k: v for k, v in _live(s).items() if k != tok})

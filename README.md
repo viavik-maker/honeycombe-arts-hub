@@ -105,6 +105,26 @@ details under admin → Settings (your email host — e.g. Google Workspace,
 Zoho, or your registrar's mail service — supplies these). Messages always
 appear in the admin Inbox regardless.
 
+## Security settings
+
+The site sets strict security headers on every response and a
+Content-Security-Policy on every page. Optional environment variables (Render
+→ the service → *Environment*):
+
+| Variable | Default | What it does |
+|---|---|---|
+| `ADMIN_PASSWORD` | — | Password for the very first admin login (then change it in Settings) |
+| `HAH_CSP` | `report` | `report`: browsers only *report* anything the policy would block (look for `[csp]` lines in the logs). Switch to `enforce` once a week of normal use shows no reports |
+| `TRUSTED_PROXY_HOPS` | `1` on Render | How many proxies add to `X-Forwarded-For`; used to find the visitor's IP for rate limits. After deploying, log in to the admin and open `/api/admin/request-info`: `ip` should be your own public IP address |
+| `HAH_MAX_CONCURRENT` | `64` | Requests handled at once before the site answers "busy" |
+| `HAH_DATA_DIR` | `data/` | Where editable state lives (tests and staging point it elsewhere) |
+
+Uploads in the admin are for **public website photos only**: JPEG, PNG, GIF
+or WebP, checked from the file's contents. Location and camera details are
+removed from JPEG photos automatically. Fonts are served from this site
+(no Google Fonts), and the contact-page map only loads from Google when a
+visitor clicks "Show the map".
+
 ## Notes
 
 - Contact details (email, phone, address, opening times), social links and the

@@ -4,15 +4,17 @@ import os
 
 from . import config
 from .site import PRETTY, render_page
-from .web import route, set_get_fallback
+from .web import csp, csp_header, route, set_get_fallback
 
 
 def page(h, filename, canonical=None, status=200):
+    nonce = h.new_nonce()
     try:
-        body = render_page(filename, canonical)
+        body = render_page(filename, canonical, nonce=nonce)
     except OSError:
         return h.send(404, b"Not found", "text/plain")
-    return h.send(status, body, "text/html; charset=utf-8", {"Cache-Control": "no-store"})
+    return h.send(status, body, "text/html; charset=utf-8",
+                  {"Cache-Control": "no-store", csp_header(): csp(nonce)})
 
 
 def static(h, path):
@@ -62,6 +64,10 @@ def upload_file(h, name):
     full = os.path.join(config.UPLOADS, os.path.basename(name))
     if os.path.isfile(full):
         ctype = mimetypes.guess_type(full)[0] or "application/octet-stream"
+        headers = {"Cache-Control": "public, max-age=86400"}
+        if full.lower().endswith(".svg"):
+            # older uploads may be SVG, which can carry script: never run it
+            headers["Content-Security-Policy"] = "default-src 'none'; style-src 'unsafe-inline'; sandbox"
         with open(full, "rb") as f:
-            return h.send(200, f.read(), ctype, {"Cache-Control": "public, max-age=86400"})
+            return h.send(200, f.read(), ctype, headers)
     return h.send(404, b"Not found", "text/plain")

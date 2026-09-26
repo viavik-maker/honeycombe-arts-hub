@@ -546,6 +546,10 @@ p { margin: 0 0 1em; }
 .contact-card p { margin: 0; color: var(--muted); font-size: .96rem; }
 .map-frame { border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-1); margin-top: 2.5rem; }
 .map-frame iframe { display: block; width: 100%; height: 380px; border: 0; }
+.map-frame--consent { background: var(--paper); border: 2px dashed var(--line); box-shadow: none; min-height: 180px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem; padding: 1.6rem; text-align: center; }
+.map-frame--consent p { margin: 0; color: var(--muted); }
+.map-frame--consent .btn { margin: .3rem; }
 
 /* ---------- whats-on page list ---------- */
 .featured-strip { background: var(--navy); border-radius: var(--r-lg); overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr; margin-bottom: 3rem; color: #dfe3f3; box-shadow: var(--shadow-2); }

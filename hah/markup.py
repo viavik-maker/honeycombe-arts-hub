@@ -41,3 +41,14 @@ def rich(text):
 
         out.append("<p>%s</p>" % LINK_RE.sub(link, body))
     return "\n".join(out)
+
+
+def csv_safe(value):
+    """A spreadsheet cell that can't be mistaken for a formula.
+
+    Text starting with = + - @ (or a tab/CR) is prefixed with ' so Excel and
+    Sheets show it rather than run it. Numbers are left as numbers."""
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return value
+    s = "" if value is None else str(value)
+    return "'" + s if s[:1] in ("=", "+", "-", "@", "\t", "\r") else s

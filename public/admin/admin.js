@@ -85,7 +85,9 @@
   /* ---------------- upload helper ---------------- */
   function uploadButton(onDone) {
     const inp = document.createElement("input");
-    inp.type = "file"; inp.accept = "image/*";
+    // photos for the public website only (never forms or documents about
+    // children); the server strips location/camera details from JPEGs
+    inp.type = "file"; inp.accept = "image/jpeg,image/png,image/gif,image/webp";
     inp.addEventListener("change", async () => {
       if (!inp.files[0]) return;
       const fd = new FormData(); fd.append("file", inp.files[0]);
@@ -104,7 +106,7 @@
     wrap.className = "imgpick";
     wrap.innerHTML = `<img class="imgpick__preview" src="${esc(current || "")}" alt="">
       <div class="imgpick__btns">
-        <button type="button" class="abtn abtn--honey abtn--sm">Upload new image</button>
+        <button type="button" class="abtn abtn--honey abtn--sm" title="Public website photos only — JPEG, PNG, GIF or WebP">Upload new image</button>
         <span class="fhint">${esc(current || "No image yet")}</span>
       </div>`;
     $("button", wrap).addEventListener("click", () =>

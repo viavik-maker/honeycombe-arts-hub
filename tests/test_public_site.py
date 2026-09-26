@@ -12,7 +12,7 @@ PAGES = ["/", "/whats-on", "/past-events", "/about", "/gallery", "/get-involved"
 
 
 def embedded_content(html):
-    m = re.search(r"<script>window\.HAH=(.*?)</script>", html, re.S)
+    m = re.search(r"<script[^>]*>window\.HAH=(.*?)</script>", html, re.S)
     return json.loads(m.group(1).replace("<\\/", "</")) if m else None
 
 

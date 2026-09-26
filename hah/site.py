@@ -135,11 +135,15 @@ def _b_contact_map(content):
     address = settings.get("address") or ""
     if not p.get("showMap", True) or not address:
         return ""
-    return """<div class="map-frame reveal">
-          <iframe title="Map showing where to find %s" loading="lazy" referrerpolicy="no-referrer-when-downgrade"
-                  src="https://www.google.com/maps?q=%s&amp;output=embed"></iframe>
-        </div>""" % (html(settings.get("siteName") or "us"),
-                     urllib.parse.quote(address, safe=""))
+    # Google Maps only loads when the visitor asks for it: no third-party
+    # cookies or requests until then (see the privacy notice).
+    q = urllib.parse.quote(address, safe="")
+    return """<div class="map-frame map-frame--consent reveal" data-map-src="https://www.google.com/maps?q=%s&amp;output=embed"
+             data-map-title="Map showing where to find %s">
+          <p>The map is provided by Google, which may set cookies when it loads.</p>
+          <p><button type="button" class="btn btn--navy btn--sm" data-map-load>Show the map</button>
+             <a class="btn btn--ghost btn--sm" href="https://www.google.com/maps/search/?api=1&amp;query=%s" target="_blank" rel="noopener">Open in Google Maps</a></p>
+        </div>""" % (q, html(settings.get("siteName") or "us"), q)
 
 
 # ---------------- get involved page
@@ -255,7 +259,7 @@ def seo_head(html, canonical, settings):
     ])
 
 
-def render_page(filename, canonical=None):
+def render_page(filename, canonical=None, nonce=None):
     path = os.path.join(config.PUBLIC, filename)
     with open(path, encoding="utf-8") as f:
         html = f.read()
@@ -276,5 +280,6 @@ def render_page(filename, canonical=None):
         html = html.replace("</head>", seo_head(html, canonical, content.get("settings", {})) + "\n</head>", 1)
     if "<!--#data-->" in html:
         payload = json.dumps(content, ensure_ascii=False).replace("</", "<\\/")
-        html = html.replace("<!--#data-->", f"<script>window.HAH={payload}</script>")
+        tag = '<script nonce="%s">' % nonce if nonce else "<script>"
+        html = html.replace("<!--#data-->", f"{tag}window.HAH={payload}</script>")
     return html.encode("utf-8")

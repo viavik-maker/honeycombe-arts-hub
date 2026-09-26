@@ -316,7 +316,20 @@
       btn.disabled = false; btn.textContent = "Send message";
     });
     // the contact cards, opening times and map are rendered server-side from
-    // the editable page copy (admin -> Page text) — nothing to fill in here.
+    // the editable page copy (admin -> Page text). The map only loads from
+    // Google once the visitor asks for it.
+    const map = $("[data-map-src]");
+    const load = map && $("[data-map-load]", map);
+    if (load) load.addEventListener("click", () => {
+      const frame = document.createElement("iframe");
+      frame.src = map.dataset.mapSrc;
+      frame.title = map.dataset.mapTitle;
+      frame.loading = "lazy";
+      frame.referrerPolicy = "no-referrer-when-downgrade";
+      map.classList.remove("map-frame--consent");
+      map.replaceChildren(frame);
+      frame.focus();
+    });
   }
 
   if (page === "arts-award" || page === "holiday-club") {
