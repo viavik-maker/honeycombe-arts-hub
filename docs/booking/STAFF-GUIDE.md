@@ -61,6 +61,20 @@ see the areas your role uses.
     a day, or 2 hours if the session is soon. Brothers and sisters are offered together.
   - Bookings → **Waiting list** lets you offer a place yourself or change someone's priority.
 
+## Searching and bulk actions
+
+- In **People**, search for children or families. Filters include age, needs, form level and HAF.
+- **Save this search…** keeps the words and filters, not the results, so it finds whoever matches each time you run
+  it. Tick *Share with colleagues* to make it appear in their list too.
+- Tick rows (or **Select all**) to act on them together:
+  - **Message their families** opens Messages with those families chosen;
+  - **Export selected** downloads just those rows;
+  - **Add to a waiting list…** puts the children on a session's waiting list.
+    - Brothers and sisters are kept together.
+    - Anyone already booked or outside the rules is skipped, and you're told why. Override only with permission and
+      a reason.
+    - If the session has room, the place is offered straight away.
+
 ## Money
 
 - **Finance** shows the day's takings by method, unpaid and overdue invoices, and refunds to hand back.

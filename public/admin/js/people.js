@@ -15,15 +15,21 @@ async function download(path, body, name) {
 
 A.addTab({
   id: "people", label: "People", icon: "🔎", perm: "people.view_basic",
-  state: { q: "", scope: "children", filters: {}, results: null, open: null },
+  state: { q: "", scope: "children", filters: {}, results: null, open: null, saved: null, picked: new Set() },
   async render(root) {
     const st = this.state;
     if (this.options) { Object.assign(st, this.options); this.options = null; }
     if (st.open) return st.open.type === "account" ? familyRecord(root, st.open.ref, () => { st.open = null; this.render(root); }, (o) => { st.open = o; this.render(root); })
       : childRecord(root, st.open.ref, () => { st.open = null; this.render(root); }, (o) => { st.open = o; this.render(root); });
     const health = can("people.view_health");
+    if (!st.saved) st.saved = (await api("/api/staff/searches")).searches;
+    const saved = st.saved.filter(x => x.scope === st.scope);
     root.innerHTML = `<h1>People</h1>
       <p class="sub">Find families and children. Opening someone's record is logged.</p>
+      ${st.scope !== "staff" ? `<div class="toolbar"><select id="savedSel" aria-label="Saved searches"><option value="">Saved searches (${saved.length})…</option>
+        ${saved.map(x => `<option value="${x.id}">${esc(x.name)}${x.shared ? ` (shared${x.mine ? "" : " by " + esc(x.by)})` : ""}</option>`).join("")}</select>
+        <button type="button" class="abtn abtn--ghost abtn--sm" id="saveSearch"${st.results ? "" : ' disabled title="Search first, then save it"'}>Save this search…</button>
+        <button type="button" class="abtn abtn--ghost abtn--sm" id="delSearch" hidden>Delete saved search</button></div>` : ""}
       <form id="pForm" class="acard">
         <div class="toolbar"><div class="segtabs">${[["children", "Children"], ["families", "Families"], ...(can("staff.manage") ? [["staff", "Staff"]] : [])].map(([k, l]) =>
           `<button type="button" class="abtn abtn--sm ${k === st.scope ? "abtn--honey" : "abtn--ghost"}" data-scope="${k}">${l}</button>`).join("")}</div>
@@ -38,7 +44,34 @@ A.addTab({
       </form>
       <div id="pResults">${st.results ? results(st) : ""}</div>
       ${can("people.edit") ? `<p><button class="abtn abtn--ghost abtn--sm" id="dupBtn">Possible duplicates</button></p>` : ""}`;
-    $$("[data-scope]", root).forEach(b => b.onclick = () => { st.scope = b.dataset.scope; st.results = null; this.render(root); });
+    $$("[data-scope]", root).forEach(b => b.onclick = () => { st.scope = b.dataset.scope; st.results = null; st.picked = new Set(); this.render(root); });
+    const run = async () => {
+      try { st.results = await post("/api/staff/search", { q: st.q, scope: st.scope, filters: st.filters }); st.picked = new Set(); this.render(root); }
+      catch (x) { toast(x.message, true); }
+    };
+    const sel = $("#savedSel", root);
+    if (sel) {
+      sel.onchange = () => {
+        const x = st.saved.find(y => String(y.id) === sel.value);
+        $("#delSearch", root).hidden = !(x && (x.mine || can("staff.manage")));
+        if (!x) return;
+        st.q = x.q; st.filters = Object.assign({}, x.filters); st.savedId = x.id;
+        run();
+      };
+      if (st.savedId) { sel.value = String(st.savedId); $("#delSearch", root).hidden = !saved.some(x => x.id === st.savedId && (x.mine || can("staff.manage"))); }
+      $("#saveSearch", root).onclick = async () => {
+        const r = await modal("Save this search", `<div class="fgroup"><label>Name</label><input type="text" name="name" maxlength="80" required placeholder="e.g. Summer club 8–11s with allergies"></div>
+          <label class="fcheck"><input type="checkbox" name="shared"> Share with colleagues</label>
+          <p class="fhint">It saves the words and filters, not the results: it finds whoever matches each time you run it.</p>`,
+          (f) => post("/api/staff/searches", { name: f.name.value, scope: st.scope, q: st.q, filters: st.filters, shared: f.shared.checked }), "Save");
+        if (!r) return;
+        toast("Saved"); st.saved = null; st.savedId = r.id; this.render(root);
+      };
+      $("#delSearch", root).onclick = async () => {
+        if (!st.savedId || !await confirmBox("Delete this saved search?", "Delete")) return;
+        await post(`/api/staff/searches/${st.savedId}/delete`, {}); st.saved = null; st.savedId = null; toast("Deleted"); this.render(root);
+      };
+    }
     $("#pForm", root).onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target;
@@ -52,11 +85,12 @@ A.addTab({
         if (f.min_age.value) st.filters.min_age = f.min_age.value;
         if (f.max_age.value) st.filters.max_age = f.max_age.value;
       }
-      try { st.results = await post("/api/staff/search", { q: st.q, scope: st.scope, filters: st.filters }); this.render(root); }
-      catch (x) { toast(x.message, true); }
+      st.savedId = null;
+      run();
     };
     const ex = $("#pExport", root);
     if (ex) ex.onclick = () => download("/api/staff/search/export", { q: st.q, scope: st.scope, filters: st.filters }, st.scope + ".csv");
+    wireBulk(root, st, () => this.render(root));
     $$("[data-child]", root).forEach(a => a.onclick = (e) => { e.preventDefault(); st.open = { type: "child", ref: a.dataset.child }; this.render(root); });
     $$("[data-family]", root).forEach(a => a.onclick = (e) => { e.preventDefault(); st.open = { type: "account", ref: a.dataset.family }; this.render(root); });
     const dup = $("#dupBtn", root);
@@ -69,21 +103,67 @@ A.addTab({
   },
 });
 
+const pick = (st, ref) => `<input type="checkbox" class="pick" value="${esc(ref)}" aria-label="Select"${st.picked.has(ref) ? " checked" : ""}>`;
+
 function results(st) {
   const r = st.results.results;
-  const head = `<p>${r.length}${r.length >= 200 ? "+" : ""} found · <button class="abtn abtn--ghost abtn--sm" id="pExport">Export CSV</button></p>`;
+  const bulk = st.results.scope !== "staff" && r.length;
+  const head = `<p>${r.length}${r.length >= 200 ? "+" : ""} found · <button class="abtn abtn--ghost abtn--sm" id="pExport">Export CSV</button></p>
+    ${bulk ? `<div class="toolbar bulkbar"><button type="button" class="abtn abtn--ghost abtn--sm" id="pickAll">Select all</button>
+      <span id="pickCount">${st.picked.size} selected</span>
+      ${can("messaging.service") ? `<button type="button" class="abtn abtn--ghost abtn--sm" data-bulk="message">Message their families</button>` : ""}
+      <button type="button" class="abtn abtn--ghost abtn--sm" data-bulk="export">Export selected</button>
+      ${st.results.scope === "children" && can("bookings.manage") ? `<button type="button" class="abtn abtn--ghost abtn--sm" data-bulk="waitlist">Add to a waiting list…</button>` : ""}</div>` : ""}`;
   if (st.results.scope === "families") return head + table([
+    { label: "", cls: "nowrap", get: x => pick(st, x.ref) },
     { label: "Family", get: x => `<a href="#" data-family="${esc(x.ref)}"><strong>${esc(x.name)}</strong></a><br><span class="fhint">${esc(x.email || "")} ${esc(x.mobile || "")}</span>` },
     { label: "Children", get: x => esc(x.children.join(", ")) },
     { label: "Status", get: x => chip(x.status.replace("_", " "), x.status === "active" ? "ok" : "muted") + (x.source !== "self" ? " " + chip(x.source, "info") : "") },
   ], r);
   if (st.results.scope === "staff") return head + table([{ label: "Name", get: x => esc(x.name) }, { label: "Email", get: x => esc(x.email) }, { label: "Status", get: x => esc(x.status) }], r);
   return head + table([
+    { label: "", cls: "nowrap", get: x => pick(st, x.ref) },
     { label: "Child", get: x => `<a href="#" data-child="${esc(x.ref)}"><strong>${esc(x.name)}</strong></a> <span class="fhint">(${x.age})</span>` },
     { label: "Needs", get: x => x.flags.map(f => chip(f.toUpperCase(), f === "anaphylaxis" ? "bad" : "warn")).join(" ") + (x.needs_review ? " " + chip("needs checking", "warn") : "") },
     { label: "Form", get: x => levelChip(x.level) + (x.haf && x.haf !== "unknown" ? " " + chip("HAF: " + x.haf.replace("_", " "), "info") : "") },
     { label: "Family", get: x => `<a href="#" data-family="${esc(x.family.ref)}">${esc(x.family.name)}</a><br><span class="fhint">${esc(x.family.mobile || "")}</span>` },
   ], r);
+}
+
+/* ---------------- bulk actions on search results ---------------- */
+function wireBulk(root, st, rerender) {
+  if (!st.results || !$("#pickAll", root)) return;
+  const rows = st.results.results, children = st.results.scope === "children";
+  const count = () => { $("#pickCount", root).textContent = `${st.picked.size} selected`; $$("[data-bulk]", root).forEach(b => b.disabled = !st.picked.size); };
+  $$(".pick", root).forEach(c => c.onchange = () => { c.checked ? st.picked.add(c.value) : st.picked.delete(c.value); count(); });
+  $("#pickAll", root).onclick = () => {
+    const all = st.picked.size < rows.length;
+    st.picked = new Set(all ? rows.map(x => x.ref) : []);
+    $$(".pick", root).forEach(c => c.checked = all); count();
+  };
+  count();
+  const chosen = () => rows.filter(x => st.picked.has(x.ref));
+  $$("[data-bulk]", root).forEach(b => b.onclick = async () => {
+    const act = b.dataset.bulk;
+    if (act === "message") {
+      const refs = [...new Set(chosen().map(x => children ? x.family.ref : x.ref))];
+      A.openTab("messages2", { audience: { type: "accounts", refs } });
+    } else if (act === "export") {
+      download("/api/staff/search/export", { q: st.q, scope: st.scope, filters: st.filters, refs: [...st.picked] }, st.scope + "-selected.csv");
+    } else if (act === "waitlist") {
+      const sess = (await api("/api/staff/sessions/upcoming")).sessions.filter(s => s.level !== "guest");
+      const r = await modal(`Add ${st.picked.size} to a waiting list`, `<div class="fgroup"><label>Session</label><select name="sid">${sess.map(s =>
+        `<option value="${s.id}">${esc(day(s.date))} ${esc(s.start_time)} · ${esc(s.title)} (${s.free} free)</option>`).join("")}</select></div>
+        <p class="fhint">Brothers and sisters are kept together. If a place is free now, it's offered straight away (by email and text) to whoever is first in line.</p>
+        ${can("bookings.override") ? `<label class="fcheck"><input type="checkbox" name="ov"> Add even if outside the age range or other rules</label>
+          <div class="fgroup"><label>Reason (if overriding)</label><input type="text" name="reason"></div>` : ""}`,
+        (f) => post("/api/staff/bookings/waitlist-add", { session_id: +f.sid.value, participant_refs: [...st.picked],
+          override: f.ov ? f.ov.checked : false, reason: f.reason ? f.reason.value : "" }), "Add to waiting list");
+      if (!r) return;
+      toast(`${r.added} added to the waiting list${r.offered ? ` · ${r.offered} offered a place now` : ""}`);
+      if (r.skipped.length) modal("Some weren't added", `<ul>${r.skipped.map(x => `<li>${esc(x)}</li>`).join("")}</ul>`, async () => true, "OK");
+    }
+  });
 }
 
 /* ---------------- family record ---------------- */

@@ -1,7 +1,7 @@
 """Admin → Bookings and Waiting list: find bookings, approve or decline
 them, cancel (with a credit note, refund or account credit), move a child to
 another session, and manage the waiting list."""
-from . import (audit, bookings, catalogue, db, family, intray, invoice_page, money, payments_stripe, validate,
+from . import (audit, bookings, catalogue, db, eligibility, family, intray, invoice_page, money, payments_stripe, validate,
                waitlist)
 from .validate import Invalid
 from .web import route
@@ -252,6 +252,54 @@ def session_waitlist(h, sid):
         rows = c.execute("SELECT * FROM bookings WHERE session_id=? AND status IN ('waitlisted','offered')"
                          " ORDER BY status='offered' DESC, waitlist_priority DESC, created_at, id", (s["id"],)).fetchall()
         return h.json({"free": waitlist.free_places(c, s), "entries": [row_json(c, b) for b in rows]})
+
+
+@route("POST", "/api/staff/bookings/waitlist-add", auth="staff", perm="bookings.manage")
+def waitlist_add(h):
+    """Bulk action from a People search: put the chosen children on a session's waiting list. Brothers and sisters
+    are grouped, so they're offered places together. If there's room now, it's offered straight away."""
+    from .staff_bookings import OVERRIDE
+    d = h.json_body() or {}
+    refs = [r for r in (d.get("participant_refs") or []) if isinstance(r, str)][:200]
+    override = bool(d.get("override"))
+    if override and not h.has_perm("bookings.override"):
+        raise ValueError("You don't have permission to override booking rules.")
+    if not refs:
+        raise ValueError("Choose some children first.")
+    with db.tx() as c:
+        s = c.execute("SELECT * FROM activity_sessions WHERE id=?", (int(d.get("session_id") or 0),)).fetchone()
+        if not s or s["status"] != "scheduled" or s["date"] < catalogue.uk_today().isoformat():
+            raise ValueError("Choose an upcoming session.")
+        a = c.execute("SELECT * FROM activities WHERE id=?", (s["activity_id"],)).fetchone()
+        if a["registration_level"] == "guest":
+            raise ValueError("One-off events don't have a waiting list for children — book them as a party instead.")
+        added, skipped = [], []
+        for ref in refs:
+            p = c.execute("SELECT * FROM participants WHERE ref=? AND status='active'", (ref,)).fetchone()
+            if not p:
+                continue
+            acct = c.execute("SELECT * FROM accounts WHERE id=? AND status NOT IN ('closed','anonymised')",
+                             (p["account_id"],)).fetchone()
+            if not acct:
+                skipped.append("%s: their family's account is closed" % p["first_name"])
+                continue
+            problems = eligibility.Checker(c, acct).problems(a, s, p)
+            codes = {k for k, _ in problems}
+            if "booked" in codes or (codes & OVERRIDE and not override):
+                skipped.append("%s: %s" % (p["first_name"], next(m for k, m in problems if k == "booked" or k in OVERRIDE)))
+                continue
+            item = {"kind": "participant", "session": s, "activity": a, "participant": p}
+            price = bookings._price(item)
+            b = bookings._insert_booking(
+                c, item, "waitlisted", account_id=acct["id"], price=price,
+                funding="haf" if a["haf_only"] else ("free" if price == 0 else "paid"),
+                group="S-%s:%d" % (acct["ref"], s["id"]), via="staff", staff_id=h.staff()["id"],
+                notes="Added from a search" + ((" (override: %s)" % validate.text(d.get("reason"), 200)) if override else ""))
+            added.append(b["id"])
+        offered = waitlist.places_freed(c, s["id"], h) if added else 0
+        audit.record(c, h, "waitlist.bulk_add", entity_type="session", entity_id=s["id"],
+                     details={"added": len(added), "skipped": len(skipped), "override": override})
+    return h.json({"ok": True, "added": len(added), "skipped": skipped, "offered": offered})
 
 
 @route("POST", "/api/staff/bookings/<bid>/offer", auth="staff", perm="bookings.manage")

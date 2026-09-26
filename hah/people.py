@@ -5,12 +5,29 @@ Search is a POST so that names never appear in URLs or server logs. Records
 are split into tabs by permission: basic details for anyone with
 people.view_basic, health for people.view_health, family safeguarding
 information for the DSL only. Opening health or safeguarding information is
-written to the audit log."""
+written to the audit log.
+
+Searches can be saved (for yourself or shared), and the results used for
+bulk actions: message the families, export, or add children to a waiting
+list (see bookings_staff.waitlist_add)."""
+import json
+
 from . import audit, bookings, catalogue, db, family, incidents, money, validate
 from .validate import Invalid
 from .web import route
 
 FLAG_FILTERS = ("allergy", "anaphylaxis", "medical", "dietary", "send", "semh")
+MAX_REFS = 500
+
+
+def _refs(d):
+    """Only these rows (the ones ticked for a bulk action), or None for all matches."""
+    refs = d.get("refs")
+    if refs is None:
+        return None
+    if not isinstance(refs, list):
+        raise ValueError("Choose some rows first.")
+    return [r for r in refs if isinstance(r, str)][:MAX_REFS]
 
 
 def _like(text):
@@ -41,6 +58,10 @@ def search_rows(c, h, d):
         if f.get("source") in ("self", "import", "staff", "walkin"):
             where.append("a.source=?")
             args.append(f["source"])
+        refs = _refs(d)
+        if refs is not None:
+            where.append("a.ref IN (%s)" % ",".join("?" * len(refs)) if refs else "0")
+            args += refs
         rows = c.execute("SELECT a.* FROM accounts a WHERE " + " AND ".join(where) + " ORDER BY a.last_name, a.first_name"
                          " LIMIT 200", args).fetchall()
         out = []
@@ -77,6 +98,10 @@ def search_rows(c, h, d):
         if str(f.get("max_age") or "").isdigit():
             where.append("p.dob>?")
             args.append(today.replace(year=today.year - int(f["max_age"]) - 1).isoformat())
+    refs = _refs(d)
+    if refs is not None:
+        where.append("p.ref IN (%s)" % ",".join("?" * len(refs)) if refs else "0")
+        args += refs
     if str(f.get("activity") or "").isdigit():
         where.append("EXISTS (SELECT 1 FROM bookings b WHERE b.participant_id=p.id AND b.activity_id=? AND"
                      " b.status NOT IN ('cancelled','expired'))")
@@ -115,6 +140,56 @@ def search_export(h):
     return h.csv("children.csv", ["Ref", "Name", "Age", "Form level", "Parent", "Mobile", "Email"],
                  [[r["ref"], r["name"], r["age"], r["level"], r["family"]["name"], r["family"]["mobile"] or "",
                    r["family"]["email"] or ""] for r in rows])
+
+
+# ---------------------------------------------------------------- saved searches
+
+
+def _saved_json(r, me):
+    return {"id": r["id"], "name": r["name"], "scope": r["scope"], "q": r["q"], "filters": json.loads(r["filters"]),
+            "shared": bool(r["shared"]), "mine": r["staff_id"] == me, "by": r["by"]}
+
+
+@route("GET", "/api/staff/searches", auth="staff", perm="people.view_basic")
+def saved_searches(h):
+    me = h.staff()["id"]
+    with db.read() as c:
+        rows = c.execute("SELECT x.*, s.name AS by FROM saved_searches x JOIN staff_users s ON s.id=x.staff_id"
+                         " WHERE x.staff_id=? OR x.shared=1 ORDER BY x.name COLLATE NOCASE", (me,)).fetchall()
+    return h.json({"searches": [_saved_json(r, me) for r in rows]})
+
+
+@route("POST", "/api/staff/searches", auth="staff", perm="people.view_basic")
+def save_search(h):
+    d = h.json_body() or {}
+    name = validate.text(d.get("name"), 80)
+    if not name:
+        raise Invalid({"name": "Give the search a name."})
+    scope = d.get("scope") if d.get("scope") in ("children", "families") else None
+    if not scope:
+        raise Invalid({"scope": "Only searches for children or families can be saved."})
+    filters = d.get("filters") if isinstance(d.get("filters"), dict) else {}
+    filters = {k: v for k, v in filters.items() if isinstance(k, str) and isinstance(v, (str, int, bool))}
+    me = h.staff()["id"]
+    with db.tx() as c:
+        if c.execute("SELECT COUNT(*) FROM saved_searches WHERE staff_id=?", (me,)).fetchone()[0] >= 50:
+            raise ValueError("You've saved 50 searches — delete some first.")
+        sid = c.execute("INSERT INTO saved_searches(staff_id, name, scope, q, filters, shared, created_at)"
+                        " VALUES (?,?,?,?,?,?,?)", (me, name, scope, validate.text(d.get("q"), 80),
+                                                    json.dumps(filters), 1 if d.get("shared") else 0,
+                                                    db.now())).lastrowid
+        audit.record(c, h, "people.search_saved", entity_type="saved_search", entity_id=sid)
+    return h.json({"ok": True, "id": sid})
+
+
+@route("POST", "/api/staff/searches/<sid>/delete", auth="staff", perm="people.view_basic")
+def delete_search(h, sid):
+    with db.tx() as c:
+        r = c.execute("SELECT * FROM saved_searches WHERE id=?", (int(sid) if sid.isdigit() else 0,)).fetchone()
+        if not r or (r["staff_id"] != h.staff()["id"] and not h.has_perm("staff.manage")):
+            raise LookupError
+        c.execute("DELETE FROM saved_searches WHERE id=?", (r["id"],))
+    return h.json({"ok": True})
 
 
 # ---------------------------------------------------------------- records
