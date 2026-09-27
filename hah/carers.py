@@ -88,10 +88,18 @@ def invite(h):
         if c.execute("SELECT COUNT(*) FROM carers WHERE account_id=? AND status<>'removed'", (holder["id"],)).fetchone()[0] \
                 >= MAX_CARERS:
             raise ValueError("You can add up to %d carers." % MAX_CARERS)
+        if c.execute("SELECT 1 FROM carers WHERE email=? AND account_id=? AND status<>'removed'",
+                     (email, holder["id"])).fetchone():
+            raise Invalid({"email": "They're already on your list."})
+        sent = {"ok": True, "message": "We've emailed %s to explain what happens next." % email}
         if c.execute("SELECT 1 FROM carers WHERE email=? AND status<>'removed'", (email,)).fetchone() or \
                 c.execute("SELECT 1 FROM accounts WHERE email=? AND status NOT IN ('anonymised')", (email,)).fetchone():
-            raise Invalid({"email": "That email address already signs in to an account here, so it can't be added "
-                                    "as a carer. Ask them to use a different email address."})
+            # the same answer as for a new address, so this can't be used to find out who has an account here;
+            # the address's owner hears why
+            outbox.email(c, email, "carer_invite_unavailable",
+                         {"first_name": first, "holder": "%s %s" % (holder["first_name"], holder["last_name"])},
+                         to_name=first)
+            return h.json(sent)
         cid = c.execute("INSERT INTO carers(ref, account_id, email, first_name, last_name, relationship, status,"
                         " invited_at, created_at) VALUES (?,?,?,?,?,?, 'invited', ?,?)",
                         (family.new_ref("C"), holder["id"], email, first, last,
@@ -100,7 +108,7 @@ def invite(h):
         _send_invite(c, h, carer, holder)
         audit.record(c, h, "carer.invited", entity_type="carer", entity_id=cid, account_id=holder["id"],
                      account_actor=holder["id"])
-        return h.json({"ok": True, "carer": carer_json(carer)})
+        return h.json(sent)
 
 
 def _mine(c, who, ref):

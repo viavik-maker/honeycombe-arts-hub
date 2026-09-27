@@ -93,16 +93,18 @@ def availability(c, activity, session, now=None):
             "waiting": waiting}
 
 
-def first_session_date(c, activity_id):
-    r = c.execute("SELECT MIN(date) FROM activity_sessions WHERE activity_id=? AND status='scheduled'",
-                  (activity_id,)).fetchone()
+def first_session_date(c, activity_id, today=None):
+    """The first session still to come (sessions already past don't count: a baby born since a class began
+    can still join it)."""
+    r = c.execute("SELECT MIN(date) FROM activity_sessions WHERE activity_id=? AND status='scheduled' AND date>=?",
+                  (activity_id, (today or uk_today()).isoformat())).fetchone()
     return r[0]
 
 
 def age_on(activity, session, first_date):
     """The date a child's age is checked on for this session. By school year, it's the 31 August before that
     school year starts (so a whole class is in or out together)."""
-    if activity["age_basis"] == "first_session" and first_date:
+    if activity["age_basis"] == "first_session" and first_date and first_date < session["date"]:
         day = datetime.date.fromisoformat(first_date)
     else:
         day = datetime.date.fromisoformat(session["date"])

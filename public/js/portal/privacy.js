@@ -72,7 +72,8 @@ export async function privacy() {
 
 export async function unsubscribe() {
   root().innerHTML = `<div class="portal__narrow"><h1>Unsubscribe</h1>
-    <p class="lead">Stop getting news emails from Honeycombe Arts Hub? You'll still get emails about anything you've booked.</p>
+    <p class="lead">${/\.t\./.test(location.pathname) ? "Stop getting news texts from Honeycombe Arts Hub? You'll still get texts about anything you've booked."
+      : "Stop getting news emails from Honeycombe Arts Hub? You'll still get emails about anything you've booked."}</p>
     <button class="btn btn--orange" id="unsub">Unsubscribe</button></div>`;
   $("#unsub").onclick = async () => {
     try {

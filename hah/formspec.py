@@ -153,6 +153,8 @@ def clean(section, data, level):
             continue
         key, typ = f["key"], f["type"]
         raw = data.get(key)
+        if isinstance(raw, (list, dict)):
+            raw = None
         required = level in f["required"]
         if f.get("show_if") and data.get(f["show_if"][0]) != f["show_if"][1]:
             out[key] = None

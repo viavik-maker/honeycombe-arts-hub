@@ -43,10 +43,16 @@ class CarerTest(ServerTestCase):
         self.assertEqual(r.status, 403)
         ok(fam.post_json("/api/account/reauth", {"password": PASSWORD}))
         self.assertEqual(self.add_carer(fam, email=fam.email).status, 422)  # their own address
-        ok(self.add_carer(fam))
-        self.assertEqual(self.add_carer(fam).status, 422)  # already a carer somewhere
+        new = ok(self.add_carer(fam)).json()
+        self.assertEqual(self.add_carer(fam).status, 422)  # already on their list
+        # has their own account: the same answer as a new address (it isn't the family's to know), and the
+        # address's owner is told why
         other = register_family()
-        self.assertEqual(self.add_carer(fam, email=other.email).status, 422)  # has their own account
+        r = ok(self.add_carer(fam, email=other.email))
+        self.assertEqual(r.json(), dict(new, message=new["message"].replace("gran@example.org", other.email)))
+        self.assertIn("already signs in to an account here", last_email_to(other.email))
+        with db.read() as c:
+            self.assertFalse(c.execute("SELECT 1 FROM carers WHERE email=?", (other.email,)).fetchone())
         check = ok(Client().post_json("/api/account/carer-invite/check", {"token": invite_link("gran@example.org")})).json()
         self.assertEqual(check["first_name"], "Gran")
         gran, token = self.accept()
@@ -100,6 +106,17 @@ class CarerTest(ServerTestCase):
         self.assertEqual(other.post_json("/api/account/carers/%s/remove" % carers[0]["ref"], {}).status, 404)
         with db.read() as c:
             self.assertTrue(c.execute("SELECT 1 FROM audit_log WHERE action='carer.login'").fetchone())
+
+    def test_a_carer_elsewhere_gets_the_same_answer(self):
+        first, second = register_family(), register_family()
+        fresh = ok(self.add_carer(first, email="aunt-%s@example.org" % uuid.uuid4().hex[:8]))
+        taken = ok(self.add_carer(second, email=re.search(r"emailed (\S+) to", fresh.json()["message"]).group(1)))
+        self.assertEqual(set(fresh.json()), set(taken.json()))
+        email = re.search(r"emailed (\S+) to", fresh.json()["message"]).group(1)
+        self.assertIn("already signs in to an account here", last_email_to(email))
+        self.assertEqual(ok(second.get("/api/account/carers")).json()["carers"], [])
+        with db.read() as c:
+            self.assertEqual(c.execute("SELECT COUNT(*) FROM carers WHERE email=?", (email,)).fetchone()[0], 1)
 
     def test_staff_see_and_remove_and_erasure(self):
         fam = register_family()

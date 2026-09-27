@@ -25,6 +25,8 @@ def opt_in(c, email, *, source, name=None, account_id=None, guest_contact_id=Non
     now = db.now()
     at = at or now
     row = c.execute("SELECT * FROM marketing_preferences WHERE email=?", (email,)).fetchone()
+    if row and row["unsubscribed_email_at"] and source == "legacy_newsletter":
+        return row["id"]  # an old list never overrides an unsubscribe (or an erased person's suppression row)
     if row:
         c.execute("UPDATE marketing_preferences SET email_opt_in=1, email_opt_in_at=COALESCE(email_opt_in_at, ?),"
                   " unsubscribed_email_at=NULL, sms_opt_in=CASE WHEN ? THEN 1 ELSE sms_opt_in END,"
@@ -54,22 +56,35 @@ def unsubscribe(c, email, channel="email", h=None):
 # ---------------------------------------------------------------- unsubscribe links
 
 
-def token_for(email):
+def token_for(email, channel="email"):
+    """Signed unsubscribe token. A link in a text carries the channel, so it
+    stops texts; plain email.sig tokens (already sent in emails) mean email."""
     e = base64.urlsafe_b64encode(email.encode()).decode().rstrip("=")
+    if channel == "sms":
+        return "%s.t.%s" % (e, security.signed("unsubscribe:sms:" + email))
     return "%s.%s" % (e, security.signed("unsubscribe:" + email))
 
 
-def email_from_token(token):
+def from_token(token):
+    """(email, channel) for a valid token, else (None, None)."""
+    parts = (token or "").split(".")
+    if len(parts) == 2:
+        channel, purpose = "email", "unsubscribe:"
+    elif len(parts) == 3 and parts[1] == "t":
+        channel, purpose = "sms", "unsubscribe:sms:"
+    else:
+        return None, None
     try:
-        e, sig = (token or "").rsplit(".", 1)
-        email = base64.urlsafe_b64decode(e + "=" * (-len(e) % 4)).decode()
+        email = base64.urlsafe_b64decode(parts[0] + "=" * (-len(parts[0]) % 4)).decode()
     except (ValueError, UnicodeDecodeError):
-        return None
-    return email if hmac.compare_digest(sig, security.signed("unsubscribe:" + email)) else None
+        return None, None
+    if not hmac.compare_digest(parts[-1], security.signed(purpose + email)):
+        return None, None
+    return email, channel
 
 
-def unsubscribe_url(email, h=None):
-    return "%s/unsubscribe/%s" % (site_url(h), token_for(email))
+def unsubscribe_url(email, h=None, channel="email"):
+    return "%s/unsubscribe/%s" % (site_url(h), token_for(email, channel))
 
 
 def headers_for(email, h=None):
@@ -85,13 +100,15 @@ def unsubscribe_page(h, token):
 
 @route("POST", "/unsubscribe/<token>", csrf=False)
 def one_click(h, token):
-    """Mail programs' one-click unsubscribe (and the page's button)."""
-    email = email_from_token(token)
+    """Mail programs' one-click unsubscribe (and the page's button). A link
+    from a text stops news texts; one from an email stops news emails."""
+    email, channel = from_token(token)
     if not email:
         return h.json({"error": "This unsubscribe link isn't valid."}, 400)
     with db.tx() as c:
-        unsubscribe(c, email, "email", h)
-    return h.json({"ok": True, "message": "You've been unsubscribed from our news emails."})
+        unsubscribe(c, email, channel, h)
+    return h.json({"ok": True, "message": "You've been unsubscribed from our news %s." %
+                   ("texts" if channel == "sms" else "emails")})
 
 
 # ---------------------------------------------------------------- the website newsletter form

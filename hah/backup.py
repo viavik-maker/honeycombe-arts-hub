@@ -2,9 +2,11 @@
 
 make_backup() writes data/backups/hah-YYYYMMDD-HHMMSS.tar.gz containing a
 consistent snapshot of the booking database (SQLite's online backup), the
-JSON files and uploaded images. Local copies are kept for a week — they sit
-on the same disk as the live data, so they guard against mistakes, not disk
-loss. Render's own daily disk snapshots are the second line.
+JSON files, uploaded images and private files (data/private/: EHCPs, support
+plans); one-time links waiting in the outbox are left out of the copy. Local
+copies are kept for a week — they sit on the same disk as the live data, so
+they guard against mistakes, not disk loss. Render's own daily disk snapshots
+are the second line.
 
 When off-site backup is configured (see config.BACKUP_*), the archive is also
 encrypted to the trustees' X.509 certificate with `openssl cms` (AES-256) and
@@ -14,8 +16,9 @@ trustees keep the private key offline. To restore:
 
     openssl cms -decrypt -inform DER -binary -in hah-….tar.gz.p7m \\
         -inkey trustees-backup.key -out hah-….tar.gz
-    tar -xzf hah-….tar.gz        # booking.db, *.json, uploads/
+    tar -xzf hah-….tar.gz        # booking.db, *.json, uploads/, private/
 """
+import base64
 import datetime
 import hashlib
 import hmac
@@ -51,6 +54,7 @@ def make_backup(when=None):
             src, dst = sqlite3.connect(config.DB_PATH), sqlite3.connect(snap)
             try:
                 src.backup(dst)  # consistent even while the site is writing
+                _strip_secrets(dst)
             finally:
                 dst.close()
                 src.close()
@@ -64,9 +68,23 @@ def make_backup(when=None):
                     tar.add(p, arcname=fn)
             if os.path.isdir(config.UPLOADS):
                 tar.add(config.UPLOADS, arcname="uploads")
+            private = os.path.join(config.DATA, "private")
+            if os.path.isdir(private):
+                tar.add(private, arcname="private")  # modes (0700/0600) are kept in the archive
         os.replace(part, final)
     os.chmod(final, 0o600)
     return final
+
+
+def _strip_secrets(snap):
+    """Drop live one-time links from the backup copy (never the live db). A
+    message still waiting for its link can't be sent from a restore, so it is
+    cancelled in the copy rather than left to go out with a broken link."""
+    with snap:
+        snap.execute("UPDATE message_deliveries SET status='cancelled', error='One-time link not kept in backups',"
+                     " locked_until=NULL WHERE secret IS NOT NULL AND status IN ('queued', 'sending')")
+        snap.execute("UPDATE message_deliveries SET secret=NULL WHERE secret IS NOT NULL")
+    snap.execute("VACUUM")  # so the old values aren't left in free pages
 
 
 def prune_local(today=None, keep_days=KEEP_LOCAL_DAYS):
@@ -139,6 +157,11 @@ def sigv4_headers(method, url, region, access_key, secret_key, payload_sha256, a
     return out
 
 
+def content_md5(data):
+    """Base64 MD5 of the body: buckets with Object Lock refuse a PUT without an integrity header."""
+    return base64.b64encode(hashlib.md5(data, usedforsecurity=False).digest()).decode()
+
+
 def upload(path, key, when=None):
     """PUT the file at PATH to the configured bucket as KEY (path-style URL)."""
     with open(path, "rb") as f:
@@ -149,7 +172,7 @@ def upload(path, key, when=None):
     headers = sigv4_headers("PUT", url, config.BACKUP_S3_REGION, config.BACKUP_S3_ACCESS_KEY,
                             config.BACKUP_S3_SECRET_KEY, hashlib.sha256(data).hexdigest(),
                             when.strftime("%Y%m%dT%H%M%SZ"),
-                            {"content-type": "application/pkcs7-mime"})
+                            {"content-type": "application/pkcs7-mime", "content-md5": content_md5(data)})
     req = urllib.request.Request(url, data=data, method="PUT", headers=headers)
     with urllib.request.urlopen(req, timeout=120) as resp:
         if resp.status >= 300:

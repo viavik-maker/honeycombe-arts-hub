@@ -186,7 +186,7 @@ def render(kind, channel, subject, body, person, h=None):
     if channel == "sms":
         text = " ".join(fill(body).split())
         if kind == "marketing":
-            text += " Opt out: " + marketing.unsubscribe_url(person["email"] or person["mobile"], h)
+            text += " Opt out: " + marketing.unsubscribe_url(person["email"] or person["mobile"], h, "sms")
         return None, text, None, None
     marker = "\u0001FN\u0002"
     html_body = rich(body.replace("{{first_name}}", marker).replace("{{ first_name }}", marker)).replace(marker, esc(first))

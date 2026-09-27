@@ -28,7 +28,7 @@ def register_family(kind="family", email=None, **extra):
     r = c.post_json("/api/account/register", body)
     assert r.status == 200, r.text
     code = re.search(r"\b(\d{6})\b", last_email_to(email)).group(1)
-    r = c.post_json("/api/account/register/verify", {"email": email, "code": code})
+    r = c.post_json("/api/account/register/verify", {"email": email, "code": code, "password": body["password"]})
     assert r.status == 200, r.text
     c.csrf = r.json()["csrf"]
     c.email = email

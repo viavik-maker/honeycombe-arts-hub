@@ -68,7 +68,7 @@ A.addTab({
 function editor(root, act, back) {
   const m = META;
   const a = act || { title: "", category_id: m.categories[0].id, centre_id: m.centres[0].id, registration_level: "full",
-    min_age_months: 60, max_age_months: 155, age_basis: "first_session", capacity_default: 20, price_pence: 0,
+    min_age_months: 60, max_age_months: 155, age_basis: "session_date", capacity_default: 20, price_pence: 0,
     adult_price_pence: 0, max_party_size: 8, waitlist_enabled: 1, waitlist_mode: "auto_offer", booking_closes_hours: 0,
     capacity_counts: "children", status: "draft", sessions: [] };
   const manage = can("activities.manage") && a.status !== "archived";

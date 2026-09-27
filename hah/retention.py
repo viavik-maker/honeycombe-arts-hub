@@ -11,15 +11,19 @@ in Booking settings:
   * accounts nobody has used for retention_inactive_years: warned by email,
     then closed 30 days later (the normal erasure then runs);
   * accident and incident records past their date (the child's 25th
-    birthday): the details are cleared; safeguarding concerns go to the DSL;
+    birthday, and at least incidents.MIN_YEARS after the incident): the
+    details are cleared; safeguarding concerns go to the DSL;
   * children held only for those records are then anonymised;
   * registers older than retention_register_years lose the link to the
     child and who collected them (the counts stay for reports);
   * old messages lose their text (the delivery record stays); the audit log
     is trimmed;
-  * imported families who never activated go after a year, and one-off
-    guests' contact details a year after their last event;
-  * invoices over 6 years old lose the name and address of erased families."""
+  * imported families who never activated (and have nothing booked in the
+    last year or to come) go after a year, and one-off guests' contact
+    details a year after their last event;
+  * erased families' consent history goes 6 years after the erasure;
+  * invoices 6 years past the end of their financial year lose the name and
+    address of erased families."""
 import datetime
 
 from . import audit, booking_settings, catalogue, db, family, intray, outbox, ratelimit, security, validate, worker
@@ -95,17 +99,22 @@ def start_handover(h, ref):
             raise LookupError
         if family.age_years(p["dob"]) < 18:
             raise ValueError("%s can have their own account once they're 18." % p["first_name"])
-        if email.lower() == (who["email"] or "").lower() or \
-                c.execute("SELECT 1 FROM accounts WHERE email=? AND status<>'anonymised'", (email,)).fetchone() or \
+        if email.lower() == (who["email"] or "").lower():
+            raise Invalid({"email": "That's your own email address. Use one that's just theirs."})
+        parent = "%s %s" % (who["first_name"], who["last_name"])
+        if c.execute("SELECT 1 FROM accounts WHERE email=? AND status<>'anonymised'", (email,)).fetchone() or \
                 c.execute("SELECT 1 FROM carers WHERE email=? AND status<>'removed'", (email,)).fetchone():
-            raise Invalid({"email": "That email address already has an account here. Use one that's just theirs."})
+            # the same answer as for a new address (it isn't ours to tell); the address's owner hears why
+            outbox.email(c, email, "handover_email_in_use", {"first_name": p["first_name"], "parent": parent},
+                         to_name=p["first_name"])
+            return h.json({"ok": True})
         token = security.new_token()
         c.execute("UPDATE handovers SET used_at=? WHERE participant_id=? AND used_at IS NULL", (db.now(), p["id"]))
         c.execute("INSERT INTO handovers(participant_id, from_account_id, email, token_hash, expires_at, created_at)"
                   " VALUES (?,?,?,?,?,?)", (p["id"], who["id"], email, security.hash_token(token),
                                            _utc(days=HANDOVER_DAYS), db.now()))
         outbox.email(c, email, "handover_invite", {"first_name": p["first_name"], "days": HANDOVER_DAYS,
-                                                   "parent": "%s %s" % (who["first_name"], who["last_name"])},
+                                                   "parent": parent},
                      to_name=p["first_name"], secret="%s/handover#t=%s" % (site_url(h), token), account_id=who["id"])
         audit.record(c, h, "participant.handover_started", entity_type="participant", entity_id=p["id"],
                      participant_id=p["id"], account_id=who["id"], account_actor=who["id"])
@@ -142,7 +151,8 @@ def handover_accept(h):
         problem = security.password_problem(d.get("password") or "", email=r["email"])
         if problem:
             return h.json({"error": problem, "errors": {"password": problem}}, 422)
-        if c.execute("SELECT 1 FROM accounts WHERE email=? AND status<>'anonymised'", (r["email"],)).fetchone():
+        if c.execute("SELECT 1 FROM accounts WHERE email=? AND status<>'anonymised'", (r["email"],)).fetchone() or \
+                c.execute("SELECT 1 FROM carers WHERE email=? AND status<>'removed'", (r["email"],)).fetchone():
             return h.json({"error": "That email address already has an account. Sign in with it instead."}, 409)
         mobile = validate.uk_mobile(d.get("mobile") or "") or None
         now = db.now()
@@ -152,9 +162,19 @@ def handover_accept(h):
                         (family.new_ref("A"), r["email"], now, security.hash_password(d["password"]), r["first_name"],
                          r["last_name"], mobile, now, now, now)).lastrowid
         pid = r["participant_id"]
+        # What the parent told us in confidence isn't the young adult's to see: the family information (and any
+        # "must not collect" note, which has no place on an adult's record) stays with the DSL only
+        alert = c.execute("SELECT collection_alert FROM participants WHERE id=?", (pid,)).fetchone()[0]
+        if alert:
+            c.execute("INSERT INTO participant_safeguarding(participant_id, family_info, updated_at) VALUES (?,?,?)"
+                      " ON CONFLICT(participant_id) DO UPDATE SET family_info=COALESCE(family_info || char(10) || char(10),"
+                      " '') || excluded.family_info, updated_at=excluded.updated_at",
+                      (pid, "Must not collect (the parent's note before the handover at 18): " + alert, now))
+        c.execute("UPDATE participant_safeguarding SET handed_over_at=? WHERE participant_id=?", (now, pid))
         # their record moves; the parent's answers for them (consents) no longer count, so they give their own
         c.execute("UPDATE participants SET account_id=?, is_account_holder=1, target_level='adult', needs_review=1,"
-                  " collection_pw_hash=NULL, go_home_alone=NULL, updated_at=? WHERE id=?", (aid, now, pid))
+                  " collection_pw_hash=NULL, go_home_alone=NULL, photo_consent=NULL, collection_alert=NULL,"
+                  " updated_at=? WHERE id=?", (aid, now, pid))
         c.execute("UPDATE consents SET superseded_at=? WHERE participant_id=? AND superseded_at IS NULL", (now, pid))
         c.execute("UPDATE handovers SET used_at=?, new_account_id=? WHERE id=?", (now, aid, r["id"]))
         family.compute_level(c, pid)
@@ -193,13 +213,19 @@ def long_retention(today=None):
         out["messages"] = c.execute(
             "UPDATE message_deliveries SET body_text=?, body_html=NULL, headers=NULL, secret=NULL WHERE created_at<?"
             " AND body_text<>? AND status NOT IN ('queued','sending')", (MESSAGE_REMOVED, msg_cutoff, MESSAGE_REMOVED)).rowcount
+        # contact-form enquiries go on the same schedule as the message archive
+        out["enquiries"] = c.execute("DELETE FROM contact_messages WHERE created_at<?", (msg_cutoff,)).rowcount
         year_ago = _years_ago(today, 1).isoformat()
-        # imported MagicBooking families who never activated: closed, then erased by the nightly job
-        stale = [r[0] for r in c.execute("SELECT id FROM accounts WHERE status='pending_activation' AND source='import'"
-                                         " AND created_at<?", (year_ago,))]
+        # imported MagicBooking families who never activated: closed, then erased by the nightly job — but not
+        # while they're still coming (staff may have booked them in, or carried over prepaid places)
+        stale = [r[0] for r in c.execute(
+            "SELECT a.id FROM accounts a WHERE a.status='pending_activation' AND a.source='import' AND a.created_at<?"
+            " AND NOT EXISTS (SELECT 1 FROM bookings b JOIN activity_sessions s ON s.id=b.session_id WHERE"
+            " b.account_id=a.id AND (s.date>=? OR b.created_at>=?))", (year_ago, year_ago, year_ago))]
         for aid in stale:
             c.execute("UPDATE accounts SET status='closed', closed_at=?, erase_after=?, updated_at=? WHERE id=?",
                       (db.now(), db.now(), db.now(), aid))
+            audit.record(c, None, "gdpr.closed_never_activated", entity_type="account", entity_id=aid, account_id=aid)
         out["never_activated"] = len(stale)
         # one-off guests: contact details go a year after their last event
         guests = [r[0] for r in c.execute(
@@ -213,7 +239,13 @@ def long_retention(today=None):
         out["guests"] = len(guests)
         audit_cutoff = _years_ago(today, max(6, st["retention_audit_years"])).isoformat()
         out["audit"] = c.execute("DELETE FROM audit_log WHERE at<?", (audit_cutoff,)).rowcount
-        fin_cutoff = _years_ago(today, 6).isoformat()
+        # consent history is evidence behind accident records: kept for 6 years after the account is erased
+        out["consents"] = c.execute(
+            "DELETE FROM consents WHERE account_id IN (SELECT id FROM accounts WHERE status='anonymised' AND"
+            " anonymised_at<?)", (_years_ago(today, 6).isoformat(),)).rowcount
+        # 6 years after the end of the financial year the invoice falls in
+        m = st["reporting_year_start_month"]
+        fin_cutoff = datetime.date(today.year - 6 - (today.month < m), m, 1).isoformat()
         old = [r[0] for r in c.execute(
             "SELECT i.id FROM invoices i LEFT JOIN accounts a ON a.id=i.account_id LEFT JOIN guest_contacts g"
             " ON g.id=i.guest_contact_id WHERE i.issue_date<? AND i.bill_to_name<>'Erased' AND"
@@ -262,7 +294,11 @@ def _inactive_accounts(c, today, years):
 
 
 def _incident_records(c, today):
-    """Accident records past the child's 25th birthday; then children held only for them."""
+    """Accident records past their date (see incidents._retain_until); then children held only for them."""
+    from .incidents import MIN_YEARS
+    # never sooner than MIN_YEARS after the incident (records made before that floor existed)
+    floor = "date(substr(occurred_at,1,10), '+%d years')" % MIN_YEARS
+    c.execute("UPDATE incidents SET retain_until=%s WHERE retain_until IS NOT NULL AND retain_until<%s" % (floor, floor))
     cleared = 0
     for inc in c.execute("SELECT * FROM incidents WHERE retain_until IS NOT NULL AND retain_until<? AND"
                          " description<>?", (today.isoformat(), REMOVED)).fetchall():

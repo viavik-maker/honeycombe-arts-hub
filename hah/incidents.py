@@ -14,6 +14,7 @@ from .web import route, site_url
 
 KINDS = {"injury": "Injury / accident", "illness": "Illness", "behaviour": "Behaviour", "safeguarding": "Safeguarding concern",
          "near_miss": "Near miss", "other": "Other"}
+MIN_YEARS = 7  # insurers' usual minimum for accident records (the retention schedule)
 NOTIFY = {"now": "Tell the parent now (email)", "at_collection": "Talk it through at collection",
           "not_notified": "Don't tell the parent (give a reason)"}
 
@@ -22,15 +23,22 @@ def _visible(h, inc):
     return not inc["restricted"] or h.has_perm("safeguarding.view")
 
 
-def _retain_until(c, pids):
+def _plus_years(day, n):
+    try:
+        return day.replace(year=day.year + n)
+    except ValueError:  # 29 February
+        return day.replace(year=day.year + n, day=28)
+
+
+def _retain_until(c, pids, occurred_at):
+    """The youngest child's 25th birthday, but never less than MIN_YEARS after
+    the incident (an adult's injury would otherwise be cleared at once)."""
     dobs = [c.execute("SELECT dob FROM participants WHERE id=?", (pid,)).fetchone()[0] for pid in pids]
     if not dobs:
         return None
-    youngest = max(datetime.date.fromisoformat(d) for d in dobs)
-    try:
-        return youngest.replace(year=youngest.year + 25).isoformat()
-    except ValueError:  # 29 February
-        return youngest.replace(year=youngest.year + 25, day=28).isoformat()
+    until = [_plus_years(datetime.date.fromisoformat(occurred_at[:10]), MIN_YEARS)]
+    until += [_plus_years(datetime.date.fromisoformat(d), 25) for d in dobs if d]
+    return max(until).isoformat()
 
 
 def _people(c, raw, session_id):
@@ -165,7 +173,8 @@ def create(h):
         v.update(ref=family.new_ref("I"), session_id=s["id"] if s else None,
                  centre_id=(s["centre_id"] or s["a_centre"]) if s else None, created_by=h.staff()["id"],
                  created_at=now, updated_at=now,
-                 retain_until=_retain_until(c, [p["participant_id"] for p in people if p["participant_id"]]))
+                 retain_until=_retain_until(c, [p["participant_id"] for p in people if p["participant_id"]],
+                                            v["occurred_at"]))
         cols = sorted(v)
         iid = c.execute("INSERT INTO incidents(%s) VALUES (%s)" % (",".join(cols), ",".join("?" * len(cols))),
                         [v[k] for k in cols]).lastrowid

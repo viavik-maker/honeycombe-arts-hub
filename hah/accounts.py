@@ -4,8 +4,16 @@ and re-authentication before sensitive changes.
 
 Registration verifies the email address with a 6-digit code *before* any
 child details are collected, so a mistyped address never receives a child's
-information. Answers never reveal whether an email already has an account."""
+information. Answers never reveal whether an email already has an account.
+
+Until it's verified, each registration for an address is a separate attempt:
+its details and password hash are kept with its code (account_tokens.payload)
+and the account itself is left alone. Finishing needs a code (so the inbox)
+*and* the password of one of the attempts, whose details then apply — so
+someone who registers an address that isn't theirs can never choose the
+password its owner signs in with."""
 import datetime
+import json
 import secrets as _secrets
 
 from . import audit, db, family, formspec, intray, outbox, ratelimit, security, validate
@@ -24,14 +32,20 @@ TOUCH_EVERY = 60
 ratelimit.LIMITS.update({
     "acct_login_ip": (40, 15 * 60),
     "acct_login_pair": (8, 15 * 60),
+    "acct_login_email": (20, 15 * 60),      # failed sign-ins to one address, from anywhere
     "acct_register_ip": (15, 60 * 60),
     "acct_email_send": (5, 60 * 60),        # emails to one address per hour
     "acct_code": (8, 30 * 60),              # wrong codes per address
+    "acct_code_ip": (30, 30 * 60),          # wrong codes from one client, whatever the address
     "acct_reset": (20, 60 * 60),
 })
+ATTEMPT_HOURS = 24  # an unfinished registration can be picked up again (a new code) for this long
+MAX_ATTEMPTS = 5    # the newest attempts whose passwords are checked (each check is deliberately slow)
 
 SLOW_DOWN = "Too many attempts — please wait a few minutes and try again."
 SENT = "If that email address can be used, we've sent a message to it. Check your inbox (and spam folder)."
+BAD_CODE = ("That code or password didn't work. Use a code from one of our emails (you can ask for a new one) "
+            "and the password you chose when you registered.")
 
 
 def _utc(**kw):
@@ -63,7 +77,7 @@ def current_account(h):
     if row["carer_id"] and row["carer_status"] != "active":
         return None  # removed by the account holder
     last = datetime.datetime.strptime(row["last_seen_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
-    if (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() > TOUCH_EVERY:
+    if (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() > TOUCH_EVERY and not db.in_tx():
         with db.tx() as c:
             c.execute("UPDATE account_sessions SET last_seen_at=?, idle_expires_at=? WHERE id=?",
                       (now, _utc(days=IDLE_DAYS), row["session_id"]))
@@ -102,15 +116,6 @@ def _audit(c, h, action, account_id, details=None):
 # ---------------------------------------------------------------- one-time codes and links
 
 
-def _new_code(c, account_id, purpose, minutes):
-    code = "%06d" % _secrets.randbelow(1_000_000)
-    c.execute("UPDATE account_tokens SET used_at=? WHERE account_id=? AND purpose=? AND used_at IS NULL",
-              (db.now(), account_id, purpose))
-    c.execute("INSERT INTO account_tokens(purpose, token_hash, account_id, expires_at, created_at) VALUES (?,?,?,?,?)",
-              (purpose, security.hash_token("%d:%s" % (account_id, code)), account_id, _utc(minutes=minutes), db.now()))
-    return code
-
-
 def _new_link_token(c, account_id, purpose, **kw):
     token = security.new_token()
     c.execute("UPDATE account_tokens SET used_at=? WHERE account_id=? AND purpose=? AND used_at IS NULL",
@@ -137,6 +142,66 @@ def send_activation(c, h, account, *, reminder=False):
 # ---------------------------------------------------------------- registration
 
 
+def _new_attempt(c, account_id, payload):
+    """A code for one registration attempt (PAYLOAD: its details and password hash; None for an account
+    registered before attempts were kept apart). Other attempts' codes stay valid."""
+    while True:
+        code = "%06d" % _secrets.randbelow(1_000_000)
+        token_hash = security.hash_token("%d:%s" % (account_id, code))
+        if not c.execute("SELECT 1 FROM account_tokens WHERE token_hash=?", (token_hash,)).fetchone():
+            break
+    c.execute("INSERT INTO account_tokens(purpose, token_hash, account_id, payload, expires_at, created_at)"
+              " VALUES ('verify_email',?,?,?,?,?)", (token_hash, account_id, json.dumps(payload) if payload else None,
+                                                      _utc(minutes=CODE_MINUTES), db.now()))
+    return code
+
+
+def _send_code(c, acct, payload):
+    code = _new_attempt(c, acct["id"], payload)
+    outbox.email(c, acct["email"], "account_verify", {"first_name": (payload or acct)["first_name"],
+                                                      "minutes": CODE_MINUTES}, secret=code, account_id=acct["id"])
+
+
+def _attempts(c, account_id):
+    return c.execute("SELECT * FROM account_tokens WHERE account_id=? AND purpose='verify_email' AND used_at IS NULL"
+                     " AND created_at>? ORDER BY id DESC", (account_id, _utc(hours=-ATTEMPT_HOURS))).fetchall()
+
+
+def _attempt_for(acct, attempts, password):
+    """The payload of the registration attempt made with PASSWORD ({} for an older account whose password is
+    on the account itself), or None. Raises security.Busy."""
+    hashes = []
+    for t in attempts:
+        payload = json.loads(t["payload"]) if t["payload"] else None
+        if payload and payload["password_hash"] not in [x for x, _ in hashes] and len(hashes) < MAX_ATTEMPTS:
+            hashes.append((payload["password_hash"], payload))
+    if acct["password_hash"]:
+        hashes.append((acct["password_hash"], {}))
+    if not hashes:
+        security.dummy_verify(password)
+    for pw_hash, payload in hashes:
+        if security.verify_password(password, pw_hash):
+            return payload
+    return None
+
+
+def _apply_registration(c, account_id, a):
+    """Verified: the details from the attempt that finished become the account's."""
+    now = db.now()
+    c.execute("UPDATE accounts SET kind=?, password_hash=?, first_name=?, last_name=?, mobile=?, postcode=?,"
+              " updated_at=? WHERE id=?", (a["kind"], a["password_hash"], a["first_name"], a["last_name"], a["mobile"],
+                                          a["postcode"], now, account_id))
+    c.execute("DELETE FROM participants WHERE account_id=?", (account_id,))
+    if a["kind"] == "adult":
+        c.execute("INSERT INTO participants(ref, account_id, is_account_holder, first_name, last_name, dob,"
+                  " target_level, created_at, updated_at) VALUES (?,?,1,?,?,?, 'adult', ?,?)",
+                  (family.new_ref("P"), account_id, a["first_name"], a["last_name"], a["dob"], now, now))
+
+
+def _password(d):
+    return d.get("password") if isinstance(d.get("password"), str) else ""
+
+
 def _clean_registration(d):
     kind = d.get("kind") if d.get("kind") in ("family", "adult") else "family"
     errors = {}
@@ -148,7 +213,7 @@ def _clean_registration(d):
     email = validate.email(d.get("email"))
     if not email:
         errors["email"] = "Enter a valid email address."
-    problem = security.password_problem(d.get("password") or "", email=email or "")
+    problem = security.password_problem(_password(d), email=email or "")
     if problem:
         errors["password"] = problem
     dob = None
@@ -198,66 +263,86 @@ def register(h):
                              account_id=existing["id"])
             return h.json({"ok": True, "message": SENT})
         now = db.now()
-        if existing:  # started before but never verified: start again with these details
-            account_id = existing["id"]
-            c.execute("UPDATE accounts SET kind=?, password_hash=?, first_name=?, last_name=?, mobile=?, postcode=?,"
-                      " updated_at=? WHERE id=?",
-                      (kind, pw_hash, you["first_name"], you["last_name"], you["mobile"], you["postcode"], now, account_id))
-            c.execute("DELETE FROM participants WHERE account_id=?", (account_id,))
-        else:
-            account_id = c.execute(
-                "INSERT INTO accounts(ref, kind, email, password_hash, status, first_name, last_name, mobile, postcode,"
-                " source, created_at, updated_at) VALUES (?,?,?,?, 'pending_verification', ?,?,?,?, 'self', ?,?)",
-                (family.new_ref("A"), kind, email, pw_hash, you["first_name"], you["last_name"], you["mobile"],
-                 you["postcode"], now, now)).lastrowid
-        if kind == "adult":
-            c.execute("INSERT INTO participants(ref, account_id, is_account_holder, first_name, last_name, dob,"
-                      " target_level, created_at, updated_at) VALUES (?,?,1,?,?,?, 'adult', ?,?)",
-                      (family.new_ref("P"), account_id, you["first_name"], you["last_name"], dob.isoformat(), now, now))
+        attempt = {"kind": kind, "first_name": you["first_name"], "last_name": you["last_name"], "mobile": you["mobile"],
+                   "postcode": you["postcode"], "dob": dob.isoformat() if dob else None, "password_hash": pw_hash}
+        # started before but never verified: this is another attempt, and the account is left as it is
+        # (the address's owner may be the one who started, and this may not be them)
+        acct = existing or c.execute("SELECT * FROM accounts WHERE id=?", (c.execute(
+            "INSERT INTO accounts(ref, kind, email, status, first_name, last_name, mobile, postcode, source, created_at,"
+            " updated_at) VALUES (?,?,?, 'pending_verification', ?,?,?,?, 'self', ?,?)",
+            (family.new_ref("A"), kind, email, you["first_name"], you["last_name"], you["mobile"], you["postcode"],
+             now, now)).lastrowid,)).fetchone()
         if _can_email(email):
-            code = _new_code(c, account_id, "verify_email", CODE_MINUTES)
-            outbox.email(c, email, "account_verify", {"first_name": you["first_name"], "minutes": CODE_MINUTES},
-                         secret=code, account_id=account_id)
+            _send_code(c, acct, attempt)
     return h.json({"ok": True, "message": SENT})
 
 
 @route("POST", "/api/account/register/verify")
 def register_verify(h):
-    """Step 2: the code from the email. Signs them in."""
+    """Step 2: the code from the email, with the password chosen in step 1. Signs them in."""
     d = h.json_body() or {}
     email = validate.email(d.get("email")) or ""
-    code = "".join(ch for ch in str(d.get("code") or "") if ch.isdigit())
-    if ratelimit.blocked("acct_code", email):
+    code = "".join(ch for ch in validate.text(d.get("code"), 20) if ch.isdigit())
+    ip = h.client_ip()
+    if ratelimit.blocked("acct_code", email) or ratelimit.blocked("acct_code_ip", ip):
         return h.json({"error": SLOW_DOWN + " You can ask for a new code."}, 429)
-    with db.tx() as c:
-        acct = c.execute("SELECT * FROM accounts WHERE email=? AND status='pending_verification'", (email,)).fetchone()
+    with db.read() as c:
+        acct = c.execute("SELECT * FROM accounts WHERE email=? AND status='pending_verification'",
+                         (email,)).fetchone() if email else None
         tok = acct and c.execute(
             "SELECT * FROM account_tokens WHERE account_id=? AND purpose='verify_email' AND used_at IS NULL"
             " AND expires_at>? AND token_hash=?",
             (acct["id"], db.now(), security.hash_token("%d:%s" % (acct["id"], code)))).fetchone()
-        if not tok:
-            ratelimit.hit("acct_code", email)
-            return h.json({"error": "That code didn't work. Check the latest email we sent, or ask for a new code."}, 400)
-        c.execute("UPDATE account_tokens SET used_at=? WHERE id=?", (db.now(), tok["id"]))
+        attempts = _attempts(c, acct["id"]) if tok else []
+    try:
+        # any of the codes shows they have the inbox; the password says whose details these are
+        attempt = _attempt_for(acct, attempts, _password(d)) if tok else None
+    except security.Busy:
+        return h.json({"error": "The server is busy — please try again in a moment."}, 429)
+    if attempt is None:
+        ratelimit.hit("acct_code", email)
+        ratelimit.hit("acct_code_ip", ip)
+        return h.json({"error": BAD_CODE}, 400)
+    with db.tx() as c:
+        if not c.execute("SELECT 1 FROM account_tokens t JOIN accounts a ON a.id=t.account_id WHERE t.id=?"
+                         " AND t.used_at IS NULL AND a.status='pending_verification'", (tok["id"],)).fetchone():
+            return h.json({"error": BAD_CODE}, 400)  # finished in the meantime (another tab)
+        c.execute("UPDATE account_tokens SET used_at=? WHERE account_id=? AND purpose='verify_email' AND used_at IS NULL",
+                  (db.now(), acct["id"]))
+        if attempt:
+            _apply_registration(c, acct["id"], attempt)
         c.execute("UPDATE accounts SET status='active', email_verified_at=?, activated_at=?, updated_at=? WHERE id=?",
                   (db.now(), db.now(), db.now(), acct["id"]))
         link_guest_bookings(c, acct["id"], email)
         _audit(c, h, "account.created", acct["id"])
         cookie, csrf = start_session(c, h, acct["id"])
         family.recompute_account(c, acct["id"])
-    return h.json({"ok": True, "csrf": csrf, "kind": acct["kind"]}, headers={"Set-Cookie": cookie})
+        kind = c.execute("SELECT kind FROM accounts WHERE id=?", (acct["id"],)).fetchone()[0]
+    return h.json({"ok": True, "csrf": csrf, "kind": kind}, headers={"Set-Cookie": cookie})
 
 
 @route("POST", "/api/account/register/resend")
 def register_resend(h):
+    """A new code for the registration made with this password (so nobody else can use up the emails an
+    address may be sent). The answer is the same whatever happens."""
     d = h.json_body() or {}
     email = validate.email(d.get("email")) or ""
-    with db.tx() as c:
-        acct = c.execute("SELECT * FROM accounts WHERE email=? AND status='pending_verification'", (email,)).fetchone()
-        if acct and _can_email(email):
-            code = _new_code(c, acct["id"], "verify_email", CODE_MINUTES)
-            outbox.email(c, email, "account_verify", {"first_name": acct["first_name"], "minutes": CODE_MINUTES},
-                         secret=code, account_id=acct["id"])
+    if not ratelimit.hit("acct_register_ip", h.client_ip()):
+        return h.json({"error": SLOW_DOWN}, 429)
+    with db.read() as c:
+        acct = c.execute("SELECT * FROM accounts WHERE email=? AND status='pending_verification'",
+                         (email,)).fetchone() if email else None
+        attempts = _attempts(c, acct["id"]) if acct else []
+    try:
+        attempt = _attempt_for(acct, attempts, _password(d)) if acct else None
+        if not acct:
+            security.dummy_verify(_password(d))  # the same time taken either way
+    except security.Busy:
+        return h.json({"error": "The server is busy — please try again in a moment."}, 429)
+    if attempt is not None:
+        with db.tx() as c:
+            if _can_email(email):
+                _send_code(c, acct, attempt or None)
     return h.json({"ok": True, "message": SENT})
 
 
@@ -273,20 +358,28 @@ def link_guest_bookings(c, account_id, email):
 @route("POST", "/api/account/login")
 def login(h):
     d = h.json_body() or {}
-    email, password = validate.email(d.get("email")) or "", d.get("password") or ""
+    email, password = validate.email(d.get("email")) or "", _password(d)
     ip = h.client_ip()
-    if ratelimit.blocked("acct_login_ip", ip) or ratelimit.blocked("acct_login_pair", email + "|" + ip):
+    # per address too (whether or not it has an account), so guessing one family's password from many
+    # places is slowed down as well
+    if ratelimit.blocked("acct_login_ip", ip) or ratelimit.blocked("acct_login_pair", email + "|" + ip) or \
+            ratelimit.blocked("acct_login_email", email):
         return h.json({"error": SLOW_DOWN}, 429)
-    carer = None
+    carer, attempts, attempt = None, [], None
     with db.read() as c:
         acct = c.execute("SELECT * FROM accounts WHERE email=? AND status IN ('active','pending_verification')",
                          (email,)).fetchone() if email else None
         if not acct and email:
             carer = c.execute("SELECT cr.* FROM carers cr JOIN accounts a ON a.id=cr.account_id WHERE cr.email=?"
                               " AND cr.status='active' AND a.status='active'", (email,)).fetchone()
+        if acct and acct["status"] == "pending_verification":
+            attempts = _attempts(c, acct["id"])
     try:
         if carer:
             ok = bool(carer["password_hash"] and security.verify_password(password, carer["password_hash"]))
+        elif acct and acct["status"] == "pending_verification":
+            attempt = _attempt_for(acct, attempts, password)
+            ok = attempt is not None
         else:
             ok = bool(acct and acct["password_hash"] and security.verify_password(password, acct["password_hash"]))
             if not acct or not acct["password_hash"]:
@@ -304,14 +397,13 @@ def login(h):
     if not ok:
         ratelimit.hit("acct_login_ip", ip)
         ratelimit.hit("acct_login_pair", email + "|" + ip)
+        ratelimit.hit("acct_login_email", email)
         return h.json({"error": "That email and password don't match. Coming from our old booking system? "
                                 "Use \u201cActivate your account\u201d instead."}, 401)
     with db.tx() as c:
         if acct["status"] == "pending_verification":
             if _can_email(email):
-                code = _new_code(c, acct["id"], "verify_email", CODE_MINUTES)
-                outbox.email(c, email, "account_verify", {"first_name": acct["first_name"], "minutes": CODE_MINUTES},
-                             secret=code, account_id=acct["id"])
+                _send_code(c, acct, attempt or None)
             return h.json({"ok": True, "next": "verify"})
         if security.needs_rehash(acct["password_hash"]):
             c.execute("UPDATE accounts SET password_hash=? WHERE id=?", (security.hash_password(password), acct["id"]))
@@ -411,7 +503,7 @@ def activate_check(h):
         has_child = c.execute("SELECT 1 FROM participants WHERE account_id=? AND is_account_holder=0",
                               (row["account_id"],)).fetchone()
         has_postcode = c.execute("SELECT postcode FROM accounts WHERE id=?", (row["account_id"],)).fetchone()[0]
-    return h.json({"first_name": row["first_name"], "check": "dob" if has_child else ("postcode" if has_postcode else "none")})
+    return h.json({"first_name": row["first_name"], "check": "dob" if has_child else ("postcode" if has_postcode else "contact")})
 
 
 @route("POST", "/api/account/activate")
@@ -429,10 +521,15 @@ def activate(h):
         dobs = {r[0] for r in c.execute("SELECT dob FROM participants WHERE account_id=? AND is_account_holder=0",
                                         (row["account_id"],))}
         postcode = c.execute("SELECT postcode FROM accounts WHERE id=?", (row["account_id"],)).fetchone()[0]
-        ok = True
+        if not dobs and not postcode:
+            # nothing to check it's really them (the link may have been forwarded): staff set it up with them
+            intray.add(c, "activation_problem", "Imported account needs activating with the family (no child or"
+                       " postcode to check online)", account_id=row["account_id"], perm="people.edit")
+            return h.json({"error": "We can't set up this account online, as we don't have the details to check "
+                                    "it's you. Please call us on 07932 772905 and we'll do it with you."}, 400)
         if dobs:
             ok = (validate.date(d.get("child_dob")) or "") and validate.date(d.get("child_dob")).isoformat() in dobs
-        elif postcode:
+        else:
             ok = validate.postcode(d.get("postcode")) == postcode
         if not ok:
             attempts = row["attempts"] + 1

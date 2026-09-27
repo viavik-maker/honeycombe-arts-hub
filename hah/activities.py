@@ -35,6 +35,12 @@ def _activity(c, aid):
     return a
 
 
+def _editable(a):
+    if a["status"] == "archived":
+        raise ValueError("Archived activities can't be edited — restore it first.")
+    return a
+
+
 def _local(utc):
     """UTC ISO → 'YYYY-MM-DDTHH:MM' UK local, for datetime-local inputs."""
     if not utc:
@@ -206,7 +212,13 @@ def clean_activity(c, d, current=None):
     out["registration_level"] = level
     if level == "guest":
         out["parent_must_stay"] = 1
-    out["age_basis"] = get("age_basis") if get("age_basis") in ("session_date", "first_session") else "first_session"
+    basis = get("age_basis")
+    if basis not in ("session_date", "first_session"):
+        # term blocks (Home Ed) are booked as a whole, so ages are checked once, at the start; holiday clubs and
+        # weekly classes check each session's date
+        basis = "first_session" if c.execute("SELECT 1 FROM activity_categories WHERE id=? AND key='home_ed'",
+                                             (out["category_id"],)).fetchone() else "session_date"
+    out["age_basis"] = basis
     out["capacity_counts"] = get("capacity_counts") if get("capacity_counts") in ("children", "all_people") else "children"
     out["waitlist_mode"] = get("waitlist_mode") if get("waitlist_mode") in ("auto_offer", "manual") else "auto_offer"
     allowance = get("haf_allowance_days")
@@ -259,9 +271,7 @@ def create_activity(h):
 def update_activity(h, aid):
     d = h.json_body() or {}
     with db.tx() as c:
-        a = _activity(c, int(aid))
-        if a["status"] == "archived":
-            raise ValueError("Archived activities can't be edited — restore it first.")
+        a = _editable(_activity(c, int(aid)))
         v = clean_activity(c, d, a)
         if d.get("slug") and a["status"] == "draft":
             v["slug"] = unique_slug(c, slugify(d["slug"]), exclude_id=a["id"])
@@ -397,7 +407,7 @@ def _session(c, sid):
 def add_session(h, aid):
     d = h.json_body() or {}
     with db.tx() as c:
-        a = _activity(c, int(aid))
+        a = _editable(_activity(c, int(aid)))
         v = clean_session(c, a, d)
         if c.execute("SELECT 1 FROM activity_sessions WHERE activity_id=? AND date=? AND start_time=?",
                      (a["id"], v["date"], v["start_time"])).fetchone():
@@ -414,12 +424,18 @@ def update_session(h, sid):
     d = h.json_body() or {}
     with db.tx() as c:
         s = _session(c, int(sid))
-        a = _activity(c, s["activity_id"])
+        a = _editable(_activity(c, s["activity_id"]))
         v = clean_session(c, a, d, s)
         taken = catalogue.places_taken(c, s["id"])
         if v["capacity"] < taken:
             raise Invalid({"capacity": "%d place%s already taken — cancel or move bookings first."
                            % (taken, "" if taken == 1 else "s")})
+        # families booked on the old date and time would never be told (nor ages and clashes checked again)
+        if (v["date"], v["start_time"], v["end_time"]) != (s["date"], s["start_time"], s["end_time"]) and c.execute(
+                "SELECT 1 FROM bookings WHERE session_id=? AND status IN ('pending_payment','pending_approval','offered',"
+                "'confirmed','pending_confirmation','waitlisted') LIMIT 1", (s["id"],)).fetchone():
+            raise ValueError("This session has bookings, so its date and time can't be changed — move the bookings "
+                             "to another session, or cancel this one (families are told) and add a new one.")
         if (v["date"], v["start_time"]) != (s["date"], s["start_time"]) and c.execute(
                 "SELECT 1 FROM activity_sessions WHERE activity_id=? AND date=? AND start_time=? AND id<>?",
                 (a["id"], v["date"], v["start_time"], s["id"])).fetchone():
@@ -439,12 +455,18 @@ def update_session(h, sid):
 def delete_session(h, sid):
     with db.tx() as c:
         s = _session(c, int(sid))
+        _editable(_activity(c, s["activity_id"]))
         if c.execute("SELECT 1 FROM bookings WHERE session_id=? LIMIT 1", (s["id"],)).fetchone():
             raise ValueError("This session has had bookings, so it can't be deleted — cancel it instead.")
         c.execute("DELETE FROM activity_sessions WHERE id=?", (s["id"],))
         audit.record(c, h, "session.delete", entity_type="session", entity_id=s["id"],
                      details={"activity_id": s["activity_id"], "date": s["date"]})
     return h.json({"ok": True})
+
+
+def bank_holidays(c=None):
+    """The bank holiday list from Booking settings, as YYYY-MM-DD (older saves may not be)."""
+    return {x.isoformat() for x in (validate.date(v) for v in booking_settings.get("bank_holidays", c)) if x}
 
 
 def generate_dates(start, end, weekdays, skip):
@@ -484,13 +506,13 @@ def generate_sessions(h, aid):
         raise Invalid(errors)
     skip = {x.isoformat() for x in (validate.date(s) for s in d.get("skip_dates") or []) if x}
     if d.get("skip_bank_holidays", True):
-        skip |= set(booking_settings.get("bank_holidays"))
+        skip |= bank_holidays()
     themes = [validate.text(t, 120) for t in d.get("themes") or [] if validate.text(t, 120)]
     dates = generate_dates(start, end, weekdays, skip)
     if len(dates) > MAX_GENERATED:
         raise Invalid({"to": "That's more than %d sessions — choose a shorter range." % MAX_GENERATED})
     with db.tx() as c:
-        a = _activity(c, int(aid))
+        a = _editable(_activity(c, int(aid)))
         base = clean_session(c, a, {"date": start.isoformat(), "start_time": d["start_time"][:5],
                                     "end_time": d["end_time"][:5], "capacity": d.get("capacity"),
                                     "price_pence": d.get("price_pence"), "centre_id": d.get("centre_id")})
@@ -516,7 +538,8 @@ def generate_sessions(h, aid):
 @route("POST", "/api/staff/activities/<aid>/duplicate", auth="staff", perm="activities.manage")
 def duplicate(h, aid):
     """Copy an activity as a draft for next term, moving every session by the
-    same number of whole weeks so weekdays line up."""
+    same number of whole weeks (Monday to Monday) so weekdays line up. Days
+    before the new start date, and bank holidays, are left out."""
     d = h.json_body() or {}
     new_start = validate.date(d.get("new_start_date"))
     with db.tx() as c:
@@ -534,19 +557,22 @@ def duplicate(h, aid):
         cols = sorted(v)
         new_id = c.execute("INSERT INTO activities(%s) VALUES (%s)" % (",".join(cols), ",".join("?" * len(cols))),
                            [v[k] for k in cols]).lastrowid
-        shift = 0
+        shift, dropped, holidays = 0, 0, bank_holidays(c)
         if sessions:
             first = datetime.date.fromisoformat(sessions[0]["date"])
-            days = (new_start - first).days
-            shift = -(-days // 7) * 7 if days >= 0 else -((-days) // 7) * 7  # whole weeks, not before new_start
+            monday = lambda day: day - datetime.timedelta(days=day.weekday())  # noqa: E731
+            shift = (monday(new_start) - monday(first)).days
         for s in sessions:
             day = (datetime.date.fromisoformat(s["date"]) + datetime.timedelta(days=shift)).isoformat()
+            if day < new_start.isoformat() or day in holidays:
+                dropped += 1
+                continue
             c.execute("INSERT OR IGNORE INTO activity_sessions(activity_id, date, start_time, end_time, theme,"
                       " centre_id, capacity, price_pence, created_at) VALUES (?,?,?,?,?,?,?,?,?)",
                       (new_id, day, s["start_time"], s["end_time"], s["theme"], s["centre_id"], s["capacity"],
                        s["price_pence"], db.now()))
         audit.record(c, h, "activity.duplicate", entity_type="activity", entity_id=new_id,
-                     details={"from": a["id"], "shift_days": shift})
+                     details={"from": a["id"], "shift_days": shift, "left_out": dropped})
         return h.json({"ok": True, "activity": activity_json(c, _activity(c, new_id))})
 
 

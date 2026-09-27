@@ -3,7 +3,9 @@
 Stored as JSON in the settings table, one row per key; anything not saved
 yet uses DEFAULTS. Secrets (Stripe, SMTP, Twilio keys) are never settings:
 they live in the host's environment."""
+import datetime
 import json
+import re
 
 from . import audit, db, validate
 from .validate import Invalid
@@ -23,7 +25,11 @@ DEFAULTS = {
     "pay_later_for_all": False,            # otherwise only families staff have allowed
     "payment_terms_days": 14,
     "go_home_alone_min_age": 11,
-    "bank_holidays": [],                   # skipped by the session generator
+    "bank_holidays": [                     # skipped by the session generator: England & Wales
+        "2026-01-01", "2026-04-03", "2026-04-06", "2026-05-04", "2026-05-25", "2026-08-31", "2026-12-25", "2026-12-28",
+        "2027-01-01", "2027-03-26", "2027-03-29", "2027-05-03", "2027-05-31", "2027-08-30", "2027-12-27", "2027-12-28",
+        "2028-01-03", "2028-04-14", "2028-04-17", "2028-05-01", "2028-05-29", "2028-08-28", "2028-12-25", "2028-12-26",
+    ],
     "session_reminder_sms": False,
     "reporting_year_start_month": 1,       # 1 = calendar year, 4 = April, 9 = September
     # invoices
@@ -99,10 +105,11 @@ def _clean(key, value):
         items = value if isinstance(value, list) else str(value or "").replace(",", "\n").split("\n")
         items = [validate.text(x, 200) for x in items if validate.text(x, 200)]
         if key == "bank_holidays":
-            bad = [x for x in items if not validate.date(x)]
+            days = [_day(x) for x in items]
+            bad = [x for x, day in zip(items, days) if not day]
             if bad:
                 raise Invalid({key: "Dates must look like 2026-12-25 (%s isn't)." % bad[0]})
-            items = sorted(set(items))
+            items = sorted({day.isoformat() for day in days})  # stored as YYYY-MM-DD, which the generator matches
         if key.endswith("_emails"):
             bad = [x for x in items if not validate.email(x)]
             if bad:
@@ -111,6 +118,17 @@ def _clean(key, value):
         return items
     limit = 2000 if key in ("invoice_footer", "issuer_address", "bookings_open_message") else 200
     return validate.long_text(value, limit) if limit > 200 else validate.text(value, limit)
+
+
+def _day(text):
+    """A date typed as 2026-12-25 (or 20261225, or 25/12/2026), or None."""
+    m = re.fullmatch(r"(\d{1,2})/(\d{1,2})/(\d{4})", text)
+    if m:
+        try:
+            return datetime.date(int(m.group(3)), int(m.group(2)), int(m.group(1)))
+        except ValueError:
+            return None
+    return validate.date(text)
 
 
 def save(c, h, changes):

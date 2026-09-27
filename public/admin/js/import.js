@@ -3,6 +3,12 @@ import { $, $$, api, confirmBox, esc, post, table, toast, when } from "./ui.js";
 
 const A = window.HAHAdmin;
 
+// Excel's plain "CSV" is Windows-1252, not UTF-8: reading it as UTF-8 would turn "Siân" into "Si�n" without a word
+const readCsv = (buf) => {
+  try { return new TextDecoder("utf-8", { fatal: true }).decode(buf); }
+  catch (_) { return new TextDecoder("windows-1252").decode(buf); }
+};
+
 A.addTab({
   id: "import", label: "Import families", icon: "📥", perm: "import.run",
   state: { csv: null, filename: "", preview: null, mapping: {}, result: null },
@@ -13,7 +19,7 @@ A.addTab({
       <p class="sub">Bring across families from MagicBooking's export. Only names, contact details and children's names and dates of birth
         are imported — families add health details and permissions themselves when they activate their account.</p>
       <div class="acard"><h2>1. Choose the file</h2>
-        <input type="file" id="impFile" accept=".csv,text/csv"> ${st.filename ? `<span class="fhint">${esc(st.filename)}</span>` : ""}
+        <input type="file" id="impFile" aria-label="MagicBooking export (CSV file)" accept=".csv,text/csv"> ${st.filename ? `<span class="fhint">${esc(st.filename)}</span>` : ""}
         <p class="fhint">A CSV file (in Excel: File → Save As → CSV). One row per child; families with several children appear on several rows with the same email.</p></div>
       ${st.preview ? `<div class="acard"><h2>2. Match the columns</h2>
         <p class="fhint">${st.preview.rows} rows. We've guessed where we can — check each one.</p>
@@ -40,7 +46,7 @@ A.addTab({
     $("#impFile", root).onchange = async (e) => {
       const file = e.target.files[0]; if (!file) return;
       if (file.size > 5 * 1024 * 1024) return toast("That file is over 5 MB — split it into smaller files", true);
-      st.csv = await file.text(); st.filename = file.name; st.result = null;
+      st.csv = readCsv(await file.arrayBuffer()); st.filename = file.name; st.result = null;
       try { st.preview = await post("/api/staff/import/preview", { csv: st.csv }); st.mapping = st.preview.mapping; re(); }
       catch (x) { toast(x.message, true); }
     };

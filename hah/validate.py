@@ -14,15 +14,24 @@ class Invalid(ValueError):
         self.errors = errors
 
 
+def _str(value):
+    """VALUE as text: numbers are written out; anything else that isn't text (lists, objects) counts as blank."""
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (int, float)) and not isinstance(value, bool):
+        return str(value)
+    return ""
+
+
 def email(value):
-    v = (value or "").strip().lower()
+    v = _str(value).strip().lower()
     return v if len(v) <= 200 and EMAIL_RE.match(v) else None
 
 
 def uk_mobile(value):
     """A UK mobile number in international form (+447…), or None.
     Accepts 07… , +447… , 447… and 00447… with spaces, dashes or brackets."""
-    digits = re.sub(r"[\s\-().]", "", value or "")
+    digits = re.sub(r"[\s\-().]", "", _str(value))
     if digits.startswith("+"):
         digits = digits[1:]
     elif digits.startswith("00"):
@@ -36,7 +45,7 @@ def uk_mobile(value):
 
 def uk_phone(value):
     """Any UK phone number, tidied (mobile or landline), or None."""
-    raw = re.sub(r"[\s\-().]", "", value or "")
+    raw = re.sub(r"[\s\-().]", "", _str(value))
     if raw.startswith("+44"):
         raw = "0" + raw[3:]
     elif raw.startswith("0044"):
@@ -45,7 +54,7 @@ def uk_phone(value):
 
 
 def postcode(value):
-    v = re.sub(r"\s+", "", (value or "").upper())
+    v = re.sub(r"\s+", "", _str(value).upper())
     if not POSTCODE_RE.match(v):
         return None
     return v[:-3] + " " + v[-3:]
@@ -54,14 +63,14 @@ def postcode(value):
 def date(value):
     """'YYYY-MM-DD' -> datetime.date, or None."""
     try:
-        return datetime.date.fromisoformat((value or "").strip())
+        return datetime.date.fromisoformat(_str(value).strip())
     except ValueError:
         return None
 
 
 def text(value, limit=200):
-    return " ".join(str(value or "").split())[:limit]
+    return " ".join(_str(value).split())[:limit]
 
 
 def long_text(value, limit=5000):
-    return str(value or "").strip().replace("\r\n", "\n")[:limit]
+    return _str(value).strip().replace("\r\n", "\n")[:limit]

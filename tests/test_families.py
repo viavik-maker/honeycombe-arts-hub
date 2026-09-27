@@ -32,8 +32,12 @@ class RegistrationTest(ServerTestCase):
             dump += " ".join(str(tuple(r)) for r in conn.execute("SELECT * FROM account_tokens"))
         self.assertNotIn(code, dump)
         wrong = "000000" if code != "000000" else "111111"
-        self.assertEqual(c.post_json("/api/account/register/verify", {"email": "codes@example.org", "code": wrong}).status, 400)
-        self.assertEqual(c.post_json("/api/account/register/verify", {"email": "codes@example.org", "code": code}).status, 200)
+        self.assertEqual(c.post_json("/api/account/register/verify", {"email": "codes@example.org", "code": wrong,
+                                                                      "password": PASSWORD}).status, 400)
+        self.assertEqual(c.post_json("/api/account/register/verify", {"email": "codes@example.org", "code": code}).status,
+                         400)  # the code alone isn't enough
+        self.assertEqual(c.post_json("/api/account/register/verify", {"email": "codes@example.org", "code": code,
+                                                                      "password": PASSWORD}).status, 200)
 
     def test_existing_email_gets_the_same_answer(self):
         c = register_family(email="taken@example.org")

@@ -18,6 +18,7 @@ from . import db, mail, sms, templating, validate, worker
 BATCH = 20
 RETRY_AFTER = [60, 300, 1800, 7200, 43200]  # seconds; then give up
 LOCK_SECONDS = 300
+STALE_SECONDS = 86400  # a queued message for a channel that isn't set up is dropped after this
 
 
 def _at(seconds=0):
@@ -89,16 +90,23 @@ def block_sms(c, phone, source):
 
 
 def _claim():
-    """Mark up to BATCH due messages as 'sending' and return them."""
+    """Mark up to BATCH due messages as 'sending' and return them. Only
+    channels that are set up are claimed, so a queue of texts while SMS is off
+    can't hold up email; those left waiting over a day are cancelled rather
+    than sent late (or never) once the channel is set up."""
     now = db.now()
+    off = {ch: why for ch, ok, why in (("email", mail.configured(), "Email isn't set up on this site"),
+                                        ("sms", sms.configured(), "Texts aren't set up on this site")) if not ok}
     with db.tx() as c:
+        for ch, why in off.items():
+            c.execute("UPDATE message_deliveries SET status='cancelled', error=?, secret=NULL, locked_until=NULL"
+                      " WHERE channel=? AND status IN ('queued', 'sending') AND created_at<=?",
+                      (why, ch, _at(-STALE_SECONDS)))
+        on = [ch for ch in ("email", "sms") if ch not in off]
         rows = [dict(r) for r in c.execute(
-            "SELECT * FROM message_deliveries WHERE (status='queued' AND next_attempt_at<=?)"
-            " OR (status='sending' AND locked_until<=?) ORDER BY id LIMIT ?", (now, now, BATCH))]
-        if not mail.configured():
-            rows = [r for r in rows if r["channel"] != "email"]
-        if not sms.configured():
-            rows = [r for r in rows if r["channel"] != "sms"]
+            "SELECT * FROM message_deliveries WHERE ((status='queued' AND next_attempt_at<=?)"
+            " OR (status='sending' AND locked_until<=?)) AND channel IN (%s) ORDER BY id LIMIT ?"
+            % ",".join("?" * len(on)), (now, now, *on, BATCH))] if on else []
         for r in rows:
             c.execute("UPDATE message_deliveries SET status='sending', locked_until=? WHERE id=?",
                       (_at(LOCK_SECONDS), r["id"]))

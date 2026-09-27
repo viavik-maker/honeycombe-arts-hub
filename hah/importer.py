@@ -41,6 +41,9 @@ MAX_BYTES = 5 * 1024 * 1024
 
 def parse_csv(text):
     text = (text or "").lstrip("﻿")
+    if "\ufffd" in text:  # characters that couldn't be decoded: stop rather than import a mangled "Si\ufffdn"
+        raise ValueError("Some characters in this file couldn't be read (for example accented names). In Excel,"
+                         " choose Save As → \"CSV UTF-8 (Comma delimited)\" and upload that file.")
     try:
         dialect = csv.Sniffer().sniff(text[:4096], delimiters=",;\t")
     except csv.Error:
@@ -110,6 +113,16 @@ def plan(c, headers, rows, mapping, order="dmy"):
                 "postcode": validate.postcode(get(r, "postcode")) if get(r, "postcode") else None,
                 "legacy_ref": validate.text(get(r, "legacy_ref"), 60) or None,
                 "children": [], "rows": [], "exists": existing is not None}
+        else:
+            ref = validate.text(get(r, "legacy_ref"), 60) or None
+            if ref and fam["legacy_ref"] and ref != fam["legacy_ref"]:
+                results.append((n, "error", "Same email as row %d but a different Family ID — check which is right"
+                                % fam["rows"][0]))
+                continue
+            if (first.lower(), last.lower()) != (fam["first_name"].lower(), fam["last_name"].lower()):
+                results.append((n, "error", "Same email as row %d but a different parent name — check which is right"
+                                % fam["rows"][0]))
+                continue
         fam["rows"].append(n)
         if fam["exists"]:
             results.append((n, "skipped", "Already has an account on the new system"))

@@ -100,13 +100,16 @@ class LongRetentionTest(ServerTestCase):
             "action_taken": "Ice pack", "notify_mode": "now", "people": [{"booking_id": bid, "role": "injured"}]})).json()
         with db.tx() as c:
             iid = c.execute("SELECT id FROM incidents ORDER BY id DESC LIMIT 1").fetchone()[0]
-            c.execute("UPDATE incidents SET retain_until='2001-01-01' WHERE id=?", (iid,))
+            c.execute("UPDATE incidents SET retain_until='2001-01-01', occurred_at='1990-06-01T10:00' WHERE id=?", (iid,))
             c.execute("UPDATE participants SET status='retention_hold' WHERE id=?", (participant_id(child),))
             c.execute("UPDATE activity_sessions SET date='2015-06-01' WHERE id=?", (sid,))
             c.execute("UPDATE attendance SET collected_by_name='Grandad', notes='left early' WHERE booking_id=?", (bid,))
             c.execute("INSERT INTO message_deliveries(channel, kind, to_address, body_text, status, next_attempt_at,"
                       " created_at) VALUES ('email','service','old@example.org','hi','sent','2010-01-01','2010-01-01')")
             c.execute("INSERT INTO audit_log(at, actor_type, action) VALUES ('2010-01-01T00:00:00Z', 'system', 'x.old')")
+            c.execute("INSERT INTO contact_messages(ref, name, email, message, created_at) VALUES"
+                      " ('old-enquiry', 'Old', 'old@example.org', 'Hello', '2010-01-01T00:00:00Z'),"
+                      " ('new-enquiry', 'New', 'new@example.org', 'Hello', ?)", (db.now(),))
             c.execute("INSERT INTO accounts(ref, kind, email, status, first_name, last_name, source, created_at, updated_at)"
                       " VALUES ('A-OLDIMPORT', 'family', 'never@example.org', 'pending_activation', 'Nev', 'Er', 'import',"
                       " '2020-01-01T00:00:00Z', '2020-01-01T00:00:00Z')")
@@ -129,5 +132,7 @@ class LongRetentionTest(ServerTestCase):
             self.assertEqual(c.execute("SELECT status FROM accounts WHERE ref='A-OLDIMPORT'").fetchone()[0], "closed")
             self.assertFalse(c.execute("SELECT 1 FROM guest_contacts WHERE email='oldguest@example.org'").fetchone())
             self.assertFalse(c.execute("SELECT 1 FROM audit_log WHERE action='x.old'").fetchone())
+            self.assertEqual([r[0] for r in c.execute("SELECT ref FROM contact_messages WHERE ref LIKE '%-enquiry'")],
+                             ["new-enquiry"])
             self.assertTrue(c.execute("SELECT 1 FROM audit_log WHERE action='retention.run'").fetchone())
         self.assertIsNotNone(inc)

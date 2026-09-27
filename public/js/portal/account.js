@@ -99,31 +99,38 @@ export async function registerDetails() {
       website: form.website.value, dob: form.dob ? form.dob.value : undefined });
     try {
       await busy($("button[type=submit]", form), () => api("/api/account/register", body));
-      codeStep(body.email, kind);
+      codeStep(body.email, kind, false, body.password);
     } catch (x) { showErrors(form, x.data.errors || {}, "reg", x.message); }
   };
 }
 
-function codeStep(email, kind, fromLogin) {
+/* The code only works with the password chosen when registering: kept in memory from the details step,
+   otherwise (coming from sign-in) asked for again. */
+function codeStep(email, kind, fromLogin, password) {
   root().innerHTML = `<div class="portal__narrow">${fromLogin ? "" : stepper(2)}
     <h1>Check your email</h1>
     <p class="lead">We've sent a 6-digit code to <strong>${esc(email)}</strong>. It can take a minute to arrive — check your spam folder too.</p>
     <form id="codeForm" class="pcard" novalidate>
       <div class="field"><label for="code-code">Code</label>
         <input id="code-code" name="code" class="code-input" inputmode="numeric" autocomplete="one-time-code" maxlength="7" required></div>
+      ${password ? "" : `<div class="field"><label for="code-password">Your password</label>
+        <span class="hint" id="code-password-hint">The one you chose when you registered.</span>
+        <input type="password" id="code-password" name="password" autocomplete="current-password" required aria-describedby="code-password-hint"></div>`}
       <div class="btn-row"><button type="button" class="linklike" id="resend">Send a new code</button>
         <button class="btn btn--orange" type="submit">Continue</button></div>
     </form></div>`;
   const form = $("#codeForm");
+  const pw = () => password || form.password.value;
   $("#code-code").focus();
   $("#resend").onclick = async () => {
-    await api("/api/account/register/resend", { email });
+    if (!pw()) return showErrors(form, { password: "Enter your password." }, "code", "Enter your password, then ask for a new code.");
+    await api("/api/account/register/resend", { email, password: pw() });
     showErrors(form, {}, "code", "We've sent a new code — use the newest email.");
   };
   form.onsubmit = async (e) => {
     e.preventDefault();
     try {
-      await busy($("button[type=submit]", form), () => api("/api/account/register/verify", { email, code: form.code.value }));
+      await busy($("button[type=submit]", form), () => api("/api/account/register/verify", { email, code: form.code.value, password: pw() }));
       await loadMe();
       if (fromLogin) return go(safeNext("/account"));
       if (kind === "adult") return go(`/account/family/${state.me.participants[0].ref}?setup=1`);
@@ -152,7 +159,7 @@ export async function login() {
     e.preventDefault();
     try {
       const d = await busy($("button[type=submit]", form), () => api("/api/account/login", { email: form.email.value, password: form.password.value }));
-      if (d.next === "verify") return codeStep(form.email.value, null, true);
+      if (d.next === "verify") return codeStep(form.email.value, null, true, form.password.value);
       go(safeNext("/account"));
     } catch (x) { showErrors(form, {}, "login", x.message); }
   };
@@ -257,7 +264,7 @@ export async function accountHome() {
   if (me.carer) {
     root().innerHTML = `<h1>Hi ${esc(me.carer.first_name)}</h1>${carerNote()}
       <div class="people">${me.participants.filter(p => p.status === "active").map(p => `<div class="person">
-        <h3>${esc(p.first_name)} ${esc(p.last_name)}</h3><p>${p.is_account_holder ? "" : "Age " + p.age}</p><p>${levelStatus(p)}</p>
+        <h2>${esc(p.first_name)} ${esc(p.last_name)}</h2><p>${p.is_account_holder ? "" : "Age " + p.age}</p><p>${levelStatus(p)}</p>
         <p style="margin-top:.8em"><a class="btn btn--sm btn--ghost" href="/account/family/${esc(p.ref)}">View details</a></p></div>`).join("")}</div>
       <p><a class="btn btn--orange" href="/book">Book activities</a> <a class="btn btn--ghost" href="/account/bookings">Bookings</a></p>`;
     return;
@@ -266,7 +273,7 @@ export async function accountHome() {
     <p class="lead">${me.account.kind === "adult" ? "Your details and bookings." : "Your family's details. Everyone needs their details complete before you can book for them."}</p>
     ${me.acknowledged ? "" : notice(`Before your first booking, please confirm your details are correct — you'll find this at the end of each person's page.`, "warn")}
     <div class="people">${me.participants.map(p => `<div class="person">
-      <h3>${esc(p.first_name)} ${esc(p.last_name)}</h3>
+      <h2>${esc(p.first_name)} ${esc(p.last_name)}</h2>
       <p>${p.is_account_holder ? "You" : "Age " + p.age}</p>
       <p>${levelStatus(p)}</p>
       <p style="margin-top:.8em"><a class="btn btn--sm ${p.missing.length ? "btn--orange" : "btn--ghost"}" href="/account/family/${esc(p.ref)}">${p.missing.length ? "Complete details" : "View & edit"}</a></p>
@@ -385,6 +392,9 @@ export async function childPage() {
       root().insertAdjacentHTML("afterbegin", carerNote());
       $$("input, select, textarea", root()).forEach(el => { el.disabled = true; });
       $$("button[data-save], .pcard__actions button, button[type=submit]", root()).forEach(el => { el.hidden = true; });
+      /* only the account holder can do these (the server refuses a carer) */
+      $$("#switchLevel, #reviewedBtn, #addContact, #contactRows [data-remove]", root()).forEach(el => { el.hidden = true; });
+      const rb = $("#reviewedBtn", root()); if (rb) rb.closest("section").hidden = true;
     }
   };
   const refresh = async () => { await loadMe(); data = await api("/api/account/participants/" + encodeURIComponent(ref)); draw(); };
@@ -504,21 +514,39 @@ function contactRow(c, i) {
   </div>`;
 }
 
+/* a refused request says so next to the button, rather than failing silently */
+function problem(btn, x) {
+  const at = btn.closest("p, section");
+  const old = at.nextElementSibling; if (old && old.hasAttribute("data-problem")) old.remove();
+  at.insertAdjacentHTML("afterend", `<div class="notice notice--err" role="alert" data-problem>${esc(x.message)}</div>`);
+}
+
 function wireChild(spec, level, data) {
   const sw = $("#switchLevel");
   if (sw) sw.onclick = async () => {
-    await api(`/api/account/participants/${data.summary.ref}/target`, { target_level: level === "full" ? "short" : "full" });
-    state.refreshChild();
+    try {
+      await busy(sw, () => api(`/api/account/participants/${data.summary.ref}/target`, { target_level: level === "full" ? "short" : "full" }));
+      await state.refreshChild();
+    } catch (x) { problem(sw, x); }
   };
   const rb = $("#reviewedBtn");
-  if (rb) rb.onclick = async () => { await api(`/api/account/participants/${data.summary.ref}/reviewed`, {}); state.refreshChild(); };
+  if (rb) rb.onclick = async () => {
+    try { await busy(rb, () => api(`/api/account/participants/${data.summary.ref}/reviewed`, {})); await state.refreshChild(); }
+    catch (x) { problem(rb, x); }
+  };
+  const rows = $("#contactRows");
+  /* row numbers only ever go up, so a row added after a Remove never reuses an id */
+  let nextRow = rows ? Math.max(-1, ...$$(".contact-row", rows).map(r => +r.dataset.row)) + 1 : 0;
   const add = $("#addContact");
   if (add) add.onclick = () => {
-    const rows = $("#contactRows"); const i = rows.children.length;
-    if (i >= spec.contacts.max) return;
-    rows.insertAdjacentHTML("beforeend", contactRow({}, i));
+    if ($$(".contact-row", rows).length >= spec.contacts.max) return;
+    rows.insertAdjacentHTML("beforeend", contactRow({}, nextRow++));
+    $(".contact-row:last-child input", rows).focus();
   };
-  $$("[data-remove]").forEach(b => b.onclick = () => b.closest(".contact-row").remove());
+  if (rows) rows.onclick = (e) => {
+    const b = e.target.closest("[data-remove]");
+    if (b) b.closest(".contact-row").remove();
+  };
   $$("form[data-sec]").forEach(form => {
     wireShowIf(form);
     form.onsubmit = (e) => e.preventDefault();
@@ -527,13 +555,15 @@ function wireChild(spec, level, data) {
       e.preventDefault();
       const key = form.dataset.sec;
       const ref = data.summary.ref;
-      let path, body;
+      let path, body, sentRows = [];
       if (key === "you") { path = "/api/account/details"; body = collect(form, spec.sections.you, level); }
       else if (key === "contacts") {
         path = "/api/account/contacts";
-        body = { contacts: $$(".contact-row", form).map(r => ({ full_name: $("[name=full_name]", r).value,
+        const read = (r) => ({ full_name: $("[name=full_name]", r).value,
           relationship: $("[name=relationship]", r).value, phone: $("[name=phone]", r).value,
-          can_collect: $("[name=can_collect]", r).checked })).filter(c => c.full_name || c.phone || c.relationship) };
+          can_collect: $("[name=can_collect]", r).checked });
+        sentRows = $$(".contact-row", form).filter(r => { const c = read(r); return c.full_name || c.phone || c.relationship; });
+        body = { contacts: sentRows.map(read) };
       } else if (key === "consents") {
         path = `/api/account/participants/${ref}/consents`;
         body = { answers: Object.fromEntries(data.consent_questions.map(q => [q.key, ($(`[name=${q.key}]:checked`, form) || {}).value || ""])) };
@@ -555,10 +585,14 @@ function wireChild(spec, level, data) {
         const saved = $(`#sec-${key} .pcard__saved`); if (saved) saved.hidden = false;
         if (next && next.id !== "sec-" + key && params.get("setup")) next.scrollIntoView({ behavior: "smooth", block: "start" });
       } catch (x) {
-        const errs = x.data.errors || {};
-        const prefix = key === "consents" ? "consents" : key;
-        showErrors(form, key === "consents" ? Object.fromEntries(Object.entries(errs).map(([k, v]) => [k + "-in", v])) : errs,
-          prefix, x.message);
+        let errs = (x.data && x.data.errors) || {};
+        if (key === "consents") errs = Object.fromEntries(Object.entries(errs).map(([k, v]) => [k + "-in", v]));
+        /* "contacts.1.phone" is the 2nd row sent (empty rows aren't); point it at that row's box, "contacts-<row>-phone" */
+        if (key === "contacts") errs = Object.fromEntries(Object.entries(errs).map(([k, v]) => {
+          const m = /^contacts\.(\d+)\.(\w+)$/.exec(k);
+          return [m && sentRows[+m[1]] ? sentRows[+m[1]].dataset.row + "." + m[2] : k, v];
+        }));
+        showErrors(form, errs, key, x.message);
       }
     };
   });

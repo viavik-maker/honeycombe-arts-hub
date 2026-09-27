@@ -8,7 +8,9 @@ Deleting an account:
      their mind);
   3. the nightly job erases it, keeping only what the law makes us keep:
      invoices (6 years, as issued), accident and injury records (until the
-     child is 25), and safeguarding information, which the DSL reviews.
+     child is 25, and at least 7 years), consent history (6 years) and
+     safeguarding information, which the DSL reviews; the email address stays
+     on the news suppression list.
 Families can download their own data straight away (after re-entering
 their password), or ask us for it, which raises an in-tray item; staff then
 download the export from the family's record. DSL-written material and
@@ -17,7 +19,7 @@ import datetime
 import html
 import json
 
-from . import audit, bookings, catalogue, db, intray, marketing, money, outbox, ratelimit, worker
+from . import audit, bookings, catalogue, db, family, intray, marketing, money, outbox, ratelimit, worker
 from .web import route
 
 COOLING_OFF_DAYS = 14
@@ -242,6 +244,14 @@ def _rows(c, sql, args, drop=()):
 
 
 SECRET_COLS = ("password_hash", "collection_pw_hash", "token_hash", "secret")
+# what the family told us about each person, and what we worked out from it; never the DSL's flag, review markers
+# or staff ids
+PERSON_COLS = ("ref", "first_name", "last_name", "dob", "gender", "education", "school_name", "haf_status",
+               "haf_verified_at", "f_allergy", "f_anaphylaxis", "f_medical", "f_dietary", "f_send", "f_semh",
+               "f_religious", "photo_consent", "go_home_alone", "collection_alert", "collection_pw_set_at",
+               "support_plan", "support_plan_agreed_at", "status", "created_at", "updated_at")
+HEALTH_COLS = ("allergies", "anaphylaxis", "adrenaline_pen", "medical_conditions", "medication", "dietary",
+               "send_needs", "semh_needs", "religious_requirements", "access_needs", "updated_at")
 
 
 def export_account(c, a, self_service=False):
@@ -254,15 +264,21 @@ def export_account(c, a, self_service=False):
            "emergency_contacts": _rows(c, "SELECT full_name, relationship, phone, can_collect FROM emergency_contacts"
                                           " WHERE account_id=?", (aid,)),
            "people": []}
-    for p in c.execute("SELECT * FROM participants WHERE account_id=?", (aid,)).fetchall():
+    for p in c.execute("SELECT * FROM participants WHERE account_id=? AND status IN ('active','archived',"
+                       "'retention_hold')", (aid,)).fetchall():
+        if p["status"] == "archived" and not p["is_account_holder"] and family.age_years(p["dob"]) >= 18:
+            continue  # an adult now, left the account at 18: their data is theirs, not the parent's
         pid = p["id"]
         out["people"].append({
-            "details": {k: p[k] for k in p.keys() if k not in SECRET_COLS},
-            "health": _rows(c, "SELECT * FROM participant_health WHERE participant_id=?", (pid,)),
-            "gp": _rows(c, "SELECT * FROM participant_gp WHERE participant_id=?", (pid,)),
+            "details": {k: p[k] for k in PERSON_COLS},
+            "health": _rows(c, "SELECT %s FROM participant_health WHERE participant_id=?" % ", ".join(HEALTH_COLS),
+                            (pid,)),
+            "gp": _rows(c, "SELECT surgery_name, doctor_name, surgery_phone, surgery_postcode, updated_at"
+                           " FROM participant_gp WHERE participant_id=?", (pid,)),
             # what the family told us is theirs to see; nothing here is written by the DSL
+            # (not what a parent wrote before an 18-year-old's record was handed to them: that stays with the DSL)
             "family_information": _rows(c, "SELECT family_info, updated_at FROM participant_safeguarding"
-                                           " WHERE participant_id=?", (pid,)),
+                                           " WHERE participant_id=? AND handed_over_at IS NULL", (pid,)),
             "attendance": _rows(c, "SELECT s.date, act.title, at.status, at.signed_in_at, at.signed_out_at,"
                                    " at.collected_by_name, at.collected_by_relationship FROM attendance at JOIN"
                                    " activity_sessions s ON s.id=at.session_id JOIN activities act ON act.id=s.activity_id"
@@ -308,6 +324,13 @@ def export_account(c, a, self_service=False):
 # ---------------------------------------------------------------- erasure
 
 
+# a child kept for an accident record (or the DSL) keeps only name, date of birth and the incident
+MINIMAL_RECORD = ("gender=NULL, education=NULL, school_name=NULL, haf_status='unknown', haf_verified_at=NULL,"
+                  " haf_verified_by=NULL, f_allergy=0, f_anaphylaxis=0, f_medical=0, f_dietary=0, f_send=0, f_semh=0,"
+                  " f_religious=0, photo_consent=NULL, go_home_alone=NULL, collection_alert=NULL,"
+                  " collection_pw_hash=NULL, collection_pw_set_at=NULL, support_plan=NULL, support_plan_agreed_at=NULL")
+
+
 def erase_account(c, aid, h=None):
     """Remove a family's personal data, keeping only what must be kept.
     Returns what was kept and why."""
@@ -331,21 +354,25 @@ def erase_account(c, aid, h=None):
                        perm="safeguarding.view", entity_type="participant", entity_id=pid, participant_id=pid)
         else:
             c.execute("DELETE FROM participant_safeguarding WHERE participant_id=?", (pid,))
+        c.execute("UPDATE participants SET " + MINIMAL_RECORD + " WHERE id=?", (pid,))
         if accident or sensitive:
-            kept.append("incident records (kept until the child is 25)" if accident else "child's name for the DSL")
-            c.execute("UPDATE participants SET status='retention_hold', collection_pw_hash=NULL, collection_alert=NULL,"
-                      " school_name=NULL, gender=NULL, updated_at=? WHERE id=?", (now, pid))
+            kept.append("incident records (kept until the child is 25, and at least 7 years)" if accident
+                        else "child's name for the DSL")
+            c.execute("UPDATE participants SET status='retention_hold', updated_at=? WHERE id=?", (now, pid))
         else:
             c.execute("UPDATE participants SET status='anonymised', first_name='Deleted', last_name='person',"
-                      " dob=substr(dob,1,4) || '-01-01', school_name=NULL, gender=NULL, collection_pw_hash=NULL,"
-                      " collection_alert=NULL, photo_consent=NULL, anonymised_at=?, updated_at=? WHERE id=?",
-                      (now, now, pid))
+                      " dob=substr(dob,1,4) || '-01-01', anonymised_at=?, updated_at=? WHERE id=?", (now, now, pid))
     c.execute("DELETE FROM emergency_contacts WHERE account_id=?", (aid,))
-    c.execute("DELETE FROM consents WHERE account_id=?", (aid,))
+    # consent history stays as evidence behind any accident record; retention_long deletes it 6 years on
     c.execute("DELETE FROM account_tokens WHERE account_id=?", (aid,))
     c.execute("DELETE FROM account_sessions WHERE account_id=?", (aid,))
     if a["email"]:
-        c.execute("DELETE FROM marketing_preferences WHERE email=? OR account_id=?", (a["email"], aid))
+        # the address stays on the suppression list so it's never added to news again; nothing else about them
+        c.execute("UPDATE marketing_preferences SET phone=NULL, name=NULL, account_id=NULL, guest_contact_id=NULL,"
+                  " email_opt_in=0, email_opt_in_at=NULL, sms_opt_in=0, sms_opt_in_at=NULL, wording_version='',"
+                  " unsubscribed_email_at=COALESCE(unsubscribed_email_at, ?),"
+                  " unsubscribed_sms_at=COALESCE(unsubscribed_sms_at, ?), updated_at=? WHERE email=? OR account_id=?",
+                  (now, now, now, a["email"], aid))
         c.execute("DELETE FROM contact_messages WHERE email=?", (a["email"],))
     for g in c.execute("SELECT id FROM guest_contacts WHERE account_id=? OR email=?", (aid, a["email"] or "")).fetchall():
         c.execute("UPDATE guest_contacts SET email=?, phone=NULL, name=NULL, anonymised_at=? WHERE id=?",
@@ -382,8 +409,11 @@ def retention_job():
     with db.tx() as c:
         for r in c.execute("SELECT id FROM accounts WHERE status='pending_verification' AND created_at<?",
                            (_utc(-UNVERIFIED_DAYS),)).fetchall():
-            if c.execute("SELECT 1 FROM participants WHERE account_id=?", (r["id"],)).fetchone():
+            # an 18+ sign-up's own record is made at registration, so only a child means someone's been added
+            if c.execute("SELECT 1 FROM participants WHERE account_id=? AND is_account_holder=0", (r["id"],)).fetchone():
                 continue
+            c.execute("DELETE FROM consents WHERE account_id=?", (r["id"],))
+            c.execute("DELETE FROM participants WHERE account_id=?", (r["id"],))
             c.execute("DELETE FROM account_tokens WHERE account_id=?", (r["id"],))
             c.execute("DELETE FROM account_sessions WHERE account_id=?", (r["id"],))
             c.execute("DELETE FROM message_deliveries WHERE account_id=?", (r["id"],))

@@ -1,0 +1,10 @@
+Subject: About {{holder}}'s invitation to Honeycombe Arts Hub
+Hello {{first_name}},
+
+{{holder}} tried to add this email address as a carer on their family's Honeycombe Arts Hub account. This address already signs in to an account here, so it can't be added as a carer too.
+
+If you'd like to help with their bookings, ask {{holder}} to invite a different email address of yours.
+
+If you weren't expecting this, you can ignore this email and nothing will happen.
+
+Questions? Just reply to this email or call us on 07932 772905.

@@ -4,7 +4,7 @@ import os
 import re
 import uuid
 
-from hah import db, gdpr, mail, marketing, outbox, ratelimit
+from hah import db, gdpr, mail, marketing, messaging, outbox, ratelimit
 from tests.booking_helpers import make_activity, set_settings
 from tests.family_helpers import complete_child, last_email_to, ok, participant_id, register_family
 from tests.support import ServerTestCase, data_path
@@ -68,6 +68,31 @@ class MessagingTest(ServerTestCase):
         self.assertEqual(c.request("POST", path[:-3] + "xyz", b"", origin=False).status, 400)  # forged token
         # managers without the marketing permission can't send news
         self.assertEqual(self.admin(roles=("session_staff",)).post_json("/api/staff/messages/preview", body).status, 403)
+
+    def test_opt_out_link_in_a_news_text_stops_texts(self):
+        email = "texts-%s@example.org" % uuid.uuid4().hex[:8]
+        with db.tx() as c:
+            marketing.opt_in(c, email, source="registration", sms=True, phone="+447700900123")
+        with db.read() as c:
+            people, _ = messaging.recipients(c, "marketing", "sms", {})
+        person = next(p for key, p in people if p["email"] == email)
+        _, text, _, _ = messaging.render("marketing", "sms", None, "Summer club bookings open Monday!", person)
+        path = re.search(r"https?://[^/]+(/unsubscribe/\S+)", text).group(1)
+        c = self.client()
+        r = ok(c.request("POST", path, origin=False))
+        self.assertIn("texts", r.json()["message"])
+
+        def prefs():
+            with db.read() as dbc:
+                return tuple(dbc.execute("SELECT email_opt_in, sms_opt_in FROM marketing_preferences WHERE email=?",
+                                         (email,)).fetchone())
+        self.assertEqual(prefs(), (1, 0))  # texts stop; they still get the news emails they asked for
+        # links already sent in emails (no channel in them) still unsubscribe from email
+        ok(c.request("POST", "/unsubscribe/" + marketing.token_for(email), origin=False))
+        self.assertEqual(prefs(), (0, 0))
+        # the channel can't be switched on someone else's link
+        tampered = marketing.token_for(email).replace(".", ".t.", 1)
+        self.assertEqual(c.request("POST", "/unsubscribe/" + tampered, origin=False).status, 400)
 
     def test_account_preferences(self):
         fam = register_family()

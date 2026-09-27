@@ -59,16 +59,18 @@ class ActivitiesAdminTest(ServerTestCase):
         self.assertIn("text/csv", csv.header("Content-Type"))
         self.assertIn("Puppets", csv.text)
         self.assertEqual(admin.get("/api/staff/activities.csv").status, 200)
-        # duplicate for next term keeps weekdays
-        r = ok(admin.post_json("/api/staff/activities/%d/duplicate" % aid, {"new_start_date": future(100),
+        # duplicate for next term keeps weekdays (starting on a Monday, so the whole first week is kept)
+        import datetime
+        monday = datetime.date.fromisoformat(future(100))
+        monday -= datetime.timedelta(days=monday.weekday())
+        r = ok(admin.post_json("/api/staff/activities/%d/duplicate" % aid, {"new_start_date": monday.isoformat(),
                                                                             "title": "Spring Half Term Club"})).json()
         copy = r["activity"]
         self.assertEqual(copy["status"], "draft")
         self.assertEqual(len(copy["sessions"]), n)
-        import datetime
         d0 = datetime.date.fromisoformat(r["activity"]["sessions"][0]["date"])
         self.assertEqual(d0.weekday(), datetime.date.fromisoformat(preview["sessions"][0]["date"]).weekday())
-        self.assertGreaterEqual(d0.isoformat(), future(100))
+        self.assertGreaterEqual(d0, monday)
 
     def test_session_validation_and_capacity(self):
         admin = self.admin()

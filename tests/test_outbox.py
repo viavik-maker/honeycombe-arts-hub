@@ -83,6 +83,28 @@ class OutboxTest(ServerTestCase):
         finally:
             mail.Connection.send = real
 
+    def test_texts_waiting_for_sms_never_hold_up_email(self):
+        saved = os.environ.get("SMS_PROVIDER")
+        os.environ["SMS_PROVIDER"] = "disabled"  # the default until Twilio is set up
+        try:
+            with db.tx() as c:
+                for i in range(outbox.BATCH + 5):
+                    outbox.text_message(c, "07700 900%03d" % i, "test")
+                c.execute("UPDATE message_deliveries SET created_at='2000-01-01T00:00:00Z' WHERE to_address=?",
+                          ("+447700900000",))
+                outbox.email(c, "blocked@example.org", "test_email", {"name": "X"})
+            self.assertEqual(outbox.send_due(), "sent 1, failed 0")
+            self.assertIn("blocked@example.org", mail.SENT[-1]["To"])
+            by = {r["to_address"]: r for r in deliveries()}
+            # a text left waiting over a day is dropped rather than sent late; newer ones wait for SMS to be set up
+            self.assertEqual(by["+447700900000"]["status"], "cancelled")
+            self.assertIn("aren't set up", by["+447700900000"]["error"])
+            self.assertEqual(by["+447700900001"]["status"], "queued")
+        finally:
+            os.environ["SMS_PROVIDER"] = saved
+        self.assertEqual(outbox.send_due(), "sent %d, failed 0" % outbox.BATCH)
+        self.assertFalse(sms.SENT[0][0].endswith("900000"))
+
     def test_sms_to_uk_mobiles_only(self):
         with db.tx() as c:
             self.assertIsNone(outbox.text_message(c, "01202 123456", "test"))

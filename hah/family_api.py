@@ -128,6 +128,7 @@ def save_contacts(h):
     cleaned, errors = [], {}
     from . import validate
     for i, r in enumerate(rows):
+        r = r if isinstance(r, dict) else {}
         name, rel = validate.text(r.get("full_name"), 80), validate.text(r.get("relationship"), 40)
         phone = validate.uk_phone(r.get("phone"))
         if not name:
@@ -215,7 +216,10 @@ def get_participant(h, ref):
         if not p:
             return h.json({"error": "Not found"}, 404)
         health = c.execute("SELECT * FROM participant_health WHERE participant_id=?", (p["id"],)).fetchone()
-        sg = c.execute("SELECT family_info FROM participant_safeguarding WHERE participant_id=?", (p["id"],)).fetchone()
+        # the parent's confidential notes: not for extra carers, nor for a young adult whose record was handed over
+        show_sg = not p["is_account_holder"] and not _who(h).get("carer_id")
+        sg = c.execute("SELECT family_info FROM participant_safeguarding WHERE participant_id=?",
+                       (p["id"],)).fetchone() if show_sg else None
         gp = c.execute("SELECT * FROM participant_gp WHERE participant_id=?", (p["id"],)).fetchone()
         level = p["target_level"] if not p["is_account_holder"] else "adult"
         months = formspec.age_months(datetime.date.fromisoformat(p["dob"]))
@@ -228,7 +232,7 @@ def get_participant(h, ref):
             "health": {k: health[k] for k in health.keys() if k not in ("participant_id", "updated_at", "updated_by_account",
                                                                           "updated_by_staff")} if health else None,
             "safeguarding": {"family_info": sg["family_info"] if sg else None, "collection_alert": p["collection_alert"],
-                             "saved": sg is not None},
+                             "saved": sg is not None} if show_sg else None,
             "consents": family.current_consents(c, p["account_id"], p["id"]),
             "consent_questions": formspec.consent_keys(level, months),
             "collection": {"set": bool(p["collection_pw_hash"])},
@@ -245,16 +249,24 @@ def _save_section(c, h, p, name, d):
         if p["is_account_holder"]:
             raise Invalid({"first_name": "Change your name under Your details."})
         v = formspec.clean("child", d, level)
-        haf = v.get("haf_status") or p["haf_status"]
-        if p["haf_status"] == "verified" and haf != "verified":
-            haf = "verified"  # staff verified it; the parent can't undo that from here
-        c.execute("UPDATE participants SET first_name=?, last_name=?, dob=?, gender=?, education=?, school_name=?,"
-                  " haf_status=?, updated_at=? WHERE id=?",
-                  (v["first_name"], v["last_name"], v["dob"], v.get("gender"), v.get("education"), v.get("school_name"),
-                   haf, now, p["id"]))
-        if v.get("haf_status") == "not_sure" and p["haf_status"] != "not_sure":
+        if v["dob"] and formspec.age_months(datetime.date.fromisoformat(v["dob"])) >= 18 * 12:
+            raise Invalid({"dob": "They're 18 or over, so they register themselves as a young adult."})
+        answer = v.get("haf_status")
+        haf = answer or p["haf_status"]
+        # our team's decision (verified, or a "not eligible" the family didn't choose) stands. The form shows it, so
+        # saving it again isn't the family's answer; asking for a place again goes to staff to check
+        if p["haf_status"] == "verified" or (p["haf_status"] == "not_eligible" and p["haf_family_answer"] != "not_eligible"):
+            if p["haf_status"] == "not_eligible" and answer in ("claimed_eligible", "not_sure"):
+                intray.add(c, "haf_verify", "%s's family asked us to check HAF eligibility again" % v["first_name"],
+                           perm="bookings.manage", participant_id=p["id"], account_id=who["id"])
+            haf, answer = p["haf_status"], None
+        elif answer == "not_sure" and p["haf_status"] != "not_sure":
             intray.add(c, "haf_verify", "Check HAF eligibility for %s" % v["first_name"], perm="bookings.manage",
                        participant_id=p["id"], account_id=who["id"])
+        c.execute("UPDATE participants SET first_name=?, last_name=?, dob=?, gender=?, education=?, school_name=?,"
+                  " haf_status=?, haf_family_answer=COALESCE(?, haf_family_answer), updated_at=? WHERE id=?",
+                  (v["first_name"], v["last_name"], v["dob"], v.get("gender"), v.get("education"), v.get("school_name"),
+                   haf, answer, now, p["id"]))
         changed = sorted(v)
     elif name == "gp":
         v = formspec.clean("gp", d, level)
@@ -266,7 +278,8 @@ def _save_section(c, h, p, name, d):
         changed = sorted(v)
     elif name == "health":
         v = formspec.clean("health", d, level)
-        cols = [f["key"] for f in formspec.SPEC["health"]["fields"]]
+        # only what this level's form asks: switching to the short form mustn't wipe SEND needs and the like
+        cols = [f["key"] for f in formspec.SPEC["health"]["fields"] if f["key"] in v]
         old = c.execute("SELECT * FROM participant_health WHERE participant_id=?", (p["id"],)).fetchone()
         values = [v.get(k) for k in cols]
         c.execute("INSERT INTO participant_health(participant_id, %s, updated_at, updated_by_account) VALUES (?, %s, ?, ?)"
@@ -280,6 +293,8 @@ def _save_section(c, h, p, name, d):
             intray.add(c, "health_changed", "Health details changed for %s (booked this week)" % p["first_name"],
                        perm="people.view_health", participant_id=p["id"], account_id=who["id"], dedupe=False)
     elif name == "safeguarding":
+        if p["is_account_holder"]:
+            return h.json({"error": "Unknown section"}, 404)
         v = formspec.clean("safeguarding", d, "full")
         old = c.execute("SELECT family_info FROM participant_safeguarding WHERE participant_id=?", (p["id"],)).fetchone()
         alert_changed = (v.get("collection_alert") or None) != (p["collection_alert"] or None)
@@ -303,23 +318,25 @@ def _save_section(c, h, p, name, d):
         months = formspec.age_months(datetime.date.fromisoformat(p["dob"]))
         asked = formspec.consent_keys(level, months)
         answers = d.get("answers") or {}
-        errors = {}
-        for q in asked:
-            if q["required"] and not answers.get(q["key"]):
-                errors[q["key"]] = "Please choose an answer."
+        if not isinstance(answers, dict):
+            raise Invalid({q["key"]: "Please choose an answer." for q in asked})
+        answers = {q["key"]: answers[q["key"]] for q in asked if isinstance(answers.get(q["key"]), str) and answers[q["key"]]}
+        errors = {q["key"]: "Please choose an answer." for q in asked if q["required"] and q["key"] not in answers}
         if errors:
             raise Invalid(errors)
         current = family.current_consents(c, p["account_id"], p["id"])
         gha = answers.get("go_home_alone")
-        if gha and current.get("go_home_alone") and gha != current["go_home_alone"] and _needs_reauth(h):
+        # a change to an earlier answer, or a first "yes", is a change to how they get home
+        gha_changed = gha and gha != current.get("go_home_alone") and (current.get("go_home_alone") or gha == "yes")
+        if gha_changed and _needs_reauth(h):
             return None  # checked before anything is written
         for q in asked:
             value = answers.get(q["key"])
             if value and current.get(q["key"]) != value:
                 family.record_consent(c, p["account_id"], p["id"], q["key"], value, "profile", ip=h.client_ip())
                 changed.append(q["key"])
-                if q["key"] == "go_home_alone" and current.get("go_home_alone"):
-                    _collection_changed(c, h, p, "going home alone")
+        if gha_changed:
+            _collection_changed(c, h, p, "going home alone")
     elif name == "collection":
         v = formspec.clean("collection", d, "full")
         if p["collection_pw_hash"] and _needs_reauth(h):
