@@ -12,7 +12,9 @@ from .validate import Invalid
 from .web import route, site_url
 
 SOFT = {"level", "reconfirm", "account", "not_open", "closed"}           # staff may simply go ahead
+NEVER = {"booked", "cancelled"}                                          # not even with an override
 OVERRIDE = {"age", "full", "haf", "overlap", "unavailable", "adult", "haf_allowance", "trial"}  # needs bookings.override
+# (book_for_family treats any code in none of these as needing an override too, so a new rule can't slip past)
 PAY_MODES = ("record", "unpaid", "link", "comp")
 
 
@@ -33,8 +35,11 @@ def luhn_like(text):
     return False
 
 
-def clean_payment(d, total):
+def clean_payment(d, total, due=None):
+    """DUE: what's left to take once account credit is used (default TOTAL). With nothing due, a recorded
+    payment defaults to £0 (nothing is recorded)."""
     p = d or {}
+    due = total if due is None else due
     mode = p.get("mode") or ("comp" if not total else "unpaid")
     if mode not in PAY_MODES:
         raise Invalid({"payment": "Choose how it's being paid."})
@@ -43,11 +48,12 @@ def clean_payment(d, total):
         if p.get("method") not in money.METHODS or p.get("method") in ("stripe_card", "account_credit"):
             raise Invalid({"method": "Choose how they paid."})
         try:
-            amount = int(p.get("amount_pence") if p.get("amount_pence") not in (None, "") else total)
+            amount = int(p.get("amount_pence") if p.get("amount_pence") not in (None, "") else due)
         except (TypeError, ValueError):
             raise Invalid({"amount_pence": "Enter the amount paid."})
-        if amount <= 0 or amount > total:
-            raise Invalid({"amount_pence": "Enter an amount up to %s." % money.pounds(total)})
+        if amount < 0 or amount > due or (amount == 0 and due):
+            raise Invalid({"amount_pence": "Enter an amount up to %s%s." % (
+                money.pounds(due), " (their account credit covers the rest)" if due < total else "")})
         ref, notes = validate.text(p.get("reference"), 100), validate.text(p.get("notes"), 300)
         if luhn_like(ref) or luhn_like(notes):
             raise Invalid({"reference": "That looks like a card number — never write card numbers down here."})
@@ -63,7 +69,7 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
     if is_trial and isinstance(raw_items, list):
         raw_items = [dict(it, trial=True) if isinstance(it, dict) else it for it in raw_items]
     items = bookings.resolve_items(c, account, raw_items)
-    lines, quote = bookings.assess(c, account, items)
+    lines, quote = bookings.assess(c, account, items, staff=True)
     problems = []
     for l in lines:
         codes = {p["code"] for p in l["problems"]}
@@ -71,7 +77,9 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
             codes.add("full")
         if "booked" in codes:
             problems.append("%s is already booked on %s %s." % (l["who"], l["activity"], l["date"]))
-        hard = codes & OVERRIDE
+        if "cancelled" in codes:
+            problems.append("%s %s has been cancelled." % (l["activity"], l["date"]))
+        hard = codes - SOFT - NEVER
         if hard and not override:
             problems.append("%s — %s: %s" % (l["who"], l["activity"], "; ".join(p["message"] for p in l["problems"]
                                                                                  if p["code"] in hard) or "full"))
@@ -84,7 +92,8 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
         if not validate.text(reason, 300):
             raise Invalid({"reason": "Give a reason for overriding the rules."})
     total = sum(l["price_pence"] for l in lines)
-    pay = clean_payment(pay, total if pay.get("mode") != "comp" else 0) if total else {"mode": "comp"}
+    credit = min(money.credit_balance(c, account["id"]), total)  # used first, below
+    pay = clean_payment(pay, total if pay.get("mode") != "comp" else 0, total - credit) if total else {"mode": "comp"}
     cid = c.execute("INSERT INTO checkouts(ref, account_id, idempotency_key, amount_pence, pay_mode, status,"
                     " created_by_staff, created_at, completed_at) VALUES (?,?,?,?, 'staff_offline', 'completed', ?,?,?)",
                     (family.new_ref("K"), account["id"], "staff-%s" % family.new_ref("X"), total, staff["id"], db.now(),
@@ -105,11 +114,13 @@ def book_for_family(c, h, account, raw_items, *, pay, override=False, reason="",
     if any(b["price_pence"] for b in booked):
         invoice = money.create_invoice(c, booked, account_id=account["id"], checkout_id=cid, staff_id=staff["id"])
         money.pay_with_credit(c, account["id"], invoice["id"])
-        if pay["mode"] == "record":
-            p = money.record_payment(c, amount=pay["amount"], method=pay["method"], account_id=account["id"],
+        amount = min(pay.get("amount") or 0, money.balance(c.execute("SELECT * FROM invoices WHERE id=?",
+                                                                      (invoice["id"],)).fetchone()))
+        if pay["mode"] == "record" and amount > 0:
+            p = money.record_payment(c, amount=amount, method=pay["method"], account_id=account["id"],
                                      reference=pay["reference"], voucher_provider=pay["voucher_provider"],
                                      notes=pay["notes"], staff_id=staff["id"])
-            money.allocate(c, p["id"], invoice["id"], pay["amount"])
+            money.allocate(c, p["id"], invoice["id"], amount)
         invoice = c.execute("SELECT * FROM invoices WHERE id=?", (invoice["id"],)).fetchone()
     audit.record(c, h, "booking.staff_create", entity_type="checkout", entity_id=cid, account_id=account["id"],
                  details={"bookings": len(booked), "pay": pay["mode"], "override": bool(override)})

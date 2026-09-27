@@ -100,14 +100,20 @@ def place_order(h):
         old = c.execute("SELECT * FROM shop_orders WHERE account_id=? AND idempotency_key=?", (who["id"], key)).fetchone()
         if old:
             return h.json({"ok": True, "order": order_json(c, old)})
-        lines, problems = [], []
+        lines, problems, wanted = [], [], {}
         for it in items:
             try:
                 pid, qty = int((it or {}).get("product")), int((it or {}).get("quantity"))
             except (TypeError, ValueError):
                 continue
+            if qty <= 0:
+                problems.append("Something in your basket is no longer available.")
+                continue
+            wanted[pid] = wanted.get(pid, 0) + qty
+        # the same product twice counts as one line, so the per-order limit and stock see the whole quantity
+        for pid, qty in wanted.items():
             p = c.execute("SELECT * FROM shop_products WHERE id=? AND status='live'", (pid,)).fetchone()
-            if not p or qty <= 0:
+            if not p:
                 problems.append("Something in your basket is no longer available.")
                 continue
             if qty > p["max_per_order"]:
@@ -291,7 +297,11 @@ def _order(c, ref):
 
 
 def cancel_order(c, h, o, reason, staff_id=None):
-    """Put the stock back and credit the invoice; anything paid goes back the way it came (card) or as credit."""
+    """Put the stock back and credit the invoice; anything paid goes back the way it came (card) or as credit.
+    Does nothing to an order that's already cancelled."""
+    o = c.execute("SELECT * FROM shop_orders WHERE id=?", (o["id"],)).fetchone()
+    if o["status"] == "cancelled":
+        return 0
     for ln in c.execute("SELECT * FROM shop_order_lines WHERE order_id=?", (o["id"],)).fetchall():
         c.execute("UPDATE shop_products SET stock=stock+? WHERE id=? AND stock IS NOT NULL", (ln["quantity"], ln["product_id"]))
     refunded = 0
@@ -344,14 +354,16 @@ def order_status(h, ref):
 
 @worker.job("shop_unpaid", every=3600, timeout=120)
 def cancel_unpaid():
-    """Card orders nobody paid for within a day are cancelled, so their stock goes back on sale."""
+    """Card orders nobody paid for within a day are cancelled, so their stock goes back on sale — but not while a
+    card payment for one is under way (any that lands later is refunded)."""
     cutoff = (datetime.datetime.now(datetime.timezone.utc) - datetime.timedelta(hours=UNPAID_CARD_HOURS)
               ).strftime("%Y-%m-%dT%H:%M:%SZ")
     n = 0
     with db.tx() as c:
         for o in c.execute("SELECT o.* FROM shop_orders o JOIN invoices i ON i.id=o.invoice_id WHERE o.pay_mode='card'"
-                           " AND o.status='new' AND i.status='issued' AND i.paid_pence=0 AND o.created_at<?",
-                           (cutoff,)).fetchall():
+                           " AND o.status='new' AND i.status='issued' AND i.paid_pence=0 AND o.created_at<? AND NOT"
+                           " EXISTS (SELECT 1 FROM checkouts k WHERE k.invoice_id=i.id AND k.status IN"
+                           " ('creating','awaiting_payment') AND k.expires_at>?)", (cutoff, db.now())).fetchall():
             cancel_order(c, None, o, "Card payment not completed")
             acct = c.execute("SELECT * FROM accounts WHERE id=?", (o["account_id"],)).fetchone()
             outbox.email(c, acct["email"], "shop_cancelled", {"first_name": acct["first_name"], "ref": o["ref"],

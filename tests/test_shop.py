@@ -82,6 +82,10 @@ class ShopTest(ServerTestCase):
             self.assertTrue(r["redirect"].startswith("https://stripe.test/pay/"))
         with db.tx() as c:
             c.execute("UPDATE shop_orders SET created_at='2000-01-01T00:00:00Z' WHERE ref=?", (r["order"]["ref"],))
+        self.assertIsNone(shop.cancel_unpaid())  # its card payment is still open: left alone
+        with db.tx() as c:
+            c.execute("UPDATE checkouts SET expires_at='2000-01-01T00:40:00Z' WHERE invoice_id=(SELECT invoice_id"
+                      " FROM shop_orders WHERE ref=?)", (r["order"]["ref"],))
         self.assertIn("cancelled 1", shop.cancel_unpaid())
         self.assertIn("cancelled it", last_email_to(fam.email))
         with db.read() as c:
@@ -89,3 +93,38 @@ class ShopTest(ServerTestCase):
             inv = c.execute("SELECT i.* FROM invoices i JOIN shop_orders o ON o.invoice_id=i.id WHERE o.ref=?",
                             (r["order"]["ref"],)).fetchone()
             self.assertEqual(money.balance(inv), 0)  # credited, nothing owed
+
+    def test_cancelling_twice_restocks_once(self):
+        set_settings(shop_live=True)
+        staff = self.admin(roles=("manager",))
+        p = self.product(staff, stock=3)
+        fam = register_family()
+        r = ok(order(fam, [{"product": p["id"], "quantity": 2}])).json()["order"]
+        ok(staff.post_json("/api/staff/payments", {"invoice_number": r["invoice"]["number"], "method": "cash",
+                                                   "amount_pence": 1000}))
+        first = ok(staff.post_json("/api/staff/shop/orders/%s/status" % r["ref"], {"to": "cancelled"})).json()
+        again = ok(staff.post_json("/api/staff/shop/orders/%s/status" % r["ref"], {"to": "cancelled"})).json()
+        self.assertEqual((first["refunded_pence"], again["refunded_pence"]), (1000, 0))
+        with db.read() as c:
+            self.assertEqual(c.execute("SELECT stock FROM shop_products WHERE id=?", (p["id"],)).fetchone()[0], 3)
+            aid = c.execute("SELECT id FROM accounts WHERE email=?", (fam.email,)).fetchone()[0]
+            self.assertEqual(money.credit_balance(c, aid), 1000)
+
+    def test_repeated_lines_count_together(self):
+        set_settings(shop_live=True)
+        staff = self.admin(roles=("manager",))
+        pack = self.product(staff, title="Art pack", stock=6, max_per_order=5)
+        card = self.product(staff, title="Card", stock=None, max_per_order=2)
+        fam = register_family()
+        r = order(fam, [{"product": pack["id"], "quantity": 3}, {"product": pack["id"], "quantity": 3}])
+        self.assertEqual(r.status, 409)
+        self.assertIn("up to 5 of Art pack", r.json()["error"])
+        self.assertEqual(order(fam, [{"product": card["id"], "quantity": 2}] * 3).status, 409)
+        r = ok(order(fam, [{"product": pack["id"], "quantity": 2}, {"product": pack["id"], "quantity": 2}])).json()
+        self.assertEqual(r["order"]["lines"], [{"title": "Art pack", "quantity": 4, "unit_pence": 500,
+                                                "amount_pence": 2000}])
+        with db.read() as c:
+            self.assertEqual(c.execute("SELECT stock FROM shop_products WHERE id=?", (pack["id"],)).fetchone()[0], 2)
+        r = order(fam, [{"product": pack["id"], "quantity": 2}, {"product": pack["id"], "quantity": 1}])
+        self.assertEqual(r.status, 409)
+        self.assertIn("only 2 of Art pack left", r.json()["error"])

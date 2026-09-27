@@ -60,6 +60,22 @@ class DiscountTest(ServerTestCase):
                                                            {"session_id": tsid, "participant": b}]})).json()
         self.assertEqual(sorted(l["price_pence"] for l in q["lines"]), [500, 2000])
 
+    def test_waiting_list_places_dont_earn_discounts(self):
+        set_settings(sibling_discount_percent=10, multi_day_discount_percent=0)
+        fam = register_family()
+        a, b = complete_child(fam, first_name="Ada"), complete_child(fam, first_name="Ben", dob="2017-03-03")
+        aid, (s0, s1) = make_activity(sessions=2, capacity=1, price=2000, allow_pay_later=1)
+        q = ok(fam.post_json("/api/book/quote", {"items": [{"session_id": s0, "participant": a},
+                                                           {"session_id": s0, "participant": b}]})).json()
+        self.assertEqual([(l["outcome"], l["price_pence"]) for l in q["lines"]], [("pay", 2000), ("waitlist", 2000)])
+        # multi-day: the second day is full, so only one day is actually being booked
+        set_settings(sibling_discount_percent=0, multi_day_discount_percent=20, multi_day_min_sessions=2)
+        other = register_family()
+        confirm(other, [{"session_id": s1, "participant": complete_child(other)}])
+        q = ok(fam.post_json("/api/book/quote", {"items": [{"session_id": s0, "participant": a},
+                                                           {"session_id": s1, "participant": a}]})).json()
+        self.assertEqual([(l["outcome"], l["price_pence"]) for l in q["lines"]], [("pay", 2000), ("waitlist", 2000)])
+
 
 class FinanceReportTest(ServerTestCase):
     def setUp(self):

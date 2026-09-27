@@ -3,7 +3,7 @@ at /admin/invoices/<number>). "Print / save as PDF" uses the browser's print
 dialog — no PDF library needed."""
 import datetime
 
-from . import booking_settings, money
+from . import booking_settings, catalogue, money
 from .markup import html as esc
 from .web import csp, csp_header
 
@@ -12,6 +12,11 @@ STATUS = {"issued": "Unpaid", "part_paid": "Part paid", "paid": "Paid", "void": 
 
 def _d(iso):
     return datetime.date.fromisoformat(iso[:10]).strftime("%-d %B %Y")
+
+
+def _uk_day(at):
+    """A UTC *_at instant → its UK date (a payment at 00:30 BST is that day, not the day before)."""
+    return catalogue.parse_utc(at).astimezone(catalogue.UK).strftime("%-d %B %Y")
 
 
 def render(c, inv, *, can_pay=False, nonce="", staff=False):
@@ -26,7 +31,7 @@ def render(c, inv, *, can_pay=False, nonce="", staff=False):
     credits = "".join("<tr><td colspan=3>Credit note %s — %s</td><td class=num>−%s</td></tr>" % (
         esc(cn["number"]), esc(cn["reason"]), esc(money.pounds(cn["total_pence"]))) for cn in data["credit_notes"])
     pays = "".join("<tr><td colspan=3>Paid: %s, %s</td><td class=num>−%s</td></tr>" % (
-        esc(p["method"]), esc(_d(p["received_at"])), esc(money.pounds(p["amount_pence"]))) for p in data["payments"])
+        esc(p["method"]), esc(_uk_day(p["received_at"])), esc(money.pounds(p["amount_pence"]))) for p in data["payments"])
     bank = ""
     if s["bank_account_number"]:
         bank = "<p><strong>Bank transfer:</strong> %s · sort code %s · account %s · reference <strong>%s</strong></p>" % (

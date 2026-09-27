@@ -220,8 +220,8 @@ Card payments use **Stripe Checkout**. In the charity's Stripe account:
 2. *Developers → Webhooks → Add endpoint*: `{SITE_URL}/api/stripe/webhook`,
    with the events `checkout.session.completed`,
    `checkout.session.async_payment_succeeded`, `checkout.session.expired`,
-   `checkout.session.async_payment_failed`, `charge.refunded` and
-   `charge.dispute.created`. Copy its signing secret into
+   `checkout.session.async_payment_failed`, `charge.refunded`,
+   `refund.updated` and `charge.dispute.created`. Copy its signing secret into
    `STRIPE_WEBHOOK_SECRET`.
 
 For the switch from MagicBooking, follow `docs/booking/LAUNCH.md` (the cutover

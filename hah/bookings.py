@@ -111,8 +111,10 @@ def _price(item):
     return unit * len(item["children"]) + a["adult_price_pence"] * item["adults"]
 
 
-def assess(c, account, items):
-    """Work out what would happen to each item. Returns (lines, quote)."""
+def assess(c, account, items, *, staff=False):
+    """Work out what would happen to each item. Returns (lines, quote). STAFF:
+    staff confirm every line they book, so waiting-list and approval lines count
+    towards discounts too."""
     checker = eligibility.Checker(c, account)
     allocated, basket, lines, trials = {}, [], [], set()
     for it in items:
@@ -181,21 +183,22 @@ def assess(c, account, items):
             if ref and any(k in ("level", "haf") for k, _ in problems) else
             ("/account" if any(k in ("reconfirm", "account") for k, _ in problems) else None),
         })
-    _discounts(c, account, lines)
+    _discounts(c, account, lines, staff)
     return lines, _quote(c, account, lines)
 
 
-def _discounts(c, account, lines):
-    """Sibling and multi-day discounts, worked out on the whole basket. Only full-price paid places qualify (not
-    trials, HAF or free places); each place gets the bigger of the two, never both."""
+def _discounts(c, account, lines, staff=False):
+    """Sibling and multi-day discounts, worked out on the whole basket. Only full-price paid places being booked
+    now qualify (not trials, HAF, free, waiting-list or approval places); each place gets the bigger of the two,
+    never both."""
     st = booking_settings.get_all(c)
     sib, multi, need = st["sibling_discount_percent"], st["multi_day_discount_percent"], st["multi_day_min_sessions"]
     for l in lines:
         l.update(discount_pence=0, discount_reason=None, full_price_pence=l["price_pence"])
     if not (sib or multi):
         return
-    ok = [l for l in lines if l["item"]["kind"] == "participant" and l["outcome"] != "blocked" and l["funding"] == "paid"
-          and not l["trial"] and l["price_pence"] > 0]
+    ok = [l for l in lines if l["item"]["kind"] == "participant" and l["funding"] == "paid" and not l["trial"]
+          and l["price_pence"] > 0 and (l["outcome"] != "blocked" if staff else l["outcome"] == "pay")]
     pct = {}
     if multi:
         count = {}
@@ -387,8 +390,10 @@ def confirm_basket(c, h, account, raw_items, pay_mode, idempotency_key):
 
 
 def _invoice_checkout(c, checkout, bookings):
-    """Invoice the confirmed bookings of a checkout (£0 lines too, if anything costs money)."""
-    confirmed = [b for b in bookings if b["status"] == "confirmed" and b["funding"] != "prepaid_legacy"]
+    """Invoice the confirmed bookings of a checkout (£0 lines too, if anything costs money) — except any already
+    invoiced (a place approved while the card payment was in progress)."""
+    confirmed = [b for b in bookings if b["status"] == "confirmed" and b["funding"] != "prepaid_legacy"
+                 and not money.invoice_for_booking(c, b["id"])]
     if not any(b["price_pence"] for b in confirmed):
         return None
     return money.create_invoice(c, confirmed, account_id=checkout["account_id"],
@@ -451,44 +456,64 @@ def complete_card_checkout(c, checkout, *, payment_intent, amount, currency="gbp
             checkout["ref"], money.pounds(int(amount)), money.pounds(checkout["amount_pence"])),
             perm="finance.view", entity_type="checkout", entity_id=checkout["id"], account_id=checkout["account_id"])
         return "mismatch"
-    pay = money.record_payment(c, amount=int(amount), method="stripe_card", account_id=checkout["account_id"],
+    amount = int(amount)
+    pay = money.record_payment(c, amount=amount, method="stripe_card", account_id=checkout["account_id"],
                                guest_contact_id=checkout["guest_contact_id"], stripe_payment_intent_id=payment_intent,
                                stripe_checkout_session_id=session_id)
     c.execute("UPDATE checkouts SET status='completed', completed_at=? WHERE id=?", (db.now(), checkout["id"]))
     if checkout["invoice_id"]:  # paying an existing invoice
-        money.allocate(c, pay["id"], checkout["invoice_id"], int(amount))
+        used = money.allocate(c, pay["id"], checkout["invoice_id"], amount)
         inv = c.execute("SELECT * FROM invoices WHERE id=?", (checkout["invoice_id"],)).fetchone()
-        acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
-            if checkout["account_id"] else None
-        to = acct["email"] if acct else inv["bill_to_email"]
-        outbox.email(c, to, "payment_received", {"name": inv["bill_to_name"], "number": inv["number"],
-                                                 "amount": money.pounds(int(amount)),
-                                                 "balance": money.pounds(money.balance(inv))},
-                     account_id=checkout["account_id"])
+        if used:
+            acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
+                if checkout["account_id"] else None
+            to = acct["email"] if acct else inv["bill_to_email"]
+            outbox.email(c, to, "payment_received", {"name": inv["bill_to_name"], "number": inv["number"],
+                                                     "amount": money.pounds(used),
+                                                     "balance": money.pounds(money.balance(inv))},
+                         account_id=checkout["account_id"])
+        if amount > used:  # paid twice, paid another way meanwhile, voided or cancelled: give the rest back
+            _refund_unused(c, h, checkout, pay, amount - used, "invoice %s %s" % (
+                inv["number"], "was void" if inv["status"] == "void" else "was already paid or credited"))
         return "paid_invoice"
     bookings = c.execute("SELECT * FROM bookings WHERE checkout_id=?", (checkout["id"],)).fetchall()
-    late = []
-    for b in bookings:
-        if b["status"] == "pending_payment":
-            confirm_booking(c, b)
-        elif b["status"] == "expired" and b["price_pence"]:
-            s = c.execute("SELECT * FROM activity_sessions WHERE id=?", (b["session_id"],)).fetchone()
-            if s["status"] == "scheduled" and waitlist.free_places(c, s) >= b["places"]:
-                confirm_booking(c, b)
-            else:
-                late.append(b)
+    credit_ok = True
     if checkout["credit_payment_id"]:
+        cp = c.execute("SELECT status FROM payments WHERE id=?", (checkout["credit_payment_id"],)).fetchone()
+        if cp["status"] == "failed":
+            # the hold lapsed and the credit went back to the family: use it again only if it's still there
+            credit_ok = money.credit_balance(c, checkout["account_id"]) >= checkout["credit_pence"]
+    late, freed = [], set()
+    for b in bookings:
+        if not _card_place(checkout, b):
+            continue
+        if b["status"] == "pending_payment" and credit_ok:
+            confirm_booking(c, b)
+        elif b["status"] == "expired" and credit_ok and _can_revive(c, b):
+            confirm_booking(c, b)
+        elif b["status"] in ("pending_payment", "expired", "cancelled"):
+            if b["status"] == "pending_payment":
+                c.execute("UPDATE bookings SET status='expired', hold_expires_at=NULL, updated_at=? WHERE id=?",
+                          (db.now(), b["id"]))
+                freed.add(b["session_id"])
+            late.append(b)
+    for sid in freed:
+        waitlist.places_freed(c, sid, h)
+    if checkout["credit_payment_id"] and credit_ok:
         c.execute("UPDATE payments SET status='succeeded' WHERE id=?", (checkout["credit_payment_id"],))
     bookings = c.execute("SELECT * FROM bookings WHERE checkout_id=?", (checkout["id"],)).fetchall()
     invoice = _invoice_checkout(c, checkout, bookings)
     card_used = credit_used = 0
     if invoice:
-        card_used = money.allocate(c, pay["id"], invoice["id"], int(amount))
-        if checkout["credit_payment_id"]:
+        card_used = money.allocate(c, pay["id"], invoice["id"], amount)
+        if checkout["credit_payment_id"] and credit_ok:
             credit_used = money.allocate(c, checkout["credit_payment_id"], invoice["id"], checkout["credit_pence"])
     if late:
-        _refund_late(c, h, checkout, pay, late, int(amount) - card_used,
-                     (checkout["credit_pence"] - credit_used) if checkout["credit_payment_id"] else 0)
+        late = [c.execute("SELECT * FROM bookings WHERE id=?", (b["id"],)).fetchone() for b in late]
+        _refund_late(c, h, checkout, pay, late, amount - card_used,
+                     (checkout["credit_pence"] - credit_used) if checkout["credit_payment_id"] and credit_ok else 0)
+    elif amount > card_used:
+        _refund_unused(c, h, checkout, pay, amount - card_used, "its places were already invoiced")
     acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
         if checkout["account_id"] else None
     lost = {b["id"] for b in late}
@@ -499,32 +524,77 @@ def complete_card_checkout(c, checkout, *, payment_intent, amount, currency="gbp
         from . import guests
         guests.send_confirmation(c, h, checkout, kept, invoice)
     audit.record(c, h, "checkout.paid", entity_type="checkout", entity_id=checkout["id"],
-                 account_id=checkout["account_id"], details={"amount": int(amount)})
+                 account_id=checkout["account_id"], details={"amount": amount})
     return "completed"
 
 
+def _card_place(checkout, b):
+    """Is B one of the places this card checkout pays for (not a waiting-list or approval place from the same
+    basket, which are paid for separately if they go ahead)?"""
+    return bool(b["price_pence"]) and not b["approval_reason"] and \
+        not (b["waitlist_group"] or "").startswith(checkout["ref"] + ":")
+
+
+def _can_revive(c, b):
+    """A released place whose payment turned up late: still free, and the child not booked on it again since?"""
+    s = c.execute("SELECT * FROM activity_sessions WHERE id=?", (b["session_id"],)).fetchone()
+    if s["status"] != "scheduled" or waitlist.free_places(c, s) < b["places"]:
+        return False
+    return not (b["participant_id"] and c.execute(
+        "SELECT 1 FROM bookings WHERE session_id=? AND participant_id=? AND id<>? AND status NOT IN"
+        " ('cancelled','expired')", (b["session_id"], b["participant_id"], b["id"])).fetchone())
+
+
+def _card_back(c, checkout, pay, pence):
+    """Give back PENCE of a card payment: to the card (sent by the refunds job), or — with no payment intent to
+    refund against — as account credit, or for staff to hand back. Returns how."""
+    if pence <= 0:
+        return None
+    if pay["stripe_payment_intent_id"]:
+        how, status = "stripe", "pending"
+    else:
+        how, status = ("account_credit", "succeeded") if checkout["account_id"] else ("bank_transfer", "pending")
+    c.execute("INSERT INTO refunds(payment_id, account_id, amount_pence, method, status, created_at, processed_at)"
+              " VALUES (?,?,?,?,?,?,?)", (pay["id"], checkout["account_id"], pence, how, status, db.now(),
+                                          db.now() if status == "succeeded" else None))
+    return how
+
+
+def _refund_unused(c, h, checkout, pay, pence, why):
+    """A card payment landed for more than was still owed: the rest goes back automatically; staff are told."""
+    how = _card_back(c, checkout, pay, pence)
+    intray.add(c, "payment_problem", "Card payment for %s was more than needed (%s): %s %s" % (
+        checkout["ref"], why, money.pounds(pence), "added as account credit" if how == "account_credit" else
+        "to refund by hand" if how == "bank_transfer" else "refunded automatically"),
+        perm="finance.view", entity_type="checkout", entity_id=checkout["id"], account_id=checkout["account_id"],
+        dedupe=False)
+    audit.record(c, h, "checkout.unused_refund", entity_type="checkout", entity_id=checkout["id"],
+                 account_id=checkout["account_id"], details={"amount": pence, "method": how})
+
+
 def _refund_late(c, h, checkout, pay, late, card_back, credit_back):
-    """The card payment arrived after some held places had gone to someone else: give back what wasn't used —
+    """The card payment arrived after some held places were released (or cancelled): give back what wasn't used —
     to the card (sent by the refunds job), and any account credit that was used — and tell the family."""
-    if card_back > 0:
-        c.execute("INSERT INTO refunds(payment_id, account_id, amount_pence, method, status, created_at)"
-                  " VALUES (?,?,?, 'stripe', 'pending', ?)", (pay["id"], checkout["account_id"], card_back, db.now()))
+    how = _card_back(c, checkout, pay, card_back)
     if credit_back > 0 and checkout["account_id"]:
         c.execute("INSERT INTO refunds(account_id, amount_pence, method, status, created_at, processed_at)"
                   " VALUES (?,?, 'account_credit', 'succeeded', ?,?)",
                   (checkout["account_id"], credit_back, db.now(), db.now()))
-    intray.add(c, "late_payment", "Card payment arrived after %d place(s) were released (%s): %s refunded"
-               " automatically" % (len(late), checkout["ref"], money.pounds(card_back + max(credit_back, 0))),
+    intray.add(c, "late_payment", "Card payment arrived after %d place(s) were released or cancelled (%s): %s"
+               " refunded automatically" % (len(late), checkout["ref"], money.pounds(card_back + max(credit_back, 0))),
                perm="finance.view", entity_type="checkout", entity_id=checkout["id"], account_id=checkout["account_id"])
     acct = c.execute("SELECT * FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone() \
         if checkout["account_id"] else None
     to = acct["email"] if acct else (c.execute("SELECT email FROM guest_contacts WHERE id=?",
                                                (checkout["guest_contact_id"],)).fetchone() or [None])[0]
-    if to:
+    # cancelled places: the family has had the cancellation email; this one says the place went to someone else
+    if to and any(b["status"] != "cancelled" for b in late):
         outbox.email(c, to, "late_payment_refund",
                      {"first_name": acct["first_name"] if acct else "there", "lines": summary_text(c, late),
                       "back": " and ".join(x for x in (
-                          "%s to your card" % money.pounds(card_back) if card_back > 0 else "",
+                          "%s %s" % (money.pounds(card_back), {"stripe": "to your card", "account_credit":
+                                                               "as account credit"}.get(how, "by bank transfer"))
+                          if card_back > 0 else "",
                           "%s as account credit" % money.pounds(credit_back) if credit_back > 0 else "") if x) or "nothing",
                       "book_url": site_url(h) + "/book"},
                      account_id=checkout["account_id"])
@@ -691,8 +761,9 @@ def cancel(c, h, b, *, reason, money_outcome="none", by_staff=None, by_account=N
         if cn and refundable:
             how = {"credit": "account_credit", "refund_card": "stripe", "refund_offline": "bank_transfer"}[money_outcome]
             if how == "account_credit" and not b["account_id"]:
-                how = "bank_transfer"
-            money.refund(c, cn, refundable, how, account_id=b["account_id"], staff_id=by_staff)
+                how = "bank_transfer"  # a guest: no account to hold credit, so Finance hands it back
+            money.refund(c, cn, refundable, how, account_id=b["account_id"], staff_id=by_staff,
+                         handed_back=money_outcome == "refund_offline")
             refunded = refundable
     intray.resolve(c, "booking_approval", entity_type="booking", entity_id=b["id"], staff_id=by_staff)
     audit.record(c, h, "booking.cancel", entity_type="booking", entity_id=b["id"], account_id=b["account_id"],

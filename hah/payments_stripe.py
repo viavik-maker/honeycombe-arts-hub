@@ -4,7 +4,7 @@ Settings (host environment only — never in the database or content.json):
   STRIPE_SECRET_KEY       sk_live_… / sk_test_…
   STRIPE_WEBHOOK_SECRET   whsec_… (Dashboard → Developers → Webhooks, endpoint
                           {SITE_URL}/api/stripe/webhook, events: checkout.session.*,
-                          charge.refunded, charge.dispute.created)
+                          charge.refunded, refund.updated, charge.dispute.created)
   STRIPE_API_BASE         only for tests (a fake Stripe)
 
 Flow: the booking transaction holds the places (pending_payment) and
@@ -119,6 +119,8 @@ def start_checkout(checkout_ref, h=None, email=None):
     from . import bookings
     with db.read() as c:
         checkout = c.execute("SELECT * FROM checkouts WHERE ref=?", (checkout_ref,)).fetchone()
+        if checkout["status"] == "awaiting_payment" and checkout["stripe_url"]:
+            return checkout["stripe_url"]  # already open (pay_invoice reuses one)
         items = _line_items(c, checkout)
         if not email and checkout["account_id"]:
             email = c.execute("SELECT email FROM accounts WHERE id=?", (checkout["account_id"],)).fetchone()[0]
@@ -148,19 +150,30 @@ def start_checkout(checkout_ref, h=None, email=None):
 
 
 def pay_invoice(c, h, inv, account_id=None, guest_contact_id=None):
-    """Make a checkout for an invoice's balance (inside a tx). Returns its ref;
-    call start_checkout(ref) after committing."""
+    """Make a checkout for an invoice's balance (inside a tx), or reuse the one
+    already open for it, so a second click can't take a second payment.
+    Returns its ref; call start_checkout(ref) after committing."""
     from . import family, money
     bal = money.balance(inv)
+    if inv["status"] == "void":
+        raise ValueError("This invoice has been cancelled.")
     if bal <= 0:
         raise ValueError("This invoice has been paid.")
     if not configured():
         raise ValueError("Card payments aren't available — please pay by bank transfer or vouchers, quoting %s."
                          % inv["number"])
+    # Stripe's page closes 31 minutes after it opens (expires_at is 35): leave the family time to finish
+    open_ = c.execute("SELECT ref FROM checkouts WHERE invoice_id=? AND account_id IS ? AND guest_contact_id IS ?"
+                      " AND status='awaiting_payment' AND stripe_url IS NOT NULL AND amount_pence=? AND expires_at>?"
+                      " ORDER BY id DESC LIMIT 1",
+                      (inv["id"], account_id, guest_contact_id, bal,
+                       catalogue.utc_iso(catalogue.uk_now() + datetime.timedelta(minutes=15)))).fetchone()
+    if open_:
+        return open_["ref"]
     ref = family.new_ref("K")
     c.execute("INSERT INTO checkouts(ref, account_id, guest_contact_id, invoice_id, idempotency_key, amount_pence,"
               " pay_mode, status, expires_at, created_at) VALUES (?,?,?,?,?,?, 'stripe', 'creating', ?, ?)",
-              (ref, account_id, guest_contact_id, inv["id"], "invoice-%s-%s" % (inv["number"], db.now()), bal,
+              (ref, account_id, guest_contact_id, inv["id"], "invoice-%s-%s" % (inv["number"], ref), bal,
                catalogue.utc_iso(catalogue.uk_now() + datetime.timedelta(minutes=35)), db.now()))
     return ref
 
@@ -226,24 +239,52 @@ def webhook(h):
             if checkout:
                 result = "released" if bookings.release_checkout(
                     c, checkout, "failed" if etype.endswith("failed") else "expired") else "already"
-        elif etype in ("charge.refunded", "refund.updated", "charge.refund.updated"):
+        elif etype in ("charge.refunded", "refund.updated", "refund.failed", "charge.refund.updated"):
             result = _refund_update(c, obj)
         elif etype == "charge.dispute.created":
-            intray.add(c, "payment_dispute", "A card payment has been disputed (Stripe) — check the Stripe dashboard",
-                       perm="finance.view", entity_type="stripe_charge", dedupe=False)
-            result = "in-tray"
+            result = _dispute(c, obj)
         c.execute("UPDATE stripe_events SET processed_at=?, status=? WHERE id=?", (db.now(), str(result)[:40], eid))
     return h.json({"ok": True, "result": result})
 
 
+def _dispute(c, obj):
+    """A chargeback: tell Finance which payment it is, so they can respond in the Stripe dashboard."""
+    from . import money
+    charge, pi, amount = obj.get("charge") or "", obj.get("payment_intent") or "", obj.get("amount")
+    pay = c.execute("SELECT * FROM payments WHERE stripe_payment_intent_id=?", (pi,)).fetchone() if pi else None
+    bits = ([money.pounds(amount)] if isinstance(amount, int) else []) + ([pay["ref"]] if pay else [])
+    intray.add(c, "payment_dispute", "A card payment%s has been disputed (Stripe) — check the Stripe dashboard" % (
+        " (%s)" % ", ".join(bits) if bits else ""),
+        detail="Dispute %s · charge %s · payment intent %s · reason: %s" % (
+            obj.get("id") or "?", charge or "?", pi or "?", obj.get("reason") or "not given"),
+        perm="finance.view", entity_type="payment" if pay else "stripe_charge", entity_id=pay["id"] if pay else None,
+        account_id=pay["account_id"] if pay else None, dedupe=False)
+    return "in-tray"
+
+
 def _refund_update(c, obj):
-    refunds = obj.get("refunds", {}).get("data") if obj.get("object") == "charge" else [obj]
+    """charge.refunded carries the charge (with its refunds only on older API versions); refund.updated and
+    refund.failed carry the refund itself."""
+    refunds = ((obj.get("refunds") or {}).get("data") or []) if obj.get("object") == "charge" else [obj]
     n = 0
-    for r in refunds or []:
+    for r in refunds:
         status = {"succeeded": "succeeded", "failed": "failed", "canceled": "failed"}.get(r.get("status"))
-        if status and r.get("id"):
-            n += c.execute("UPDATE refunds SET status=?, processed_at=? WHERE stripe_refund_id=? AND status<>?",
-                           (status, db.now(), r["id"], status)).rowcount
+        if not status or not r.get("id"):
+            continue
+        # the webhook can beat send_refunds() to storing the Stripe id: match on our id in the metadata too
+        ours = str((r.get("metadata") or {}).get("refund_id") or "")
+        row = c.execute("SELECT * FROM refunds WHERE stripe_refund_id=?", (r["id"],)).fetchone() or (
+            c.execute("SELECT * FROM refunds WHERE id=? AND method='stripe' AND stripe_refund_id IS NULL",
+                      (int(ours),)).fetchone() if ours.isdigit() else None)
+        if not row or row["status"] == status:
+            continue
+        c.execute("UPDATE refunds SET status=?, stripe_refund_id=?, processed_at=?, failure_reason=? WHERE id=?",
+                  (status, r["id"], db.now(), (r.get("failure_reason") or "refund %s" % r["status"])[:300]
+                   if status == "failed" else row["failure_reason"], row["id"]))
+        if status == "failed":
+            intray.add(c, "refund_failed", "A card refund failed at Stripe — check Finance", perm="finance.view",
+                       entity_type="refund", entity_id=row["id"], account_id=row["account_id"])
+        n += 1
     return "refunds %d" % n
 
 
@@ -343,7 +384,9 @@ def send_refunds():
         with db.tx() as c:
             status = "succeeded" if res.get("status") == "succeeded" else ("failed" if res.get("status") == "failed"
                                                                            else "pending")
-            c.execute("UPDATE refunds SET stripe_refund_id=?, status=?, processed_at=? WHERE id=?",
+            # a refund.updated webhook may already have recorded it (and its outcome)
+            c.execute("UPDATE refunds SET stripe_refund_id=?, status=?, processed_at=? WHERE id=?"
+                      " AND stripe_refund_id IS NULL",
                       (res.get("id"), status, db.now() if status != "pending" else None, r["id"]))
         sent += 1
     return "sent %d, failed %d" % (sent, failed)

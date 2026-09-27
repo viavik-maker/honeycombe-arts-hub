@@ -165,11 +165,12 @@ def record_payment(c, *, amount, method, account_id=None, guest_contact_id=None,
 
 
 def allocate(c, payment_id, invoice_id, amount):
-    """Put AMOUNT of a payment against an invoice (capped at its balance).
-    Returns what was allocated."""
+    """Put AMOUNT of a payment against an invoice (capped at its balance;
+    nothing against a void one). Returns what was allocated — the caller
+    deals with any remainder."""
     inv = c.execute("SELECT * FROM invoices WHERE id=?", (invoice_id,)).fetchone()
     amount = min(amount, balance(inv))
-    if amount <= 0:
+    if amount <= 0 or inv["status"] == "void":
         return 0
     c.execute("INSERT INTO payment_allocations(payment_id, invoice_id, amount_pence) VALUES (?,?,?)"
               " ON CONFLICT(payment_id, invoice_id) DO UPDATE SET amount_pence=amount_pence+excluded.amount_pence",
@@ -235,11 +236,13 @@ def credit_note(c, invoice, bookings, reason, *, staff_id=None, account_id=None,
     return c.execute("SELECT * FROM credit_notes WHERE id=?", (cn,)).fetchone(), refundable
 
 
-def refund(c, credit_note_row, amount, how, *, account_id=None, staff_id=None):
+def refund(c, credit_note_row, amount, how, *, account_id=None, staff_id=None, handed_back=False):
     """Give AMOUNT back. HOW: 'account_credit' (immediate), 'stripe' (queued;
     the worker calls Stripe outside the transaction), 'cash' or
-    'bank_transfer' (recorded by staff as done). Card refunds go against the
-    invoice's card payments, newest first; anything left becomes credit."""
+    'bank_transfer' (done if HANDED_BACK — staff say they've given it back —
+    otherwise pending, for Finance to hand back and mark done). Card refunds go
+    against the invoice's card payments, newest first; anything left becomes
+    credit (or, with no account, a pending refund to hand back)."""
     if amount <= 0:
         return []
     out = []
@@ -259,8 +262,8 @@ def refund(c, credit_note_row, amount, how, *, account_id=None, staff_id=None):
             amount -= give
             if amount <= 0:
                 return out
-        how = "account_credit" if account_id else "bank_transfer"
-    status = "succeeded" if how == "account_credit" else ("succeeded" if staff_id else "pending")
+        how, handed_back = ("account_credit" if account_id else "bank_transfer"), False
+    status = "succeeded" if how == "account_credit" or handed_back else "pending"
     out.append(c.execute("INSERT INTO refunds(credit_note_id, account_id, amount_pence, method, status, created_by_staff,"
                          " created_at, processed_at) VALUES (?,?,?,?,?,?,?,?)",
                          (credit_note_row["id"], account_id, amount, how, status, staff_id, db.now(),
