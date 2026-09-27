@@ -101,7 +101,7 @@ class FakeStripe:
                     fake.fail_next = False
                     return self._send(500, {"error": {"message": "boom"}})
                 if self.path == "/v1/checkout/sessions":
-                    sid = "cs_test_%d_%d" % (id(fake), len(fake.sessions))
+                    sid = "cs_test_%d" % next(_n)  # unique across fakes (id() of a freed fake can repeat)
                     total = sum(int(form["line_items[%d][price_data][unit_amount]" % i]) *
                                 int(form["line_items[%d][quantity]" % i])
                                 for i in range(100) if "line_items[%d][quantity]" % i in form)
@@ -116,7 +116,7 @@ class FakeStripe:
                     fake.sessions[sid]["status"] = "expired"
                     return self._send(200, fake.sessions[sid])
                 if self.path == "/v1/refunds":
-                    r = {"id": "re_%d_%d" % (id(fake), len(fake.refunds)), "status": "succeeded", "amount": int(form["amount"]),
+                    r = {"id": "re_%d" % next(_n), "status": "succeeded", "amount": int(form["amount"]),
                          "payment_intent": form["payment_intent"]}
                     fake.refunds.append(r)
                     return self._send(200, r)
