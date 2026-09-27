@@ -8,7 +8,16 @@ const FLAG_TEXT = { allergy: "Allergy", anaphylaxis: "ANAPHYLAXIS", medical: "Me
 const STATUS = { expected: ["Expected", "muted"], present: ["In", "ok"], absent: ["Absent", "bad"], absent_notified: ["Absent (told us)", "warn"] };
 const PHOTO = { online: ["Photos OK", "ok"], internal: ["Photos: internal only", "warn"], none: ["NO PHOTOS", "bad"] };
 const isoToday = ukToday;
-const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }) : "";
+// the people on a row: the child, or the named children of a group booking
+const kidsOf = (r) => r.person ? [r.person] : r.party.named;
+const personChips = (p, r) => [
+  ...Object.entries(p.flags).filter(([, v]) => v).map(([k]) => chip(FLAG_TEXT[k], k === "anaphylaxis" ? "bad" : "warn")),
+  p.collection_alert ? chip("COLLECTION ALERT", "bad") : "", p.check_with_dsl ? chip("Check with DSL before they go", "bad") : "",
+  PHOTO[p.photo] ? chip(...PHOTO[p.photo]) : "", p.go_home_alone ? chip("May go home alone", "info") : "",
+  p.support_plan ? chip("Support plan", "info") : "", r.profile_incomplete || p.level === "none" ? chip("Details incomplete", "warn") : "",
+  p.haf && p.haf !== "unknown" && r.funding === "haf" ? chip("HAF", "info") : ""].filter(Boolean).join(" ");
+const healthLine = (p, label) => p.health && (p.health.allergies || p.health.medical_conditions) ? `<p class="regrow__health">${label ? `<strong>${esc(label)}:</strong> ` : ""}${p.health.allergies ? `<strong>Allergies:</strong> ${esc(p.health.allergies)}${p.health.adrenaline_pen ? " (adrenaline pen)" : ""} ` : ""}${p.health.medical_conditions ? `<strong>Medical:</strong> ${esc(p.health.medical_conditions)}` : ""}</p>` : "";
 
 A.addTab({
   id: "registers", label: "Registers", icon: "✅", perm: "registers.view",
@@ -21,9 +30,9 @@ A.addTab({
     root.innerHTML = `<h1>Registers</h1>
       <p class="sub">Sign children in and out. Session staff can open today's and tomorrow's registers.</p>
       <div class="toolbar"><button class="abtn abtn--ghost abtn--sm" data-shift="-1">← Previous day</button>
-        <input type="date" id="regDate" value="${esc(st.date)}">
+        <input type="date" id="regDate" aria-label="Register date" value="${esc(st.date)}">
         <button class="abtn abtn--ghost abtn--sm" data-shift="1">Next day →</button>
-        ${d.centres.length > 1 ? `<select id="regCentre"><option value="">All centres</option>${d.centres.map(c => `<option value="${c.id}"${String(c.id) === st.centre ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : ""}
+        ${d.centres.length > 1 ? `<select id="regCentre" aria-label="Centre"><option value="">All centres</option>${d.centres.map(c => `<option value="${c.id}"${String(c.id) === st.centre ? " selected" : ""}>${esc(c.name)}</option>`).join("")}</select>` : ""}
         ${can("reports.view") ? `<button class="abtn abtn--ghost abtn--sm" id="hafExport">HAF export…</button>` : ""}
         <a class="abtn abtn--ghost abtn--sm" href="/admin/offline-register" title="Keeps today's registers on this tablet in case the connection drops">Use offline on this tablet</a></div>
       ${d.sessions.length ? `<div class="regcards">${d.sessions.map(s => `<button class="regcard" data-sid="${s.id}"${s.allowed ? "" : " disabled"}>
@@ -67,10 +76,9 @@ async function openRegister(root, sid, back) {
     const p = r.person;
     const name = p ? `${esc(p.first_name)} ${esc(p.last_name)} <span class="fhint">(${p.age})</span>`
       : `${esc(r.party.contact.name)} <span class="fhint">group: ${r.party.adults} adult(s), ${r.party.children} child(ren)</span>`;
-    const flags = p ? Object.entries(p.flags).filter(([, v]) => v).map(([k]) => chip(FLAG_TEXT[k], k === "anaphylaxis" ? "bad" : "warn")).join(" ") : "";
-    const extra = p ? [p.collection_alert ? chip("COLLECTION ALERT", "bad") : "", PHOTO[p.photo] ? chip(...PHOTO[p.photo]) : "",
-      p.go_home_alone ? chip("May go home alone", "info") : "", p.support_plan ? chip("Support plan", "info") : "", r.profile_incomplete || p.level === "none" ? chip("Details incomplete", "warn") : "",
-      p.haf && p.haf !== "unknown" && r.funding === "haf" ? chip("HAF", "info") : "", r.to_discuss.length ? chip("Incident to discuss", "bad") : ""].join(" ") : "";
+    const flags = p ? personChips(p, r) : r.party.named.map(k => `<span class="fhint">${esc(k.first_name)}:</span> ${personChips(k, r) || "—"}`).join(" · ");
+    const extra = [r.cancelled ? chip("Booking cancelled — still needs signing out", "warn") : "",
+      r.to_discuss.length ? chip("Incident to discuss", "bad") : ""].join(" ");
     const st = STATUS[r.status] || [r.status, "muted"];
     const inOut = r.signed_in_at ? `in ${hhmm(r.signed_in_at)}${r.late ? " (late)" : ""}` + (r.signed_out_at ? ` · out ${hhmm(r.signed_out_at)}${r.collected_by ? " with " + esc(r.collected_by) : ""}` : "") : "";
     const btns = [];
@@ -84,7 +92,7 @@ async function openRegister(root, sid, back) {
     return `<div class="regrow${r.signed_out_at ? " regrow--done" : ""}"><div class="regrow__main">
       <div><strong>${name}</strong> ${chip(st[0], st[1])} <span class="fhint">${inOut}</span><br>${flags} ${extra}</div>
       <div class="regrow__btns">${btns.map(([k, l, c]) => `<button class="abtn abtn--sm ${c || "abtn--ghost"}" data-act="${k}" data-i="${i}">${l}</button>`).join("")}</div></div>
-      ${p && p.health && (p.health.allergies || p.health.medical_conditions) ? `<p class="regrow__health">${p.health.allergies ? `<strong>Allergies:</strong> ${esc(p.health.allergies)}${p.health.adrenaline_pen ? " (adrenaline pen)" : ""} ` : ""}${p.health.medical_conditions ? `<strong>Medical:</strong> ${esc(p.health.medical_conditions)}` : ""}</p>` : ""}
+      ${p ? healthLine(p) : r.party.named.map(k => healthLine(k, k.first_name)).join("")}
     </div>`;
   };
   const refresh = async () => { d = await api("/api/staff/registers/session/" + sid); draw(); };
@@ -105,18 +113,25 @@ async function openRegister(root, sid, back) {
     const methods = Object.entries(d.release_methods).filter(([k]) =>
       (k !== "password" || (p && p.has_collection_password)) && (k !== "went_home_alone" || (p && p.go_home_alone)) &&
       (k !== "parent_stayed" || s.parent_must_stay || !p));
+    const kids = kidsOf(r);
+    const alerts = kids.filter(k => k.collection_alert), dsl = kids.filter(k => k.check_with_dsl);
     const who = p ? [`${esc(p.parent.name)} (parent)`, ...p.collectors.map(c => `${esc(c.full_name)} (${esc(c.relationship)})`)] : [];
     return modal(`Sign out ${p ? p.first_name : r.party.contact.name}`, `
-      ${p && p.collection_alert ? `<p class="dlg__warn"><strong>Collection alert:</strong> ${esc(p.collection_alert)}</p>` : ""}
+      ${alerts.map(k => `<p class="dlg__warn"><strong>Collection alert${p ? "" : " (" + esc(k.first_name) + ")"}:</strong> ${esc(k.collection_alert)}</p>`).join("")}
+      ${alerts.length ? `<label class="fcheck"><input type="checkbox" name="alert_checked"> I've read the collection alert and the adult collecting is allowed to</label>` : ""}
+      ${dsl.length ? `<p class="dlg__warn"><strong>Check with the DSL (or a deputy) before ${esc(dsl.map(k => k.first_name).join(" and "))} goes.</strong></p>
+        <label class="fcheck"><input type="checkbox" name="dsl_checked"> I've checked with the DSL</label>` : ""}
       ${who.length ? `<p class="fhint">Can collect: ${who.join(", ")}</p>` : ""}
       ${r.to_discuss.length ? `<p class="dlg__warn">There's an incident to talk through with the adult collecting (${r.to_discuss.map(x => esc(x.kind)).join(", ")}).</p>
         <label class="fcheck"><input type="checkbox" name="discussed"> We've talked it through</label>` : ""}
       <div class="fgroup"><label>How are they being collected?</label><select name="method">${methods.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></div>
       <div class="fgroup" data-pw><label>Collection password (type what they say)</label><input type="password" name="password" autocomplete="off"></div>
       <div class="frow"><div class="fgroup"><label>Collected by</label><input type="text" name="name"></div>
-      <div class="fgroup"><label>Relationship</label><input type="text" name="rel"></div></div>`,
+      <div class="fgroup"><label>Relationship</label><input type="text" name="rel"></div></div>
+      <div class="fgroup"><label>Note (needed for "Other": how you checked who they are)</label><input type="text" name="notes" maxlength="500"></div>`,
       (f) => post(url, { action: "out", method: f.method.value, password: f.password.value, collected_by_name: f.name.value,
-        collected_by_relationship: f.rel.value, incident_discussed: f.discussed ? f.discussed.checked : false }), "Sign out");
+        collected_by_relationship: f.rel.value, notes: f.notes.value, incident_discussed: f.discussed ? f.discussed.checked : false,
+        alert_checked: f.alert_checked ? f.alert_checked.checked : false, dsl_checked: f.dsl_checked ? f.dsl_checked.checked : false }), "Sign out");
   };
   const details = (r) => {
     const people = r.person ? [r.person] : r.party.named;
@@ -126,7 +141,9 @@ async function openRegister(root, sid, back) {
       .filter(([, v]) => v).map(([k, v]) => `<tr><th>${esc(k)}</th><td>${esc(v)}</td></tr>`).join("") : "";
     modal(r.person ? `${r.person.first_name} ${r.person.last_name}` : r.party.contact.name, people.map(p => `
       ${r.person ? "" : `<h3>${esc(p.first_name)} ${esc(p.last_name)}</h3>`}
-      <table class="table"><tbody>${h(p) || `<tr><td>No health needs recorded.</td></tr>`}
+      <table class="table"><tbody>${p.collection_alert ? `<tr><th>Collection alert</th><td><strong>${esc(p.collection_alert)}</strong></td></tr>` : ""}
+      ${p.check_with_dsl ? `<tr><th>Before they go</th><td><strong>Check with the DSL</strong></td></tr>` : ""}
+      ${h(p) || `<tr><td>No health needs recorded.</td></tr>`}
       ${p.support_plan ? `<tr><th>Support plan</th><td style="white-space:pre-line">${esc(p.support_plan)}</td></tr>` : ""}
       <tr><th>First aid / plasters</th><td>${esc(p.first_aid || "?")} / ${esc(p.plasters || "?")}</td></tr>
       <tr><th>Parent</th><td>${esc(p.parent.name)} ${esc(p.parent.mobile || "")}</td></tr>

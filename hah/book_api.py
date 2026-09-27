@@ -3,6 +3,8 @@ bookings (cancel, absence, waiting-list offers) and invoices.
 
 Everything a parent can reach is scoped to their own account; prices and
 payment options are always worked out here, never taken from the browser."""
+import urllib.parse
+
 from . import (audit, booking_settings, bookings, catalogue, db, eligibility, family, invoice_page, money,
                payments_stripe)
 from .web import route
@@ -239,7 +241,7 @@ def invoice_api(h, number):
 def invoice_html(h, number):
     who = _who(h)
     if not who:
-        return h.send(302, b"", headers={"Location": "/login?next=/account/invoices/" + number})
+        return h.send(302, b"", headers={"Location": "/login?next=" + urllib.parse.quote("/account/invoices/" + number, safe="")})
     with db.read() as c:
         inv = c.execute("SELECT * FROM invoices WHERE number=? AND account_id=? AND status<>'void'",
                         (number, who["id"])).fetchone()

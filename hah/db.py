@@ -66,7 +66,13 @@ def read():
 # poll with growing sleeps, which made busy moments needlessly slow.)
 # SQLite's own lock still protects against any other process.
 _writer = threading.RLock()
+_depth = threading.local()
 WRITE_WAIT = 30  # seconds
+
+
+def in_tx():
+    """True while this thread is inside tx() — a second tx() here would wait on our own lock."""
+    return getattr(_depth, "n", 0) > 0
 
 
 @contextlib.contextmanager
@@ -74,6 +80,7 @@ def tx():
     """A write transaction: commits on success, rolls back on any error."""
     if not _writer.acquire(timeout=WRITE_WAIT):
         raise sqlite3.OperationalError("database is busy")
+    _depth.n = getattr(_depth, "n", 0) + 1
     try:
         c = _open()
         try:
@@ -87,6 +94,7 @@ def tx():
         finally:
             c.close()
     finally:
+        _depth.n -= 1
         _writer.release()
 
 

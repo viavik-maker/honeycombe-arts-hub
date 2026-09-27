@@ -98,7 +98,7 @@ def _b_contact_cards(content):
         cards.append("""<div class="contact-card reveal">
                 <span class="ico">%s</span>
                 <div>
-                  <h3>%s</h3>
+                  <h2>%s</h2>
                   <p>%s</p>
                 </div>
               </div>""" % (html(card.get("icon", "")), html(card.get("title", "")), body))

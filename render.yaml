@@ -4,7 +4,9 @@ services:
   - type: web
     name: honeycombe-arts-hub
     runtime: python
-    plan: starter            # paid tier required for the persistent disk below
+    plan: standard           # booking mornings and password hashing need the CPU (starter is too small)
+    # region: frankfurt      # recommended (data stays in the EU). A region can only be chosen when the service is
+    #                        # created: re-create it from this blueprint in Frankfurt before launch (see LAUNCH.md)
     buildCommand: "echo 'no build needed'"
     startCommand: "python3 server.py"
     healthCheckPath: /healthz   # web process + database (never blocked by background jobs)
@@ -12,6 +14,55 @@ services:
       name: hah-data
       mountPath: /opt/render/project/src/data
       sizeGB: 1
-    envVars:
+    envVars:                   # values are set in Render → the service → Environment, never in this file
       - key: SITE_URL            # e.g. https://honeycombeartshub.org.uk — every emailed link uses it
+        sync: false
+      - key: ADMIN_PASSWORD      # only for creating the first owner account
+        sync: false
+      # email (Brevo SMTP relay — README → Email and text messages)
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        value: "587"
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM           # Honeycombe Arts Hub <bookings@honeycombeartshub.org.uk>
+        sync: false
+      - key: MAIL_REPLY_TO       # info@honeycombeartshub.org.uk
+        sync: false
+      - key: STAFF_NOTIFY_TO     # where contact-form messages are forwarded
+        sync: false
+      # texts (Twilio)
+      - key: SMS_PROVIDER        # twilio (leave unset until Twilio is ready)
+        sync: false
+      - key: TWILIO_ACCOUNT_SID
+        sync: false
+      - key: TWILIO_AUTH_TOKEN
+        sync: false
+      - key: TWILIO_FROM         # alphanumeric sender, e.g. Honeycombe
+        sync: false
+      # card payments (Stripe)
+      - key: STRIPE_SECRET_KEY
+        sync: false
+      - key: STRIPE_WEBHOOK_SECRET
+        sync: false
+      # off-site encrypted backups (Backblaze B2, EU Central — README → Backups)
+      - key: BACKUP_CERT
+        sync: false
+      - key: BACKUP_S3_ENDPOINT  # e.g. https://s3.eu-central-003.backblazeb2.com
+        sync: false
+      - key: BACKUP_S3_REGION    # e.g. eu-central-003
+        sync: false
+      - key: BACKUP_S3_BUCKET
+        sync: false
+      - key: BACKUP_S3_ACCESS_KEY
+        sync: false
+      - key: BACKUP_S3_SECRET_KEY
+        sync: false
+      # security
+      - key: HAH_CSP             # unset = report; set to enforce after a quiet first week
+        sync: false
+      - key: STAFF_HOST          # optional separate staff address, e.g. staff.honeycombeartshub.org.uk
         sync: false

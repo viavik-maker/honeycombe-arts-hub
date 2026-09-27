@@ -65,7 +65,7 @@ A.addTab({
             <option value="date"${au.type === "date" ? " selected" : ""}>Everyone booked on a day</option>
             <option value="age"${au.type === "age" ? " selected" : ""}>Everyone booked (upcoming) for a child of a certain age</option>
             <option value="accounts"${au.type === "accounts" ? " selected" : ""}>Chosen families</option></select>
-            <select name="session" data-for="session">${sess.sessions.map(s => `<option value="${s.id}"${+au.session_id === s.id ? " selected" : ""}>${esc(day(s.date))} ${esc(s.start_time)} · ${esc(s.title)}</option>`).join("")}</select>
+            <select name="session" data-for="session" aria-label="Session">${sess.sessions.map(s => `<option value="${s.id}"${+au.session_id === s.id ? " selected" : ""}>${esc(day(s.date))} ${esc(s.start_time)} · ${esc(s.title)}</option>`).join("")}</select>
             <select name="activity" data-for="activity">${acts.activities.map(a => `<option value="${a.id}"${+au.activity_id === a.id ? " selected" : ""}>${esc(a.title)}</option>`).join("")}</select>
             <input type="date" name="date" data-for="date" value="${esc(au.date || "")}">
             <input type="text" name="refs" data-for="accounts" placeholder="Family refs, e.g. A-XXXXXXXX A-YYYYYYYY" value="${esc((au.refs || []).join(" "))}"></div>

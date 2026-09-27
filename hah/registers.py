@@ -43,13 +43,17 @@ def _consent(c, account_id, pid, key):
     return family.current_consents(c, account_id, pid).get(key)
 
 
-def to_discuss(c, pid, session_id):
-    """Incidents to talk through with whoever collects the child."""
-    return [dict(ref=r["ref"], kind=r["kind"]) for r in c.execute(
-        "SELECT i.ref, i.kind FROM incidents i JOIN incident_people p ON p.incident_id=i.id WHERE p.participant_id=?"
-        " AND i.notify_mode='at_collection' AND i.discussed_at IS NULL AND i.restricted=0"
-        " AND (i.session_id=? OR substr(i.occurred_at,1,10)=?)",
-        (pid, session_id, catalogue.uk_today().isoformat()))]
+def to_discuss(c, pid, session_id=None):
+    """Incidents still to talk through with whoever next collects the child (logged "at collection" and not yet
+    discussed — including one logged after they'd already gone home last time)."""
+    return [dict(id=r["id"], ref=r["ref"], kind=r["kind"]) for r in c.execute(
+        "SELECT DISTINCT i.id, i.ref, i.kind FROM incidents i JOIN incident_people p ON p.incident_id=i.id"
+        " WHERE p.participant_id=? AND i.notify_mode='at_collection' AND i.discussed_at IS NULL AND i.restricted=0"
+        " ORDER BY i.id", (pid,))]
+
+
+def _public_discuss(items):
+    return [{"ref": x["ref"], "kind": x["kind"]} for x in items]
 
 
 def person_row(c, p, session, show_haf):
@@ -65,10 +69,11 @@ def person_row(c, p, session, show_haf):
         "health": {k: health[k] for k in ("allergies", "anaphylaxis", "adrenaline_pen", "medical_conditions",
                                           "medication", "dietary", "send_needs", "semh_needs",
                                           "religious_requirements", "access_needs")} if health else None,
-        "photo": p["photo_consent"], "first_aid": _consent(c, acct["id"], p["id"], "first_aid"),
+        "photo": _consent(c, acct["id"], p["id"], "photo"), "first_aid": _consent(c, acct["id"], p["id"], "first_aid"),
         "plasters": _consent(c, acct["id"], p["id"], "plasters"),
         "go_home_alone": alone == "yes" and months // 12 >= booking_settings.get("go_home_alone_min_age", c),
         "collection_alert": p["collection_alert"], "has_collection_password": bool(p["collection_pw_hash"]),
+        "check_with_dsl": bool(p["f_safeguarding"]),
         "needs_review": bool(p["needs_review"]), "level": p["level"], "support_plan": p["support_plan"],
         "haf": p["haf_status"] if show_haf else None,
         "parent": {"name": "%s %s" % (acct["first_name"], acct["last_name"]), "mobile": acct["mobile"]},
@@ -77,14 +82,29 @@ def person_row(c, p, session, show_haf):
     }
 
 
+# a booking is on the register while it's confirmed — or, if it was cancelled after the child arrived, until
+# they've been signed out (so nobody vanishes from the headcount)
+ON_REGISTER = "(b.status='confirmed' OR (a.signed_in_at IS NOT NULL AND a.signed_out_at IS NULL))"
+STILL_HERE = ("EXISTS (SELECT 1 FROM attendance x WHERE x.session_id=s.id AND x.signed_in_at IS NOT NULL"
+              " AND x.signed_out_at IS NULL)")
+
+
+def _party_discuss(c, b):
+    out = []
+    for r in c.execute("SELECT participant_id FROM booking_party_children WHERE booking_id=?", (b["id"],)):
+        out += [x for x in to_discuss(c, r[0]) if x["id"] not in {y["id"] for y in out}]
+    return out
+
+
 def register_rows(c, h, session):
     show_haf = h.has_perm("bookings.manage")
     rows = []
     for b in c.execute("SELECT b.*, a.status AS att, a.signed_in_at, a.signed_out_at, a.release_method,"
                        " a.collected_by_name, a.collected_by_relationship, a.late, a.notes AS att_notes"
                        " FROM bookings b LEFT JOIN attendance a ON a.booking_id=b.id WHERE b.session_id=?"
-                       " AND b.status='confirmed' ORDER BY b.id", (session["id"],)).fetchall():
+                       " AND " + ON_REGISTER + " ORDER BY b.id", (session["id"],)).fetchall():
         row = {"booking_id": b["id"], "ref": b["ref"], "kind": b["kind"], "status": b["att"] or "expected",
+               "cancelled": b["status"] != "confirmed",
                "signed_in_at": b["signed_in_at"], "signed_out_at": b["signed_out_at"],
                "release_method": b["release_method"], "collected_by": b["collected_by_name"],
                "late": bool(b["late"]), "notes": b["att_notes"], "profile_incomplete": bool(b["profile_incomplete"]),
@@ -92,7 +112,7 @@ def register_rows(c, h, session):
         if b["participant_id"]:
             p = c.execute("SELECT * FROM participants WHERE id=?", (b["participant_id"],)).fetchone()
             row["person"] = person_row(c, p, session, show_haf)
-            row["to_discuss"] = to_discuss(c, p["id"], session["id"])
+            row["to_discuss"] = _public_discuss(to_discuss(c, p["id"]))
             row["sort"] = (p["last_name"].lower(), p["first_name"].lower())
         else:
             kids = [person_row(c, p, session, show_haf) for p in c.execute(
@@ -106,7 +126,7 @@ def register_rows(c, h, session):
                 contact = {"name": "%s %s" % (a["first_name"], a["last_name"]), "mobile": a["mobile"]}
             row["party"] = {"contact": contact, "adults": b["party_adults"], "children": b["party_children"],
                             "places": b["places"], "named": kids}
-            row["to_discuss"] = []
+            row["to_discuss"] = _public_discuss(_party_discuss(c, b))
             row["sort"] = (contact["name"].lower(), "")
         rows.append(row)
     rows.sort(key=lambda r: r.pop("sort"))
@@ -116,7 +136,7 @@ def register_rows(c, h, session):
 def session_summary(c, s):
     counts = {r[0]: r[1] for r in c.execute(
         "SELECT COALESCE(a.status,'expected'), COUNT(*) FROM bookings b LEFT JOIN attendance a ON a.booking_id=b.id"
-        " WHERE b.session_id=? AND b.status='confirmed' GROUP BY 1", (s["id"],))}
+        " WHERE b.session_id=? AND " + ON_REGISTER + " GROUP BY 1", (s["id"],))}
     places = c.execute("SELECT COALESCE(SUM(places),0) FROM bookings WHERE session_id=? AND status='confirmed'",
                        (s["id"],)).fetchone()[0]
     out = c.execute("SELECT COUNT(*) FROM attendance a JOIN bookings b ON b.id=a.booking_id WHERE b.session_id=?"
@@ -179,7 +199,7 @@ def combined(h, date):
     with db.tx() as c:
         out = []
         for s in c.execute("SELECT s.id FROM activity_sessions s JOIN activities a ON a.id=s.activity_id WHERE s.date=?"
-                           " AND s.status='scheduled' AND (? = '' OR COALESCE(s.centre_id, a.centre_id)=?)"
+                           " AND (s.status='scheduled' OR " + STILL_HERE + ") AND (? = '' OR COALESCE(s.centre_id, a.centre_id)=?)"
                            " ORDER BY s.start_time", (date, q.get("centre") or "", q.get("centre") or "")).fetchall():
             sess = _session(c, s["id"])
             out.append({"session": session_summary(c, sess), "rows": register_rows(c, h, sess)})
@@ -219,7 +239,9 @@ def week(h):
 
 
 def _row(c, bid):
-    b = c.execute("SELECT * FROM bookings WHERE id=? AND status='confirmed'", (int(bid),)).fetchone()
+    """A booking staff can mark: confirmed, or cancelled after the child was signed in (they still need signing out)."""
+    b = c.execute("SELECT b.* FROM bookings b LEFT JOIN attendance a ON a.booking_id=b.id WHERE b.id=? AND "
+                  + ON_REGISTER, (int(bid),)).fetchone()
     if not b:
         raise LookupError
     return b
@@ -248,7 +270,9 @@ def mark(h, bid):
     with db.tx() as c:
         b = _row(c, bid)
         s = _session(c, b["session_id"])
-        if not may_open(h, s["date"]):
+        # a tablet syncing after midnight: yesterday's evening session is fine if that's when it happened
+        offline_day = offline_at and catalogue.parse_utc(offline_at).astimezone(catalogue.UK).date().isoformat()
+        if not may_open(h, s["date"]) and offline_day != s["date"]:
             return h.json({"error": "Session staff can mark today's and tomorrow's registers only."}, 403)
         from . import bookings
         bookings.add_attendance(c, b)
@@ -304,12 +328,21 @@ def _sign_out(c, h, b, s, att, d, when=None):
     if method not in RELEASE:
         return {"error": "Choose how they're being collected."}
     p = c.execute("SELECT * FROM participants WHERE id=?", (b["participant_id"],)).fetchone() if b["participant_id"] else None
-    if p:
-        pending = to_discuss(c, p["id"], s["id"])
-        if pending and not d.get("incident_discussed"):
-            return {"error": "There's an incident to talk through with the adult collecting %s before they go."
-                             % p["first_name"], "to_discuss": pending}
+    kids = [p] if p else c.execute("SELECT p.* FROM participants p JOIN booking_party_children x ON x.participant_id=p.id"
+                                   " WHERE x.booking_id=?", (b["id"],)).fetchall()
+    pending = to_discuss(c, p["id"]) if p else _party_discuss(c, b)
+    if pending and not d.get("incident_discussed"):
+        return {"error": "There's an incident to talk through with the adult collecting %s before they go."
+                         % (p["first_name"] if p else "them"), "to_discuss": _public_discuss(pending)}
+    if any(k["collection_alert"] for k in kids) and not d.get("alert_checked"):
+        return {"error": "Check the collection alert before anyone leaves with %s." % (p["first_name"] if p else "them"),
+                "needs_check": "alert", "collection_alert": "; ".join(k["collection_alert"] for k in kids
+                                                                     if k["collection_alert"])}
+    if any(k["f_safeguarding"] for k in kids) and not d.get("dsl_checked"):
+        return {"error": "Check with the DSL (or a deputy) before %s goes." % (p["first_name"] if p else "they go"),
+                "needs_check": "dsl"}
     name = validate.text(d.get("collected_by_name"), 100)
+    notes = validate.long_text(d.get("notes"), 500) or None
     if method == "password":
         if not p or not p["collection_pw_hash"]:
             return {"error": "There's no collection password for this child — check the adult by phone instead."}
@@ -334,16 +367,16 @@ def _sign_out(c, h, b, s, att, d, when=None):
             return {"error": "There's no permission for them to go home alone."}
     elif method == "parent_stayed" and not s["parent_must_stay"] and b["kind"] != "party":
         return {"error": "This isn't a stay-and-play session — choose another way."}
+    elif method == "other" and not (name and notes):
+        return {"error": "Enter who collected them and a note saying how you checked."}
     now = when or db.now()
     c.execute("UPDATE attendance SET signed_out_at=?, signed_out_by=?, release_method=?, collected_by_name=?,"
-              " collected_by_relationship=?, incident_discussed=?, updated_at=? WHERE id=?",
+              " collected_by_relationship=?, incident_discussed=?, notes=COALESCE(?, notes), updated_at=? WHERE id=?",
               (now, h.staff()["id"], method, name or None, validate.text(d.get("collected_by_relationship"), 60) or None,
-               1 if d.get("incident_discussed") else None, now, att["id"]))
-    if p and d.get("incident_discussed"):
+               1 if pending else None, notes, now, att["id"]))
+    for x in pending:  # only the incidents staff were shown
         c.execute("UPDATE incidents SET discussed_at=?, discussed_by=?, parent_notified_at=COALESCE(parent_notified_at, ?),"
-                  " updated_at=? WHERE notify_mode='at_collection' AND discussed_at IS NULL AND id IN"
-                  " (SELECT incident_id FROM incident_people WHERE participant_id=?)",
-                  (now, h.staff()["id"], now, now, p["id"]))
+                  " updated_at=? WHERE id=? AND discussed_at IS NULL", (now, h.staff()["id"], now, now, x["id"]))
     return None
 
 
@@ -361,7 +394,8 @@ def _offline_person(p, r):
                 ("Diet: " + hl["dietary"]) if hl.get("dietary") else "",
                 "SEND" if p["flags"]["send"] else "", "SEMH" if p["flags"]["semh"] else "",
                 ("Support plan: " + p["support_plan"]) if p.get("support_plan") else "") if x],
-            "photo": p["photo"], "go_home_alone": p["go_home_alone"], "collection_alert": bool(p["collection_alert"]),
+            "photo": p["photo"], "go_home_alone": p["go_home_alone"], "collection_alert": p["collection_alert"] or "",
+            "check_with_dsl": p["check_with_dsl"],
             "collectors": [{"name": x["full_name"], "relationship": x["relationship"], "phone": x["phone"]}
                            for x in p["collectors"]],
             "parent": p["parent"]}
@@ -370,16 +404,17 @@ def _offline_person(p, r):
 @route("GET", "/api/staff/registers/offline-pack", auth="staff", perm="registers.view")
 def offline_pack(h):
     """Today's registers for a tablet to keep (encrypted) in case the connection drops. The same details as the
-    printed register: never collection passwords or safeguarding information; collection alerts only as a flag."""
+    printed register: never collection passwords or safeguarding information (only "check with the DSL")."""
     today = catalogue.uk_today().isoformat()
     out = []
     with db.tx() as c:
-        for s in c.execute("SELECT id FROM activity_sessions WHERE date=? AND status='scheduled' ORDER BY start_time",
-                           (today,)).fetchall():
+        for s in c.execute("SELECT s.id FROM activity_sessions s WHERE s.date=? AND (s.status='scheduled' OR "
+                           + STILL_HERE + ") ORDER BY s.start_time", (today,)).fetchall():
             s = _session(c, s["id"])
             rows = []
             for r in register_rows(c, h, s):
                 row = {"booking_id": r["booking_id"], "status": r["status"], "signed_in_at": r["signed_in_at"],
+                       "cancelled": r["cancelled"],
                        "signed_out_at": r["signed_out_at"], "to_discuss": bool(r["to_discuss"])}
                 if "person" in r:
                     row["person"] = _offline_person(r["person"], r)
@@ -425,20 +460,26 @@ def print_register(h, sid):
             collect = ", ".join("%s (%s) %s" % (x["full_name"], x["relationship"], x["phone"]) for x in p["collectors"])
             extra = []
             if p["collection_alert"]:
-                extra.append("<strong>COLLECTION ALERT — see manager</strong>")
+                extra.append("<strong>COLLECTION ALERT: %s</strong>" % esc(p["collection_alert"]))
+            if p["check_with_dsl"]:
+                extra.append("<strong>Check with the DSL before they go</strong>")
             if p["go_home_alone"]:
                 extra.append("May go home alone")
             photo = {"online": "Photos OK", "internal": "Photos: internal only", "none": "NO PHOTOS"}.get(p["photo"], "Photos: ?")
             body.append("<tr><td>%s</td><td>%s</td><td>%s</td><td>%s<br>Parent: %s %s</td><td></td><td></td></tr>" % (
-                esc(who), esc(needs) or "—", esc(photo) + ("<br>" + "<br>".join(extra) if extra else ""),
+                esc(who), esc(needs) or "—", esc(photo) + ("<br>" + "<br>".join(extra) if extra else ""),  # extra is escaped
                 esc(collect) or "—", esc(p["parent"]["name"]), esc(p["parent"]["mobile"] or "")))
         else:
             pa = r["party"]
-            body.append("<tr><td>%s — %d place(s): %d adult(s), %d child(ren)</td><td>%s</td><td></td><td>%s</td>"
+            alerts = "".join("<br><strong>%s: %s</strong>" % (esc(k["first_name"]), esc(
+                "; ".join(filter(None, ["COLLECTION ALERT: " + k["collection_alert"] if k["collection_alert"] else "",
+                                        "Check with the DSL before they go" if k["check_with_dsl"] else ""]))))
+                for k in pa["named"] if k["collection_alert"] or k["check_with_dsl"])
+            body.append("<tr><td>%s — %d place(s): %d adult(s), %d child(ren)</td><td>%s</td><td>%s</td><td>%s</td>"
                         "<td></td><td></td></tr>" % (
                             esc(pa["contact"]["name"]), pa["places"], pa["adults"], pa["children"],
                             esc("; ".join("%s: %s" % (k["first_name"], (k["health"] or {}).get("allergies") or "—")
-                                          for k in pa["named"])) or "—", esc(pa["contact"]["mobile"] or "")))
+                                          for k in pa["named"])) or "—", alerts[4:], esc(pa["contact"]["mobile"] or "")))
     nonce = h.new_nonce()
     page = """<!DOCTYPE html><html lang="en-GB"><head><meta charset="utf-8"><meta name="robots" content="noindex">
 <title>Register — %s %s</title><style>body{font-family:system-ui,sans-serif;margin:16px;font-size:12px}
@@ -475,11 +516,12 @@ def haf_export(h):
                 " LEFT JOIN attendance a ON a.booking_id=b.id WHERE b.funding='haf' AND b.status='confirmed'"
                 " AND s.date BETWEEN ? AND ? ORDER BY p.last_name, p.first_name, s.date",
                 (start.isoformat(), end.isoformat())):
-            e = people.setdefault(r["id"], {"row": r, "booked": 0, "attended": [], "activities": set()})
-            e["booked"] += 1
+            # BCP counts days: a morning and an afternoon session on the same day is one day
+            e = people.setdefault(r["id"], {"row": r, "booked": set(), "attended": set(), "activities": set()})
+            e["booked"].add(r["date"])
             e["activities"].add(r["title"])
             if r["att"] == "present":
-                e["attended"].append(r["date"])
+                e["attended"].add(r["date"])
         audit.record(c, h, "report.haf_export", details={"from": start.isoformat(), "to": end.isoformat(),
                                                          "children": len(people)})
     rows = []
@@ -488,7 +530,7 @@ def haf_export(h):
         rows.append([p["first_name"], p["last_name"], p["dob"], family.age_years(p["dob"]), p["gender"] or "",
                      p["school_name"] or ("Home educated" if p["education"] == "home_educated" else ""),
                      p["postcode"] or "", "Yes" if p["f_send"] else "No", p["haf_status"], "; ".join(sorted(e["activities"])),
-                     e["booked"], len(e["attended"]), " ".join(e["attended"])])
+                     len(e["booked"]), len(e["attended"]), " ".join(sorted(e["attended"]))])
     return h.csv("haf-%s-to-%s.csv" % (start, end), ["First name", "Last name", "Date of birth", "Age", "Gender",
                                                       "School", "Postcode", "SEND", "HAF status", "Activities",
                                                       "Days booked", "Days attended", "Dates attended"], rows)

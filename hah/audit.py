@@ -17,12 +17,16 @@ def record(c, h, action, *, entity_type=None, entity_id=None, participant_id=Non
     if account_actor is not None:
         actor_type, actor_id, actor_name = "account", account_actor, None
     else:
-        staff = actor if actor is not None else (h.staff() if h is not None else None)
+        # on a family route the family is the actor, even if a staff sign-in is also in the browser
+        family_route = h is not None and actor is None and getattr(h, "_route_auth", None) in ("account", "holder")
+        staff = actor if actor is not None else (h.staff() if h is not None and not family_route else None)
         parent = h.principal("account") if (h is not None and actor is None and not staff) else None
         if staff:
             actor_type, actor_id, actor_name = "staff", staff["id"], staff["name"]
         elif parent:
-            actor_type, actor_id, actor_name = "account", parent["id"], None
+            # a carer acting on the family's account is recorded as that carer
+            actor_type, actor_id = "account", parent["id"]
+            actor_name = "carer %d" % parent["carer_id"] if parent.get("carer_id") else None
         else:
             actor_type, actor_id, actor_name = "system", None, None
     c.execute("INSERT INTO audit_log(at, actor_type, actor_id, actor_name, ip, action, entity_type,"

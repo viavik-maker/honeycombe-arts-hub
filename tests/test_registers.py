@@ -154,7 +154,107 @@ class RegisterTest(ServerTestCase):
         self.assertEqual(r.status, 200)
         self.assertIn("Maya", r.text)
         self.assertIn(future(0), r.text)
+        sid2, bid2 = book_today(self.fam, self.child, haf_only=1, category_id=1)  # an afternoon session, same day
+        ok(admin.post_json("/api/staff/attendance/%d" % bid2, {"action": "in"}))
+        import csv as _csv, io as _io
+        row = [x for x in _csv.DictReader(_io.StringIO(admin.get("/api/staff/reports/haf.csv?from=%s&to=%s" % (
+            future(-1), future(1))).text.lstrip("\ufeff"))) if x["First name"] == "Maya" and x["Last name"] == "Parent"][-1]
+        self.assertEqual((row["Days booked"], row["Days attended"], row["Dates attended"]), ("1", "1", future(0)))
         self.assertEqual(self.admin(roles=("session_staff",)).get("/api/staff/reports/haf.csv").status, 403)
+
+
+    def test_cancelled_after_arriving_stays_until_signed_out(self):
+        staff = self.admin(roles=("session_staff",))
+        url = "/api/staff/attendance/%d" % self.bid
+        ok(staff.post_json(url, {"action": "in"}))
+        with db.tx() as c:  # e.g. the session is cancelled mid-morning to trigger refunds
+            c.execute("UPDATE bookings SET status='cancelled' WHERE id=?", (self.bid,))
+            c.execute("UPDATE activity_sessions SET status='cancelled' WHERE id=?", (self.sid,))
+        rows = ok(staff.get("/api/staff/registers/session/%d" % self.sid)).json()["rows"]
+        self.assertEqual([(r["booking_id"], r["cancelled"]) for r in rows], [(self.bid, True)])
+        day = ok(staff.get("/api/staff/registers/day/" + future(0))).json()
+        self.assertIn(self.sid, [x["session"]["id"] for x in day["sessions"]])
+        ok(staff.post_json(url, {"action": "out", "method": "known_adult_verified", "collected_by_name": "Jo Jones"}))
+        self.assertEqual(ok(staff.get("/api/staff/registers/session/%d" % self.sid)).json()["rows"], [])
+        self.assertEqual(staff.post_json(url, {"action": "in"}).status, 404)  # nothing left to mark
+
+    def test_collection_alert_and_dsl_check_before_release(self):
+        with db.tx() as c:
+            c.execute("UPDATE participants SET collection_alert='Father must not collect', f_safeguarding=1 WHERE id=?",
+                      (participant_id(self.child),))
+        staff = self.admin(roles=("session_staff",))
+        row = ok(staff.get("/api/staff/registers/session/%d" % self.sid)).json()["rows"][0]
+        self.assertTrue(row["person"]["check_with_dsl"])
+        page = staff.get("/admin/registers/%d/print" % self.sid).text
+        self.assertIn("COLLECTION ALERT: Father must not collect", page)
+        self.assertIn("Check with the DSL", page)
+        pack = ok(staff.get("/api/staff/registers/offline-pack")).json()
+        prow = [r for s in pack["sessions"] for r in s["rows"] if r["booking_id"] == self.bid][0]
+        self.assertEqual((prow["person"]["collection_alert"], prow["person"]["check_with_dsl"]),
+                         ("Father must not collect", True))
+        url = "/api/staff/attendance/%d" % self.bid
+        ok(staff.post_json(url, {"action": "in"}))
+        out = {"action": "out", "method": "known_adult_verified", "collected_by_name": "Jo Jones"}
+        r = staff.post_json(url, out)
+        self.assertEqual((r.status, r.json()["needs_check"]), (400, "alert"))
+        r = staff.post_json(url, dict(out, alert_checked=True))
+        self.assertEqual(r.json()["needs_check"], "dsl")
+        ok(staff.post_json(url, dict(out, alert_checked=True, dsl_checked=True)))
+        # the flag itself stays DSL-only information: never the reason
+        self.assertNotIn("f_safeguarding", json.dumps(row))
+
+    def test_other_release_needs_a_name_and_a_note(self):
+        staff = self.admin(roles=("session_staff",))
+        url = "/api/staff/attendance/%d" % self.bid
+        ok(staff.post_json(url, {"action": "in"}))
+        self.assertEqual(staff.post_json(url, {"action": "out", "method": "other"}).status, 400)
+        self.assertEqual(staff.post_json(url, {"action": "out", "method": "other", "collected_by_name": "Aunt Sue"}).status, 400)
+        ok(staff.post_json(url, {"action": "out", "method": "other", "collected_by_name": "Aunt Sue",
+                                 "notes": "Parent rang to say Sue is collecting; ID checked"}))
+        with db.read() as c:
+            a = c.execute("SELECT collected_by_name, notes FROM attendance WHERE booking_id=?", (self.bid,)).fetchone()
+        self.assertEqual(a["collected_by_name"], "Aunt Sue")
+        self.assertIn("ID checked", a["notes"])
+
+    def test_earlier_incident_waits_for_the_next_collection_and_only_shown_ones_are_marked(self):
+        manager = self.admin(roles=("manager",))
+        ok(manager.post_json("/api/staff/incidents", {
+            "kind": "injury", "occurred_at_local": future(-3) + "T16:00", "description": "Bumped head after pick-up",
+            "action_taken": "Cold compress", "notify_mode": "at_collection",
+            "people": [{"participant_ref": self.child, "role": "injured"}]}))
+        with db.tx() as c:  # a DSL-only incident for the same child is never "discussed" at the door
+            iid = c.execute("SELECT id FROM incidents ORDER BY id DESC LIMIT 1").fetchone()[0]
+            c.execute("INSERT INTO incidents(ref, kind, occurred_at, description, notify_mode, restricted, created_at,"
+                      " updated_at) SELECT 'I-RESTRICT' || id, kind, occurred_at, 'restricted', 'at_collection', 1,"
+                      " created_at, updated_at FROM incidents WHERE id=?", (iid,))
+            rid = c.execute("SELECT id FROM incidents WHERE ref LIKE 'I-RESTRICT%'").fetchone()[0]
+            c.execute("INSERT INTO incident_people(incident_id, participant_id, role) VALUES (?,?, 'injured')",
+                      (rid, participant_id(self.child)))
+        staff = self.admin(roles=("session_staff",))
+        url = "/api/staff/attendance/%d" % self.bid
+        ok(staff.post_json(url, {"action": "in"}))
+        r = staff.post_json(url, {"action": "out", "method": "known_adult_verified", "collected_by_name": "Jo"})
+        self.assertEqual(r.status, 409)
+        self.assertEqual(len(r.json()["to_discuss"]), 1)
+        ok(staff.post_json(url, {"action": "out", "method": "known_adult_verified", "collected_by_name": "Jo",
+                                 "incident_discussed": True}))
+        with db.read() as c:
+            self.assertIsNotNone(c.execute("SELECT discussed_at FROM incidents WHERE id=?", (iid,)).fetchone()[0])
+            self.assertIsNone(c.execute("SELECT discussed_at FROM incidents WHERE id=?", (rid,)).fetchone()[0])
+
+    def test_record_access_is_limited(self):
+        with db.tx() as c:
+            c.execute("UPDATE participants SET collection_alert='Court order', support_plan='Quiet space' WHERE id=?",
+                      (participant_id(self.child),))
+        fin = self.admin(roles=("finance",))
+        p = ok(fin.get("/api/staff/people/participants/%s" % self.child)).json()["participant"]
+        self.assertEqual((p["collection_alert"], p["support_plan"]), (None, None))
+        mgr = ok(self.admin(roles=("manager",)).get("/api/staff/people/participants/%s" % self.child)).json()
+        self.assertEqual(mgr["participant"]["collection_alert"], "Court order")
+        ss = self.admin(roles=("session_staff",))
+        found = ok(ss.post_json("/api/staff/search", {"scope": "children", "q": "Maya"})).json()["results"]
+        self.assertTrue(found)
+        self.assertTrue(all(not r["flags"] for r in found))  # flags only on that day's register
 
 
 class OfflineRegisterTest(ServerTestCase):
@@ -194,6 +294,16 @@ class OfflineRegisterTest(ServerTestCase):
         t_out = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(minutes=5)).strftime("%Y-%m-%dT%H:%M:%SZ")
         ok(staff.post_json(url, {"action": "out", "offline": True, "at": t_out, "method": "known_adult_verified",
                                  "collected_by_name": "Jo Jones"}))
+        # an evening session last night, synced this morning
+        from hah import catalogue
+        uk_midnight = catalogue.uk_now().replace(hour=0, minute=0, second=0, microsecond=0)
+        late = (uk_midnight - _dt.timedelta(minutes=30)).astimezone(_dt.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+        _, bid2 = book_today(self.fam, complete_child(self.fam, first_name="Ada"))
+        with db.tx() as c:
+            c.execute("UPDATE activity_sessions SET date=? WHERE id=(SELECT session_id FROM bookings WHERE id=?)",
+                      (future(-1), bid2))
+        ok(staff.post_json("/api/staff/attendance/%d" % bid2, {"action": "in", "offline": True, "at": late}))
+        self.assertEqual(staff.post_json("/api/staff/attendance/%d" % bid2, {"action": "note", "notes": "x"}).status, 403)
         with db.read() as c:
             a = c.execute("SELECT signed_in_at, signed_out_at FROM attendance WHERE booking_id=?", (self.bid,)).fetchone()
             self.assertEqual((a["signed_in_at"], a["signed_out_at"]), (t_in.replace(".123Z", "Z"), t_out))

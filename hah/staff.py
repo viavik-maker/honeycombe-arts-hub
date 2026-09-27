@@ -20,6 +20,8 @@ ratelimit.LIMITS.update({
     "staff_login_ip": (30, 15 * 60),        # any emails, from one connection
     "staff_login_pair": (5, 15 * 60),       # one email, from one connection
     "staff_totp": (6, 15 * 60),             # wrong codes per session
+    "staff_totp_user": (10, 60 * 60),       # wrong codes per person, whichever session (signing in again doesn't reset it)
+    "staff_login_email": (10, 15 * 60),     # wrong passwords for one email, from anywhere
     "staff_setup": (10, 60 * 60),
     "staff_invite_check": (30, 60 * 60),
 })
@@ -59,7 +61,8 @@ def current_staff(h):
             return None
         roles = _roles(c, row["id"])
     last = datetime.datetime.strptime(row["last_seen_at"], "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=datetime.timezone.utc)
-    if (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() > TOUCH_EVERY:
+    # (skipped when asked from inside another write, e.g. by the audit log: it would wait on that write)
+    if (datetime.datetime.now(datetime.timezone.utc) - last).total_seconds() > TOUCH_EVERY and not db.in_tx():
         with db.tx() as c:
             c.execute("UPDATE staff_sessions SET last_seen_at=?, idle_expires_at=? WHERE id=?",
                       (now, _utc(minutes=config.STAFF_IDLE_MINUTES), row["session_id"]))
@@ -154,7 +157,8 @@ def login(h):
     d = h.json_body() or {}
     email, password = (d.get("email") or "").strip().lower()[:200], d.get("password") or ""
     ip = h.client_ip()
-    if ratelimit.blocked("staff_login_ip", ip) or ratelimit.blocked("staff_login_pair", email + "|" + ip):
+    if ratelimit.blocked("staff_login_ip", ip) or ratelimit.blocked("staff_login_pair", email + "|" + ip) \
+            or ratelimit.blocked("staff_login_email", email):
         return h.json({"error": SLOW_DOWN}, 429)
     with db.read() as c:
         user = c.execute("SELECT * FROM staff_users WHERE email=?", (email,)).fetchone()
@@ -167,6 +171,7 @@ def login(h):
     if not ok:
         ratelimit.hit("staff_login_ip", ip)
         ratelimit.hit("staff_login_pair", email + "|" + ip)
+        ratelimit.hit("staff_login_email", email)
         with db.tx() as c:
             audit.record(c, h, "staff.login_failed", entity_type="staff",
                          entity_id=user["id"] if user else None, actor={})
@@ -186,7 +191,7 @@ def login(h):
 def totp_verify(h):
     me = h.staff()
     d = h.json_body() or {}
-    if ratelimit.blocked("staff_totp", me["session_id"]):
+    if ratelimit.blocked("staff_totp", me["session_id"]) or ratelimit.blocked("staff_totp_user", str(me["id"])):
         with db.tx() as c:
             c.execute("DELETE FROM staff_sessions WHERE id=?", (me["session_id"],))
         return h.json({"error": SLOW_DOWN + " You'll need to sign in again."}, 429,
@@ -205,6 +210,7 @@ def totp_verify(h):
                 c.execute("UPDATE staff_users SET recovery_codes=? WHERE id=?", (json.dumps(hashes), me["id"]))
         if step is None and not used_recovery:
             ratelimit.hit("staff_totp", me["session_id"])
+            ratelimit.hit("staff_totp_user", str(me["id"]))
             audit.record(c, h, "staff.totp_failed", entity_type="staff", entity_id=me["id"], actor=me)
             return h.json({"error": "That code didn't work — check your authenticator app and try again."}, 401)
         if step is not None:
@@ -434,8 +440,14 @@ def _target(c, h, staff_id):
     if not row:
         h.json({"error": "No such staff member."}, 404)
         return None, True
-    if "owner" in _roles(c, row["id"]) and "owner" not in h.staff()["roles"]:
+    roles = _roles(c, row["id"])
+    if "owner" in roles and "owner" not in h.staff()["roles"]:
         h.json({"error": "Only an owner can change an owner's account."}, 403)
+        return None, True
+    # resetting someone's password and 2FA is taking over their account: only for roles you could give yourself
+    if row["id"] != h.staff()["id"] and any(not permissions.can_grant(h.staff()["roles"], r) for r in roles):
+        h.json({"error": "Only an owner can change the account of someone with the %s role." % "/".join(
+            r for r in roles if not permissions.can_grant(h.staff()["roles"], r))}, 403)
         return None, True
     return row, False
 

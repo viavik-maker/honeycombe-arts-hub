@@ -118,6 +118,8 @@ def is_staff_path(path):
     return path == "/admin" or path.startswith(("/admin/", "/api/staff/", "/api/admin/"))
 
 
+_HEADER_BREAK = re.compile(r"[\r\n\0]")
+
 SECURITY_HEADERS = {
     "X-Content-Type-Options": "nosniff",
     "Referrer-Policy": "same-origin",
@@ -253,7 +255,8 @@ class Handler(BaseHTTPRequestHandler):
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
         for k, v in (headers or {}).items():
-            self.send_header(k, v)
+            # a value built from the request (e.g. a redirect back to the same path) must never start a new header
+            self.send_header(k, _HEADER_BREAK.sub(lambda m: "%%%02X" % ord(m.group()), str(v)))
         self.end_headers()
         if self.command != "HEAD":
             self.wfile.write(body)
@@ -296,9 +299,12 @@ class Handler(BaseHTTPRequestHandler):
     def json_body(self):
         raw = self.body()  # BodyError propagates -> 400
         try:
-            return json.loads(raw.decode("utf-8"))
+            data = json.loads(raw.decode("utf-8"))
         except (ValueError, UnicodeDecodeError):
             return None
+        if data is not None and not isinstance(data, dict):
+            raise BodyError("The request body must be a JSON object.")
+        return data
 
     def cookie(self, name):
         raw = self.headers.get("Cookie") or ""
@@ -382,7 +388,8 @@ class Handler(BaseHTTPRequestHandler):
         if is_staff_path(path) and not on_staff:
             if self.command in ("GET", "HEAD") and not path.startswith("/api/"):
                 query = urllib.parse.urlparse(self.path).query
-                self.send(302, b"", "text/plain", {"Location": staff_url() + path + ("?" + query if query else "")})
+                self.send(302, b"", "text/plain", {"Location": staff_url() + urllib.parse.quote(path)
+                                                   + ("?" + query if query else "")})
             else:
                 self.json({"error": "not found"}, 404)
             return True
@@ -419,6 +426,7 @@ class Handler(BaseHTTPRequestHandler):
         """Call the route, then send what it answered. If it raises (including
         a failed commit), its answer is dropped and the error is sent instead."""
         self._holding, self._held = True, None
+        self._route_auth = r.auth
         try:
             r.fn(self, **params)
         finally:

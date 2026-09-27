@@ -99,8 +99,9 @@ def book(h):
         g = c.execute("SELECT * FROM guest_contacts WHERE email=? AND anonymised_at IS NULL", (email,)).fetchone()
         now = db.now()
         if g:
-            c.execute("UPDATE guest_contacts SET phone=?, name=COALESCE(?, name), last_booking_at=? WHERE id=?",
-                      (phone, name, now, g["id"]))
+            # anyone can type any email here, so only fill gaps: never replace the number staff would ring
+            c.execute("UPDATE guest_contacts SET phone=COALESCE(phone, ?), name=COALESCE(name, ?), last_booking_at=?"
+                      " WHERE id=?", (phone, name, now, g["id"]))
             gid = g["id"]
             if c.execute("SELECT 1 FROM bookings WHERE session_id=? AND guest_contact_id=? AND status IN "
                          + catalogue.HOLDING_SQL, (s["id"], gid)).fetchone():

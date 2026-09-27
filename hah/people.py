@@ -109,7 +109,7 @@ def search_rows(c, h, d):
     rows = c.execute("SELECT p.*, a.ref AS aref, a.first_name AS af, a.last_name AS al, a.mobile, a.email FROM participants p"
                      " JOIN accounts a ON a.id=p.account_id WHERE " + " AND ".join(where) +
                      " ORDER BY p.last_name, p.first_name LIMIT 300", args).fetchall()
-    show_flags = h.has_perm("people.view_health") or h.has_perm("registers.view")
+    show_flags = h.has_perm("people.view_health")  # session staff see flags on that day's register only
     return scope, [{"ref": p["ref"], "name": "%s %s" % (p["first_name"], p["last_name"]),
                     "age": family.age_years(p["dob"]), "dob": p["dob"], "level": p["level"],
                     "needs_review": bool(p["needs_review"]), "haf": p["haf_status"] if h.has_perm("bookings.manage") else None,
@@ -266,9 +266,13 @@ def participant_record(h, ref):
         p = _participant(c, ref)
         a = c.execute("SELECT ref, first_name, last_name FROM accounts WHERE id=?", (p["account_id"],)).fetchone()
         out = {"participant": dict(family.participant_summary(c, p), school_name=p["school_name"], education=p["education"],
-                                   gender=p["gender"], photo=p["photo_consent"], collection_alert=p["collection_alert"],
+                                   gender=p["gender"], photo=p["photo_consent"],
+                                   # who must not collect (can be court-order data) and SEND plans: not for finance etc.
+                                   collection_alert=p["collection_alert"] if h.has_perm("people.view_health")
+                                   or h.has_perm("safeguarding.view") else None,
                                    has_collection_password=bool(p["collection_pw_hash"]),
-                                   support_plan=p["support_plan"],
+                                   support_plan=p["support_plan"] if h.has_perm("people.view_health")
+                                   or h.has_perm("send.view") else None,
                                    haf=p["haf_status"] if h.has_perm("bookings.manage") else None),
                "family": {"ref": a["ref"], "name": "%s %s" % (a["first_name"], a["last_name"])},
                "tabs": ["basic"] + (["health"] if h.has_perm("people.view_health") else [])

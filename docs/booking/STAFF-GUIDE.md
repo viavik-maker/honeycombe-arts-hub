@@ -29,11 +29,16 @@ see the areas your role uses.
     - If it's by collection password, type what the adult says. You never see the password; the system checks it.
     - After 5 wrong tries, use the phone check instead: call the parent on the number in *Details*, then choose
       *Known adult, checked by phone*.
-    - A **COLLECTION ALERT** means see a manager before the child leaves.
+    - A **COLLECTION ALERT** says who must not collect the child. Read it and tick that you have before they leave.
+    - **Check with the DSL before they go** means exactly that: the DSL (or a deputy) has asked to be told first.
+      You won't see why.
+    - *Other* needs the collecting adult's name and a note saying how you checked who they are.
+    - If a booking is cancelled while the child is here (for example the session is called off), they stay on the
+      register until you sign them out.
   - **Print** gives a paper copy (no passwords, no safeguarding details) for when the tablet isn't available.
     Shred it after use.
 - **If the Wi-Fi is unreliable**, open Registers → *Use offline on this tablet* before the session. Choose a PIN
-  (6+ digits) and download today's registers.
+  (8+ digits) and download today's registers.
   - They keep working with no connection, even if the page is reloaded.
   - Sign-ins and sign-outs are saved on the tablet and sent, with the right times, when the connection comes back.
     The header shows how many are waiting.
@@ -42,7 +47,8 @@ see the areas your role uses.
   - The copy on the tablet is encrypted with your PIN, locks after 15 minutes idle, and is wiped after 5 wrong PINs
     and the next day. It holds only what the printed register shows.
   - If a change isn't accepted when it's sent (for example, someone already signed the child out on another
-    device), it's listed at the top so you can put it right in the full admin.
+    device), it's listed at the top so you can put it right in the full admin. If the server is just busy, the change
+    stays waiting and is tried again.
 - **Log incident** (on a register row or under Incidents). Choose how the parent will be told:
   - **Now**: they get an email saying there's a note to read. The email never contains details.
   - **At collection**: the register won't let the child be signed out until you tick that you've talked it

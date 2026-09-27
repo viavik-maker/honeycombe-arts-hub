@@ -13,7 +13,7 @@ const root = () => $("#offlineRoot");
 // the charity's date (UK), whatever the tablet's clock is set to
 const today = () => new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/London" }).format(new Date());
 const stamp = () => new Date().toISOString().replace(/\.\d{3}Z$/, "Z");
-const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" }) : "";
+const hhmm = (iso) => iso ? new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit", timeZone: "Europe/London" }) : "";
 const LOCK_AFTER_MS = 15 * 60 * 1000;
 const MAX_TRIES = 5;
 
@@ -47,7 +47,7 @@ const b64 = (buf) => btoa(String.fromCharCode(...new Uint8Array(buf)));
 const unb64 = (s) => Uint8Array.from(atob(s), c => c.charCodeAt(0));
 async function keyFrom(pin, salt) {
   const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(pin), "PBKDF2", false, ["deriveKey"]);
-  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 250000, hash: "SHA-256" }, base,
+  return crypto.subtle.deriveKey({ name: "PBKDF2", salt, iterations: 600000, hash: "SHA-256" }, base,
     { name: "AES-GCM", length: 256 }, false, ["encrypt", "decrypt"]);
 }
 async function seal(key, obj) {
@@ -67,7 +67,7 @@ let lastTouch = Date.now();
 
 async function save() {
   await put("state", await seal(KEY, S));
-  await put("meta", { date: S.pack.date, pending: S.queue.length, saved: stamp() });  // nothing personal
+  await put("meta", { date: S.pack.date, pending: S.queue.length, problems: S.problems.length, saved: stamp() });  // nothing personal
   $("#syncBtn").hidden = !S.queue.length;
   $("#syncBtn").textContent = `Send changes (${S.queue.length})`;
 }
@@ -102,6 +102,10 @@ async function sync(quiet) {
       if (r.status === 401) throw Object.assign(new Error("signin"), { signin: true });
       if (!r.ok) {
         const d = await r.json().catch(() => ({}));
+        // only a real "no" from the register (e.g. too old, or a check it needs) is final; a busy or restarting
+        // server, or an out-of-date page, just means try again later — keep the change and its real time
+        const final = [400, 404, 409, 422].includes(r.status) || (r.status === 403 && /registers only/.test(d.error || ""));
+        if (!final) break;
         S.problems.push({ who: item.who, what: item.what, at: item.body.at, error: d.error || "Not accepted" });
       }
       S.queue.shift();
@@ -118,8 +122,8 @@ async function sync(quiet) {
 /* ---------------- screens ---------------- */
 function pinForm(title, lead, twice, onPin) {
   root().innerHTML = `<div class="acard offline-pin"><h1>${esc(title)}</h1><p>${lead}</p>
-    <form id="pinForm"><div class="fgroup"><label for="pin">PIN (at least 6 digits)</label>
-      <input id="pin" type="password" inputmode="numeric" autocomplete="off" minlength="6" required></div>
+    <form id="pinForm"><div class="fgroup"><label for="pin">PIN (at least 8 digits)</label>
+      <input id="pin" type="password" inputmode="numeric" autocomplete="off" minlength="8" required></div>
       ${twice ? `<div class="fgroup"><label for="pin2">The same PIN again</label><input id="pin2" type="password" inputmode="numeric" autocomplete="off" required></div>` : ""}
       <p class="fhint" id="pinErr" hidden></p>
       <button class="abtn abtn--primary" type="submit">${twice ? "Download today's registers" : "Open"}</button></form></div>`;
@@ -128,7 +132,7 @@ function pinForm(title, lead, twice, onPin) {
     e.preventDefault();
     const pin = $("#pin").value.trim(), err = $("#pinErr");
     err.hidden = true;
-    if (!/^\d{6,}$/.test(pin)) { err.textContent = "Use at least 6 digits."; err.hidden = false; return; }
+    if (!/^\d{8,}$/.test(pin)) { err.textContent = "Use at least 8 digits."; err.hidden = false; return; }
     if (twice && pin !== $("#pin2").value.trim()) { err.textContent = "The two PINs don't match."; err.hidden = false; return; }
     try { await onPin(pin); } catch (x) { err.textContent = x.message; err.hidden = false; }
   };
@@ -176,7 +180,8 @@ function lock() {
 function personCell(p) {
   const bad = (n) => /ANAPHYLAXIS|ALLERGY/.test(n);
   return `<strong>${esc(p.first_name)} ${esc(p.last_name)}</strong> <span class="fhint">(${p.age})</span>
-    ${p.collection_alert ? `<br><span class="chip chip--bad">COLLECTION ALERT — see a manager</span>` : ""}
+    ${p.collection_alert ? `<br><span class="chip chip--bad">COLLECTION ALERT: ${esc(p.collection_alert)}</span>` : ""}
+    ${p.check_with_dsl ? `<br><span class="chip chip--bad">Check with the DSL before they go</span>` : ""}
     ${p.needs.length ? `<br>${p.needs.map(n => `<span class="chip chip--${bad(n) ? "bad" : "warn"}">${esc(n)}</span>`).join(" ")}` : ""}
     <br><span class="fhint">${esc({ online: "Photos OK", internal: "Photos: internal only", none: "NO PHOTOS" }[p.photo] || "Photos: ?")}
     · Parent ${esc(p.parent.name)} <a href="tel:${esc(p.parent.mobile || "")}">${esc(p.parent.mobile || "")}</a></span>`;
@@ -198,7 +203,8 @@ function draw() {
       ${s.rows.map((r, i) => `<tr>
         <td>${r.person ? personCell(r.person) : `<strong>${esc(r.party.contact.name)}</strong> — ${r.party.places} place(s)
           <br><span class="fhint">${esc(r.party.contact.mobile || "")}</span>${r.party.named.map(k => "<br>" + personCell(k)).join("")}`}
-          ${r.to_discuss ? `<br><span class="chip chip--warn">Incident to talk through at collection</span>` : ""}</td>
+          ${r.to_discuss ? `<br><span class="chip chip--warn">Incident to talk through at collection</span>` : ""}
+          ${r.cancelled ? `<br><span class="chip chip--warn">Booking cancelled — still needs signing out</span>` : ""}</td>
         <td>${r.signed_out_at ? `Out ${esc(hhmm(r.signed_out_at))}` : r.signed_in_at ? `In ${esc(hhmm(r.signed_in_at))}` : r.status === "absent" ? "Absent" : r.status === "absent_notified" ? "Absent (told us)" : "Expected"}</td>
         <td class="nowrap">${!r.signed_in_at && !r.status.startsWith("absent") ? `<button class="abtn abtn--primary abtn--sm" data-act="in" data-i="${i}">In</button>
             <button class="abtn abtn--ghost abtn--sm" data-act="absent" data-i="${i}">Absent</button>` : ""}
@@ -236,18 +242,24 @@ async function act(s, r, kind) {
   if (kind === "in") { r.signed_in_at = stamp(); r.status = "present"; return queue(r, { action: "in" }, "signed in"); }
   if (kind === "absent") { r.status = "absent"; return queue(r, { action: "absent" }, "absent"); }
   const p = r.person || {};
+  const kids = r.person ? [r.person] : r.party.named;
+  const alerts = kids.filter(k => k.collection_alert), dsl = kids.filter(k => k.check_with_dsl);
   const d = document.createElement("dialog"); d.className = "dlg dlg--form";
   const methods = [["known_adult_verified", "Known adult, checked by phone"]];
   if (s.parent_must_stay || r.party) methods.unshift(["parent_stayed", "Parent/carer stayed"]);
   if (p.go_home_alone) methods.push(["went_home_alone", "Went home alone (with permission)"]);
-  methods.push(["other", "Other (say who in the name box)"]);
+  methods.push(["other", "Other (say who, and how you checked, below)"]);
   d.innerHTML = `<form method="dialog"><h2>Sign out ${esc(who(r))}</h2>
-    ${p.collection_alert ? `<p class="chip chip--bad">COLLECTION ALERT — a manager must see who is collecting before they go.</p>` : ""}
+    ${alerts.map(k => `<p class="chip chip--bad">COLLECTION ALERT${r.person ? "" : " (" + esc(k.first_name) + ")"}: ${esc(k.collection_alert)}</p>`).join("")}
+    ${alerts.length ? `<label class="fcheck"><input type="checkbox" name="alert_checked"> I've read the collection alert and the adult collecting is allowed to</label>` : ""}
+    ${dsl.length ? `<p class="chip chip--bad">Check with the DSL (or a deputy) before ${esc(dsl.map(k => k.first_name).join(" and "))} goes.</p>
+      <label class="fcheck"><input type="checkbox" name="dsl_checked"> I've checked with the DSL</label>` : ""}
     <p class="fhint">Offline, collection passwords can't be checked: call the parent on ${esc((p.parent || {}).mobile || "the number in their record")} to confirm who's collecting.</p>
     ${p.collectors && p.collectors.length ? `<p class="fhint">Allowed to collect: ${p.collectors.map(c => esc(`${c.name} (${c.relationship}) ${c.phone}`)).join("; ")}</p>` : ""}
     <div class="fgroup"><label>How</label><select name="method">${methods.map(([k, l]) => `<option value="${k}">${esc(l)}</option>`).join("")}</select></div>
     <div class="frow"><div class="fgroup"><label>Name of the adult collecting</label><input name="name"></div>
       <div class="fgroup"><label>Relationship</label><input name="rel"></div></div>
+    <div class="fgroup"><label>Note (needed for "Other": how you checked who they are)</label><input name="notes" maxlength="500"></div>
     ${r.to_discuss ? `<label class="fcheck"><input type="checkbox" name="discussed"> I've talked the incident through with them</label>` : ""}
     <p class="dlg__err" hidden></p>
     <div class="dlg__btns"><button type="button" class="abtn abtn--ghost" data-close>Cancel</button><button class="abtn abtn--primary">Sign out</button></div></form>`;
@@ -260,10 +272,14 @@ async function act(s, r, kind) {
     const needName = ["known_adult_verified", "other"].includes(method);
     if (needName && !name) { err.textContent = "Enter who is collecting."; err.hidden = false; return; }
     if (r.to_discuss && !f.discussed.checked) { err.textContent = "Talk the incident through before they go."; err.hidden = false; return; }
+    if (alerts.length && !f.alert_checked.checked) { err.textContent = "Read the collection alert and tick the box."; err.hidden = false; return; }
+    if (dsl.length && !f.dsl_checked.checked) { err.textContent = "Check with the DSL first, then tick the box."; err.hidden = false; return; }
+    if (method === "other" && !f.notes.value.trim()) { err.textContent = "Add a note saying how you checked."; err.hidden = false; return; }
     d.close(); d.remove();
     r.signed_out_at = stamp();
     await queue(r, { action: "out", method, collected_by_name: name, collected_by_relationship: f.rel.value.trim(),
-      incident_discussed: !!(f.discussed && f.discussed.checked) }, "signed out");
+      incident_discussed: !!(f.discussed && f.discussed.checked), notes: f.notes.value.trim(),
+      alert_checked: alerts.length > 0, dsl_checked: dsl.length > 0 }, "signed out");
   };
   d.showModal();
 }
@@ -271,7 +287,7 @@ async function act(s, r, kind) {
 /* ---------------- start ---------------- */
 async function start() {
   const meta = await get("meta");
-  if (meta && meta.date < today() && !meta.pending) { await wipe(); }
+  if (meta && meta.date < today() && !meta.pending && !meta.problems) { await wipe(); }
   const box = await get("state");
   if (!box) {
     return pinForm("Registers for today", "Download today's registers so they keep working if the connection drops. " +

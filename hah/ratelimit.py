@@ -40,12 +40,27 @@ def hit(name, key):
         q, limit = _window(name, key, now)
         if q is None:
             if len(_events) >= MAX_KEYS:
-                _events.clear()
+                _evict(now)
             q = _events[(name, key)] = deque()
         if len(q) >= limit:
             return False
         q.append(now)
         return True
+
+
+# never dropped to make room: losing these would reset a lockout
+KEEP = {"collection_pw", "staff_login_pair", "staff_login_email", "staff_totp", "staff_totp_user", "acct_login_pair",
+        "acct_login_email"}
+
+
+def _evict(now):
+    """Make room: drop keys whose window has passed, then the least recently used of the rest (never KEEP ones)."""
+    for k in [k for k, q in _events.items() if not q or q[-1] <= now - LIMITS[k[0]][1]]:
+        del _events[k]
+    if len(_events) >= MAX_KEYS:
+        spare = sorted((q[-1], k) for k, q in _events.items() if k[0] not in KEEP)
+        for _, k in spare[:max(1, len(spare) // 2)]:
+            del _events[k]
 
 
 def reset():

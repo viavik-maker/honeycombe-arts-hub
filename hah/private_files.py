@@ -14,6 +14,7 @@ import io
 import os
 import re
 import secrets
+import urllib.parse
 import zipfile
 
 from . import config, db, images
@@ -101,9 +102,11 @@ def delete(c, row):
 def send(h, row):
     """Hand the file back as a download — never displayed inline."""
     data = read(row)
-    safe = re.sub(r'[^\w .()-]', "_", row["filename"])
+    # an ASCII name for every browser, plus the real (e.g. "Łódź plan.pdf") name for those that read filename*
+    ascii_name = re.sub(r"[^A-Za-z0-9 .()_-]", "_", row["filename"]) or "file"
+    disposition = "attachment; filename=\"%s\"; filename*=UTF-8''%s" % (ascii_name, urllib.parse.quote(row["filename"], safe=""))
     return h.send(200, data, row["content_type"], {
-        "Content-Disposition": 'attachment; filename="%s"' % safe, "Cache-Control": "no-store",
+        "Content-Disposition": disposition, "Cache-Control": "no-store",
         "Content-Security-Policy": "sandbox; default-src 'none'", "X-Robots-Tag": "noindex"})
 
 

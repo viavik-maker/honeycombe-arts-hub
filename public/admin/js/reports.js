@@ -96,7 +96,7 @@ A.addTab({
     root.innerHTML = `<h1>Attendance</h1><p class="sub">${esc(d.label)} · from registers (only sessions that have happened count as attended)</p>
       <div class="toolbar"><div class="segtabs">${[["day", "Day"], ["week", "Week"], ["month", "Month"], ["quarter", "Quarter"], ["year", "Year"]].map(([k, l]) =>
         `<button class="abtn abtn--sm ${k === st.period ? "abtn--honey" : "abtn--ghost"}" data-p="${k}">${l}</button>`).join("")}</div>
-        <input type="date" id="rDate" value="${esc(st.date)}">
+        <input type="date" id="rDate" aria-label="Date in the period" value="${esc(st.date)}">
         <a class="abtn abtn--ghost abtn--sm" href="/api/staff/reports/attendance.csv?${qs({ period: st.period, date: st.date })}">Daily breakdown CSV</a>
         <a class="abtn abtn--ghost abtn--sm" href="/api/staff/reports/haf.csv?${qs({ from: d.first, to: d.last })}">HAF export</a></div>
       <div class="statgrid">

@@ -1,6 +1,7 @@
 /* Honeycombe Arts Hub — staff admin */
 :root {
   --orange: #e2702a;
+  --orange-solid: #b35510;   /* for fills carrying white text (WCAG AA) */
   --honey: #f2b92e;
   --sage: #9cb985;
   --navy: #2e3960;
@@ -10,7 +11,7 @@
   --cream: #faf5ec;
   --paper: #fffdf8;
   --line: #e9e2d2;
-  --red: #d44a2a;
+  --red: #b8391d;
   --shadow: 0 2px 12px rgba(46,57,96,.08);
   --shadow-lg: 0 16px 44px -14px rgba(46,57,96,.25);
 }
@@ -31,7 +32,7 @@ img { max-width: 100%; }
   cursor: pointer; transition: .18s; display: inline-flex; align-items: center; gap: .45em;
 }
 .abtn:hover { transform: translateY(-1px); box-shadow: var(--shadow); }
-.abtn--primary { background: var(--orange); color: #fff; }
+.abtn--primary { background: var(--orange-solid); color: #fff; }
 .abtn--honey { background: var(--honey); color: var(--navy-d); }
 .abtn--ghost { background: transparent; border-color: var(--navy); color: var(--navy); }
 .abtn--danger { background: #fdecec; color: var(--red); }
@@ -72,7 +73,7 @@ img { max-width: 100%; }
 .side__nav button:hover { background: rgba(255,255,255,.07); color: #fff; }
 .side__nav button.active { background: var(--honey); color: var(--navy-d); }
 .side__nav button em {
-  font-style: normal; background: var(--orange); color: #fff; font-size: .75rem; font-weight: 800;
+  font-style: normal; background: var(--orange-solid); color: #fff; font-size: .75rem; font-weight: 800;
   border-radius: 999px; padding: .1em .55em; margin-left: auto;
 }
 .side__nav button.active em { background: var(--navy-d); }
@@ -105,7 +106,7 @@ img { max-width: 100%; }
 .item__title { font-weight: 800; color: var(--navy); }
 .item__meta { font-size: .85rem; color: var(--muted); }
 .item__meta .pill { background: var(--cream); border-radius: 999px; padding: .12em .7em; margin-right: .4em; display: inline-block; }
-.item__meta .pill--feat { background: #fdf2d8; color: #9c7406; font-weight: 800; }
+.item__meta .pill--feat { background: #fdf2d8; color: #7a5a00; font-weight: 800; }
 .item__actions { display: flex; gap: .35rem; align-items: center; }
 .icon-btn {
   background: var(--cream); border: 0; width: 34px; height: 34px; border-radius: 10px;

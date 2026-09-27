@@ -232,8 +232,9 @@ def staff_list(h):
     view = h.query().get("view") or "open"
     where = {"open": "status IN ('submitted','contacted','visit_booked')", "agreed": "status='plan_agreed'",
              "closed": "status='closed'"}.get(view, "1=1")
-    with db.read() as c:
+    with db.tx() as c:
         rows = c.execute("SELECT * FROM send_intakes WHERE " + where + " ORDER BY created_at DESC LIMIT 300").fetchall()
+        audit.record(c, h, "send.list_viewed", details={"view": view, "rows": len(rows)})
         out = []
         for it in rows:
             p = c.execute("SELECT first_name, last_name, dob FROM participants WHERE id=?", (it["participant_id"],)).fetchone()
