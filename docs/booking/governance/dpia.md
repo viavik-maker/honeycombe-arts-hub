@@ -221,7 +221,7 @@ and the payer's email.
 
   Recommended: accept. The trustees record their decision in §7.
 - **Hosting region.** Adopted: the Render service is re-created in the **Frankfurt (EU)** region, on the
-  Standard plan, before launch, so data is stored in the EU. Render's DPA (with the UK Addendum) is accepted
+  paid plan, before launch, so data is stored in the EU. Render's DPA (with the UK Addendum) is accepted
   in the dashboard.
 - **Collection password.** It is stored hashed and checked on a tablet at the door; it is never shown or
   printed. After 5 wrong tries, or if the tablet is offline, staff use the phone check instead.

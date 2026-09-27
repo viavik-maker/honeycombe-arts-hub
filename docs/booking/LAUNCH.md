@@ -39,8 +39,8 @@ summer rush.
   - **Stripe** (account in the charity's name): live keys and webhook
   - **Backblaze B2** off-site backups: EU Central (Amsterdam) bucket, Object Lock 35 days, an upload-only
     application key, the trustees' backup certificate; a restore practised
-- [ ] **Hosting.** The Render service is re-created in the **Frankfurt (EU)** region on the **Standard** plan
-  (password hashing and busy booking mornings need the CPU), and Render's DPA is accepted in the dashboard.
+- [ ] **Hosting.** The Render service is re-created in the **Frankfurt (EU)** region
+  (the starter plan is enough for a small hub), and Render's DPA is accepted in the dashboard.
 - [ ] **Privacy notice.** The data protection lead reviews `public/privacy.html`.
 
 ## 2. Staging rehearsal (week 4–5)

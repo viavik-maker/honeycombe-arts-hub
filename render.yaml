@@ -4,7 +4,7 @@ services:
   - type: web
     name: honeycombe-arts-hub
     runtime: python
-    plan: standard           # booking mornings and password hashing need the CPU (starter is too small)
+    plan: starter            # plenty for a small hub; move up to standard if booking mornings feel slow
     # region: frankfurt      # recommended (data stays in the EU). A region can only be chosen when the service is
     #                        # created: re-create it from this blueprint in Frankfurt before launch (see LAUNCH.md)
     buildCommand: "echo 'no build needed'"
