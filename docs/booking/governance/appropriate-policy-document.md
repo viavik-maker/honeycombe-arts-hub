@@ -19,7 +19,7 @@ ICO can see it on request.
 
 | Data | Condition |
 |---|---|
-| Children's health, SEND, SEMH, allergy, medication, dietary and religious requirements; safeguarding family information | Art 9(2)(g) substantial public interest, with **Sch 1 Part 2 para 18: safeguarding of children and of individuals at risk**. The processing is necessary to protect children from harm, and is carried out without consent where consent can't reasonably be expected to be given, or would prejudice that protection. *[Also consider para 16, support for individuals with a particular disability or medical condition, for SEND support.]* |
+| Children's health, SEND, SEMH, allergy, medication, dietary and religious requirements; SEND support requests and uploaded plans (EHCPs, care or behaviour plans); safeguarding family information | Art 9(2)(g) substantial public interest, with **Sch 1 Part 2 para 18: safeguarding of children and of individuals at risk**. The processing is necessary to protect children from harm, and is carried out without consent where consent can't reasonably be expected to be given, or would prejudice that protection. SEND support requests rely on para 18 too. We don't rely on para 16 (support for individuals with a particular disability or medical condition), which is meant for bodies set up to support people with a particular condition; revisit this if the charity's objects change. |
 | Incident and injury records involving health | Art 9(2)(g) with para 18; Art 9(2)(f) legal claims, with **Sch 1 Part 3 para 33** (legal claims) where relevant |
 | Court orders, "must not collect" information, and other criminal-offence data given by parents | Art 10 with **Sch 1 Part 3 para 36** (extension of Part 2 conditions: the para 18 safeguarding purpose) |
 | Health information about adults (18+), which they choose to give | Art 9(2)(a) **explicit consent**. The fields are optional and can be withdrawn at any time. |
@@ -54,7 +54,11 @@ form, the privacy notice and this document say so.
   - An append-only audit log of every view and change.
   - Encrypted connections, and encrypted off-site backups.
   - No health or safeguarding details in emails or texts.
-  - Printed registers carry no safeguarding detail or collection passwords.
+  - Printed registers, and the encrypted offline copy on a tablet, carry no safeguarding detail or collection
+    passwords.
+  - Uploaded SEND plans are kept in a private file store outside the website, open only to the family and
+    staff with SEND access, and every staff download is logged.
+  - Hosting is in the EU (Render, Frankfurt), on disks the host encrypts at rest.
 - **Accountability.** This document, the DPIA, the ROPA, the audit log, staff training records and regular
   review.
 
@@ -63,9 +67,11 @@ form, the privacy notice and this document say so.
 See the [retention schedule](retention-schedule.md). In summary:
 - **Health information:** held while the child attends, then deleted after the account closes, unless it
   forms part of an incident record.
-- **Accident records:** kept until the child's date of birth plus 25 years.
-- **Safeguarding records:** kept until at least the child's 25th birthday and reviewed by the DSL; never
-  deleted automatically.
+- **SEND support requests and uploaded plans:** kept while the account is open, and deleted with it.
+- **Accident records:** kept until the child is 25 (and, for adults, at least 7 years after the incident).
+- **Safeguarding records:** held for the DSL to review, at least until the child's 25th birthday; never
+  deleted automatically. When a young person takes over their own record at 18, the parent's confidential
+  notes stay with the DSL and don't move to the young person's account.
 
 ## 5. Review
 

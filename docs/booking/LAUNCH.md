@@ -21,8 +21,8 @@ summer rush.
   - breach runbook
 
   No real family data goes in before this.
-- [ ] **Answers from the open questions** (`DESIGN.md` A4) are reflected in Booking settings and in the activities.
-  Settings to check:
+- [ ] **Open questions** (`DESIGN.md` A4 and §10): each has a "Going with" default already in the software. Change
+  only what the charity disagreed with, in Booking settings and in the activities. Settings to check:
   - cancellation cutoff
   - refund days
   - pay-later policy
@@ -31,16 +31,17 @@ summer rush.
   - go-home-alone age
 - [ ] **Staff accounts.** Every staff member has their own account with two-step sign-in. The DSL and deputies
   have the DSL role, and only an owner can grant it.
-- [ ] **Providers set up** (README):
+- [ ] **Providers set up** (README), each with MFA on the account and its DPA accepted
+  ([processors.md](governance/processors.md)):
   - `SITE_URL`
-  - SMTP (with SPF/DKIM on the domain)
-  - Twilio
-  - Stripe live keys and webhook
-  - off-site backups
-- [ ] **Hosting.** The Render plan is at least Standard: password hashing and busy booking mornings need the CPU.
-  The region decision is recorded in the ROPA.
-- [ ] **Privacy notice.** Fill in the bracketed parts of `public/privacy.html`: processors and locations, register
-  retention, backup retention, review date.
+  - **Brevo** SMTP relay, sending from bookings@honeycombeartshub.org.uk, with SPF, DKIM and DMARC on the domain
+  - **Twilio**, alphanumeric sender "Honeycombe", with a spending limit
+  - **Stripe** (account in the charity's name): live keys and webhook
+  - **Backblaze B2** off-site backups: EU Central (Amsterdam) bucket, Object Lock 35 days, an upload-only
+    application key, the trustees' backup certificate; a restore practised
+- [ ] **Hosting.** The Render service is re-created in the **Frankfurt (EU)** region on the **Standard** plan
+  (password hashing and busy booking mornings need the CPU), and Render's DPA is accepted in the dashboard.
+- [ ] **Privacy notice.** The data protection lead reviews `public/privacy.html`.
 
 ## 2. Staging rehearsal (week 4–5)
 

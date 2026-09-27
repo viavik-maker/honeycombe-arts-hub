@@ -282,23 +282,47 @@ Phase 0 lands as one draft PR with one commit per chunk. Phase 1 chunks follow a
 - optional `staff.` subdomain
 
 ## A4. Open questions for the charity (defaults in brackets; none block Phase 0)
+
+Each question has a **Going with:** line: the recommended default the software uses (see also §10). Reply only
+where you disagree.
+
 1. Cancellation and refund policy [48 h cutoff; card refund ≥7 days before, otherwise credit]. Who may pay later? Do
    unpaid bookings auto-cancel? [no]
+
+   **Going with:** a 48-hour cutoff; card refund 7+ days before, credit between 7 days and the cutoff, nothing after. Pay later only for families staff flag, plus voucher/Tax-Free Childcare payers (confirmed by staff). Unpaid bookings aren't auto-cancelled: staff decide.
 2. HAF: funded days per child; whether HAF and paid places share a room's capacity; what BCP needs, and in what format.
+
+   **Going with:** HAF places are their own HAF-only activities, so they don't share capacity with paid places; the funded-days allowance per child is set on each activity. What BCP needs, and in what format: *[from the HAF grant agreement]*.
 3. Pricing without membership: sibling or week discounts; Saturday Club price.
+
+   **Going with:** no discounts (built, but set to 0%); staff set each activity's price, including Saturday Club.
 4. MagicBooking features: what the e-shop sells and whether it's needed; how trials are used; what the in-tray holds
    today.
+
+   **Going with:** the shop is built and stays off until switched on in Booking settings. Trials are switched on per activity (one per child). The in-tray covers approvals, vouchers, HAF checks and alerts.
 5. The MagicBooking export: a redacted sample; whether it has future bookings, credit balances, or several logins per
    family.
+
+   **Going with:** the importer maps the columns itself with a dry run first; identity and contact details and children's names and dates of birth only; places already sold are keyed in as prepaid; credits owed are honoured by staff; a second adult gets their own login when the account holder invites them as an extra carer.
 6. The collection password is checked on a tablet and never printed. The DSL needs to sign this off. Minimum age for
    going home alone [11].
+
+   **Going with:** tablet at the door, never shown or printed; 5 wrong tries → phone check *[DSL to confirm]*. Going home alone from 11, with the parent's permission.
 7. Who holds each role (DSL and deputies, SEND lead, finance, managers)? 2FA for everyone? [yes]
+
+   **Going with:** two-step sign-in for every staff member. Role holders: *[names]*.
 8. Retention [accidents DOB+25; registers 3 years; finance 6 years; inactive accounts 3 years; HAF per the grant]. Who
    is the named data-protection lead?
+
+   **Going with:** as listed, plus: registers anonymised after 3 years (HAF longer only if the grant agreement requires it *[check grant agreement]*); accidents until the child is 25 (at least 7 years after the incident for adults); guest contacts 12 months; message text and contact-form enquiries 24 months; backups 7 days on the server, 35 days off-site. Data protection lead: *[name]*.
 9. Funders that receive identifiable data, and whether consent is asked once or per funder. Keep "religious
    requirements" as asked, or reword it to "dietary or cultural requirements"?
+
+   **Going with:** funders get anonymised statistics only, unless a family says yes to the separate funder-sharing question (asked once, for our named funders *[list funders]*). "Religious requirements" stays as asked.
 10. Ages: "0 to 1" = under 2? Is eligibility checked on each session date or the first? Which activities are drop-off
     (Home Ed, the 12–17 groups)?
+
+    **Going with:** yes, "0 to 1" means 0–23 months. Age is checked on each session's date, except term blocks (Home Ed), which check it at the first session. Home Ed and the 12–17 groups are drop-off (every activity is, unless staff tick "parent must stay").
 11. Providers:
     - email sender and SPF/DKIM
     - Twilio sender ID and budget
@@ -306,8 +330,14 @@ Phase 0 lands as one draft PR with one commit per chunk. Phase 1 chunks follow a
     - bank details for invoices
     - Render plan (Standard recommended)
     - hosting region (Frankfurt recommended)
+
+    **Going with:** Brevo (EU) from bookings@honeycombeartshub.org.uk with SPF, DKIM and DMARC; Twilio sender "Honeycombe" with a spending limit; Stripe in the charity's name; bank details entered in Booking settings; Render Standard in Frankfurt.
 12. Arts Award and Seesaw eligibility without membership. Which centres or venues need registers?
+
+    **Going with:** no change to Arts Award or Seesaw until you say otherwise. Registers for the Boscombe hub only.
 13. Which reporting year to use, and the session categories for the daily breakdown.
+
+    **Going with:** the calendar year (the software default; switch to September in Booking settings for the academic year); categories as in §10 q14.
 
 ---
 
@@ -1725,27 +1755,65 @@ Sizing: S ≤ 2 days, M 3-4 days, L 5-8 days (one experienced engineer). Rough t
 
 ## 10. Open questions for the charity
 
-Only genuinely unresolved business decisions are listed. Where there is a sensible default, it's stated so building isn't blocked.
+Only genuinely unresolved business decisions are listed. Each has a **Going with:** line: the recommended default the software uses. Reply only where you disagree; items in *[square brackets]* are things only the charity can supply.
 
 1. **Cancellation and refund policy.** Notice period for parents (default 48 h cutoff). Full refund vs credit (default: card refund ≥7 days before, credit between 7 days and the cutoff, nothing after). Any admin fee. Illness exceptions. HAF no-show rules (e.g. repeated no-shows lose priority).
+
+   **Going with:** a 48-hour cutoff; a refund to the card if cancelled 7 or more days before, account credit between 7 days and the cutoff, and nothing after it (families can still report an absence). No admin fee; illness exceptions and HAF no-shows are handled by staff case by case.
 2. **Pay later and delayed payments.** Who may pay later: all families, flagged families, or voucher/TFC payers only (default: flagged families and voucher/TFC payers). Payment due dates. Should unpaid bookings be auto-cancelled N days before the session (default: no, staff decide)? Which voucher providers stay accepted (the site lists Government Childcare Choices, Computershare, Edenred, Kiddivouchers, Sodexo/Pluxee, Care 4)?
+
+   **Going with:** pay later only for families staff have flagged (and only on activities that allow it); vouchers and Tax-Free Childcare go to staff to confirm, then get an invoice. Payment is due in 14 days, with reminders. Unpaid bookings are never cancelled automatically: staff decide. All the voucher providers listed stay.
 3. **Pricing.** Sibling, full-week or early-bird discounts? The price of Saturday Club and other "members" activities once membership goes? Weekly price for Summer Club?
+
+   **Going with:** no discounts. Sibling and multi-day discounts are built but set to 0% in Booking settings. Prices, including Saturday Club and Summer Club, are whatever staff enter on each activity.
 4. **E-shop.** What does the MagicBooking e-shop sell today? Is it needed in the new system, and when?
+
+   **Going with:** the shop is built (orders become invoices, paid by card or on collection) and stays switched off until you turn it on in Booking settings.
 5. **Trials.** How are trials used today (free first session? which activities?) and do they need their own reporting?
+
+   **Going with:** trials are switched on per activity, with an optional trial price; one trial per child per activity, never on HAF places. Trial bookings are flagged, so they can be counted.
 6. **Retention periods and data protection lead.** Please confirm the defaults: inactive accounts 3 years; registers 3 years after the session; accident records until the child is 21; safeguarding records until at least 25 with DSL review; financial records 6 years; guest contacts 12 months; message bodies 24 months; imported accounts never activated 12 months. Who is the named data protection lead?
+
+   **Going with:** inactive accounts 3 years (warned, then deleted 30 days later); registers 3 years, then anonymised (HAF: longer only if BCP's grant agreement requires it); accident records until the child is 25 (at least 7 years after the incident for adults); safeguarding records held for the DSL to review; financial records 6 years after the end of the financial year; guest contacts 12 months; message text 24 months; contact-form enquiries 24 months; imported accounts never activated 12 months (unless they have bookings); backups 7 days on the server and 35 days off-site; staff accounts disabled on leaving and deleted a year later. Data protection lead: *[name]*.
 7. **Funders and HAF data flows.** Which funders should receive *identifiable* data with consent (e.g. National Lottery Community Fund, BCP, Arts Council), and what exactly? What does BCP Council need for HAF (names, DOB, school, FSM, SEND, daily attendance), in what format and how often? Is there a HAF eligibility code to capture and verify?
+
+   **Going with:** funders get anonymised statistics only (counts under 5 hidden), unless a family says yes to the separate "share with our funders" question; named funders: *[list funders]*. HAF data for BCP Council is shared as the programme requires and is never based on consent; exactly what BCP needs, in what format and how often: *[from the HAF grant agreement]*.
 8. **Home Education and drop-off.** Do parents stay for Home Ed sessions? The default is no, so Home Ed needs the full registration. Which other activities are drop-off vs parent-stays?
+
+   **Going with:** Home Ed is drop-off with the full registration, and ages are checked at the start of the term. Baby and toddler classes are parent-stays (short form); everything else is drop-off unless staff tick "parent must stay" on the activity.
 9. **Arts Award and Seesaw without membership.** Who qualifies for free Arts Award enrolment and Seesaw access now? Do Seesaw portfolios need their own consent, since Seesaw is a third-party processor of children's work and images?
+
+   **Going with:** no change to Arts Award or Seesaw until you tell us otherwise. The booking system sends nothing to Seesaw.
 10. **Centres.** Only the Boscombe hub, or also outreach venues or schools that need their own registers?
+
+    **Going with:** the Boscombe hub only. Other venues can be added in admin later, each with its own registers.
 11. **Collection and roles.** Is checking the collection password on a tablet at the door acceptable to the DSL (it is never displayed or printed)? Minimum age for "going home alone" (default 11)? Who are the DSL and deputies, SEND lead, finance and managers? Should 2FA be required for every staff member, or just privileged roles?
+
+    **Going with:** the collection password is checked on a tablet at the door and never shown or printed; after 5 wrong tries staff use the phone check *[DSL to confirm]*. Going home alone from age 11, with the parent's permission. Two-step sign-in for every staff member. Role holders: *[names]*.
 12. **Providers.** Which email service and sending address (SPF/DKIM setup)? Twilio sender ID or number and monthly SMS budget? Confirm the Stripe account is in the charity's name and who administers it. Bank details to print on invoices.
+
+    **Going with:** email through Brevo (EU) from bookings@honeycombeartshub.org.uk, with SPF, DKIM and DMARC on the domain (info@ stays as it is); texts through Twilio from the sender name "Honeycombe" (one-way), with a spending limit and session reminder texts off; Stripe in the charity's name, administered by *[name]*. Bank details go in Booking settings → invoices; until then invoices show none and families pay by card or at reception.
 13. **Finance exports.** Which accounting package or format does the treasurer use?
+
+    **Going with:** CSV exports of invoices and payments (Finance), which Xero, QuickBooks, Sage or a spreadsheet can import.
 14. **Reporting year.** Should "Year" mean calendar, financial (April) or academic (September) year? Confirm the session categories for the daily breakdown (HAF, Holiday club, Saturday club, Home Ed, Baby & toddler, Events, Young adults).
+
+    **Going with:** the calendar year (January), which is the software default; change "reporting year start" to September in Booking settings for the academic year. Categories as listed.
 15. **MagicBooking export.** Can you send a sample export with fake or redacted rows as soon as possible, to finalise the mapping? Can MagicBooking also export (a) historic attendance totals for year-on-year charts and (b) any outstanding credits or balances owed to families that the fresh start must honour?
+
+    **Going with:** the importer matches the columns itself and does a dry run first, so a sample helps but isn't essential. It brings identity and contact details, and children's names and dates of birth only. Year-on-year charts start fresh. Places already sold in MagicBooking are keyed in as prepaid, and any credits owed are honoured by staff.
 16. **Age rules.** For clubs spanning a birthday, is eligibility on the first day of the booking or on each session date? Do any activities go by school year (e.g. "Reception to Year 6")?
+
+    **Going with:** holiday clubs and weekly classes check age on each session's date; term blocks (Home Ed) check it at the first session. An activity can be set to go by school year (age on 31 August).
 17. **Young adults and guest events.** Which activities are for young adults (18+ self-booking)? Under-18s in 14-22 groups are registered by a parent. For family events, do adults count towards capacity? Should paid parties (cinema parties at £250) stay as enquiries or become bookable?
+
+    **Going with:** an activity is for young adults when staff set it to the adult form; under-18s are always registered by a parent. Family events count children only towards capacity (switchable per activity). Paid parties stay as enquiries.
 18. **Existing newsletter list.** `subscribers.json` has no record of consent. May we send a one-off "please confirm you still want our newsletter" email and drop anyone who doesn't confirm? Once the Data (Use and Access) Act 2025's charity soft opt-in is in force, do you want to rely on it for families who book?
+
+    **Going with:** existing subscribers are carried over as already consented (they signed up themselves; this follows ICO precedent), so no re-permission email. We won't rely on the charity soft opt-in for now: families who book are asked to opt in.
 19. **Hosting region.** Do you agree to move hosting to Render's EU (Frankfurt) region before launch (recommended), rather than documenting a US transfer?
+
+    **Going with:** yes. The service is re-created in Render's Frankfurt (EU) region, on the Standard plan, before launch.
 
 ---
 

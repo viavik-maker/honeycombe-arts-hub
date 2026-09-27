@@ -19,16 +19,24 @@
   - then *Reset password & 2FA* once it's safe.
 - **Several accounts, or you're unsure:** ask the hosting contact to **sign out everyone and rotate secrets**.
   1. Delete all rows from `staff_sessions` (and later the parent sessions table).
-  2. Rotate `HAH_SECRET_KEY`, `HAH_PEPPER`, the Stripe keys, the Twilio token and the SMTP password in Render
-     → Environment.
+  2. Rotate `HAH_SECRET_KEY`, `HAH_PEPPER`, the Stripe keys, the Twilio token, the Brevo SMTP key and the
+     Backblaze application key in Render → Environment.
   3. Redeploy.
 - **A lost or stolen device** with the admin open or printed registers:
   - disable that person's account and reset it;
   - list what the printed registers contained (flags and emergency numbers, never passwords or safeguarding
     detail).
+- **A lost or stolen tablet holding offline registers:**
+  - the copy is today's registers only, encrypted with the staff member's PIN (8+ digits), and wiped after 5
+    wrong PINs or the next day;
+  - disable the staff member's account and reset it;
+  - list the children on that day's registers: their health flags, emergency numbers, collection alerts and
+    "check with the DSL" flags were on it. Tell the DSL about any collection alerts at once;
+  - treat it as a breach to assess (step 2), even though the data is encrypted.
 - **An email sent to the wrong person:** ask them to delete it and confirm in writing.
 - **Suspected server breach:** keep evidence. Don't wipe the server. Take a copy of the logs first. Contact
-  Render support.
+  Render support. The off-site backups in Backblaze B2 are locked for 35 days and can't be changed or deleted
+  from the server, so they are a clean copy to restore from.
 
 ## 2. Assess (within 24 hours)
 
@@ -50,7 +58,7 @@ Then decide:
   - the insurer;
   - BCP Council, if HAF data is involved;
   - funders, if their contract requires it;
-  - the processors involved.
+  - the processors involved (Render, Stripe, Brevo, Twilio or Backblaze: see [processors.md](processors.md)).
 
 ## 4. Record (always, even if not reported)
 

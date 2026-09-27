@@ -38,4 +38,6 @@
 - **Purpose.** Grant reporting.
 - **Necessity.** Funders require outcome data. Anonymised figures meet the need without identifying anyone.
 - **Balancing.** Counts under 5 are suppressed so no child can be identified. **Outcome: legitimate
-  interests apply.** Identifiable data needs per-funder consent.
+  interests apply.** Identifiable data (a child's name and age) goes only to our named funders *[list funders]*,
+  and only where the family has said yes to the separate funder-sharing question. That is consent, not
+  legitimate interests. HAF data to BCP Council is covered in the ROPA and is never based on consent.
