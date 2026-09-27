@@ -8,6 +8,14 @@
   const $$ = (sel, el) => Array.from((el || document).querySelectorAll(sel));
   const esc = (s) => String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+  /* links from the editable settings: only web, email and phone links (or pages on this site), never
+     javascript: or data: — anything else falls back */
+  const safeUrl = (u, fallback) => {
+    const s = String(u == null ? "" : u).trim();
+    if (!s) return fallback;
+    try { return ["http:", "https:", "mailto:", "tel:"].includes(new URL(s, location.href).protocol) ? s : fallback; }
+    catch (_) { return fallback; }
+  };
 
   /* ---------- header / shared chrome ---------- */
   const header = $("#siteHeader");
@@ -31,10 +39,10 @@
   // online booking: once staff switch it on, Book Now goes to our own booking page
   $$("[data-booking]").forEach(a => {
     if (S.bookingLive) { a.href = "/book"; a.removeAttribute("target"); a.removeAttribute("rel"); }
-    else a.href = S.bookingUrl || "#";
+    else a.href = safeUrl(S.bookingUrl, "#");
   });
   $$("[data-when-booking]").forEach(el => { el.hidden = (el.dataset.whenBooking === "on") !== !!S.bookingLive; });
-  $$("[data-donate]").forEach(a => a.href = S.donateUrl || "#");
+  $$("[data-donate]").forEach(a => a.href = safeUrl(S.donateUrl, "#"));
   $$("[data-charity]").forEach(el => el.textContent = S.charityNumber || "");
   $$("[data-ofsted]").forEach(el => el.textContent = S.ofstedNumber || "");
   const yr = $("#year"); if (yr) yr.textContent = new Date().getFullYear();
@@ -62,6 +70,7 @@
   const fs = $("#footerSocial");
   if (fs) {
     [["facebook", S.facebook], ["instagram", S.instagram], ["twitter", S.twitter], ["youtube", S.youtube]]
+      .map(([k, url]) => [k, safeUrl(url, "")])
       .filter(x => x[1])
       .forEach(([k, url]) => {
         const a = document.createElement("a");
@@ -74,16 +83,25 @@
 
   // newsletter
   const nf = $("#newsletterForm");
+  /* a refusal (bad address, too many tries) or no connection says so, rather than nothing happening;
+     the message box is in the page from the start so screen readers announce what goes in it */
+  const nfMsg = document.createElement("p");
+  nfMsg.className = "footer__newserr"; nfMsg.setAttribute("role", "alert"); nfMsg.style.margin = ".5em 0 0";
+  if (nf) $(".footer__newsrow", nf).after(nfMsg);
   if (nf) nf.addEventListener("submit", async (e) => {
     e.preventDefault();
     const email = nf.email.value.trim();
+    const msg = nfMsg;
+    msg.textContent = "";
     try {
       const r = await fetch("/api/newsletter", {
         method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, website: nf.website.value })
       });
-      if (r.ok) { $(".footer__newsrow", nf).style.display = "none"; $(".footer__newsdone", nf).hidden = false; }
-    } catch (_) { /* offline */ }
+      if (r.ok) { $(".footer__newsrow", nf).style.display = "none"; $(".footer__newsdone", nf).hidden = false; return; }
+      const d = await r.json().catch(() => ({}));
+      msg.textContent = d.error || "Sorry, that didn't work — please check your email address and try again.";
+    } catch (_) { msg.textContent = "Couldn't reach the server — please try again."; }
   });
 
   /* ---------- scroll reveal ---------- */
@@ -149,7 +167,7 @@
     if (gp) {
       const pics = (C.gallery || []).slice(0, 8);
       gp.innerHTML = pics.map((g, i) => `
-        <figure class="reveal" data-i="${i}"><img src="${esc(g.src)}" alt="${esc(g.caption)}" loading="lazy"><figcaption>${esc(g.caption)}</figcaption></figure>`).join("");
+        <figure class="reveal" data-i="${i}" tabindex="0" role="button" aria-label="${esc("View larger: " + (g.caption || "photo " + (i + 1)))}"><img src="${esc(g.src)}" alt="${esc(g.caption)}" loading="lazy"><figcaption>${esc(g.caption)}</figcaption></figure>`).join("");
       observeNew(gp);
       bindLightbox(gp, pics);
     }
@@ -223,7 +241,7 @@
       const slug = (S.eventActivities || {})[ev.id];
       if (S.bookingLive && slug) { btn.textContent = "Book now"; btn.href = "/book?activity=" + encodeURIComponent(slug); }
       else if (ev.bookable && S.bookingLive) { btn.textContent = "Book online"; btn.href = "/book"; }
-      else if (ev.bookable) { btn.textContent = "Book via our booking portal"; btn.href = S.bookingUrl; btn.target = "_blank"; }
+      else if (ev.bookable) { btn.textContent = "Book via our booking portal"; btn.href = safeUrl(S.bookingUrl, "/contact"); btn.target = "_blank"; }
       else { btn.textContent = "Enquire about this event"; btn.href = "/contact"; }
     }
   }
@@ -252,7 +270,7 @@
     function draw() {
       visible = current === "All" ? all : all.filter(g => g.category === current);
       gWrap.innerHTML = visible.map((g, i) => `
-        <figure data-i="${i}" class="reveal in"><img src="${esc(g.src)}" alt="${esc(g.caption)}" loading="lazy"><figcaption>${esc(g.caption)}</figcaption></figure>`).join("");
+        <figure data-i="${i}" class="reveal in" tabindex="0" role="button" aria-label="${esc("View larger: " + (g.caption || "photo " + (i + 1)))}"><img src="${esc(g.src)}" alt="${esc(g.caption)}" loading="lazy"><figcaption>${esc(g.caption)}</figcaption></figure>`).join("");
       bindLightbox(gWrap, visible);
     }
     fWrap.addEventListener("click", (e) => {
@@ -341,47 +359,74 @@
   }
 
   if (page === "arts-award" || page === "holiday-club") {
-    const sw = $("[data-seesaw]"); if (sw) sw.href = S.seesawUrl || "#";
-    const vol = $$("[data-volunteer]"); vol.forEach(a => a.href = S.volunteerUrl || "/contact");
-    const fb = $$("[data-facebook]"); fb.forEach(a => a.href = S.facebook || "#");
+    const sw = $("[data-seesaw]"); if (sw) sw.href = safeUrl(S.seesawUrl, "#");
+    const vol = $$("[data-volunteer]"); vol.forEach(a => a.href = safeUrl(S.volunteerUrl, "/contact"));
+    const fb = $$("[data-facebook]"); fb.forEach(a => a.href = safeUrl(S.facebook, "#"));
   }
 
   /* ---------- lightbox ----------
      NB: `var` (not let) — bindLightbox is invoked by the page renderers
      above, before execution reaches these declarations. */
-  var lb, lbImg, lbCap, lbList = [], lbIdx = 0;
+  /* A modal photo viewer: while open, focus stays inside it (Tab cycles its buttons) and Escape or × closes it,
+     returning focus to the photo that opened it. While closed it's inert: not focusable, not read out. */
+  var lb, lbImg, lbCap, lbList = [], lbIdx = 0, lbOpener = null;
   function ensureLb() {
     if (lb) return;
     lb = document.createElement("div");
     lb.className = "lightbox";
+    lb.setAttribute("role", "dialog"); lb.setAttribute("aria-modal", "true"); lb.setAttribute("aria-label", "Photo viewer");
+    lb.inert = true;
     lb.innerHTML = `<button class="lb-close" aria-label="Close">×</button>
-      <button class="lb-prev" aria-label="Previous">‹</button>
+      <button class="lb-prev" aria-label="Previous photo">‹</button>
       <img alt=""><figcaption></figcaption>
-      <button class="lb-next" aria-label="Next">›</button>`;
+      <button class="lb-next" aria-label="Next photo">›</button>`;
     document.body.appendChild(lb);
     lbImg = $("img", lb); lbCap = $("figcaption", lb);
-    $(".lb-close", lb).addEventListener("click", () => lb.classList.remove("open"));
+    $(".lb-close", lb).addEventListener("click", closeLb);
     $(".lb-prev", lb).addEventListener("click", () => show(lbIdx - 1));
     $(".lb-next", lb).addEventListener("click", () => show(lbIdx + 1));
-    lb.addEventListener("click", (e) => { if (e.target === lb) lb.classList.remove("open"); });
+    lb.addEventListener("click", (e) => { if (e.target === lb) closeLb(); });
     addEventListener("keydown", (e) => {
       if (!lb.classList.contains("open")) return;
-      if (e.key === "Escape") lb.classList.remove("open");
+      if (e.key === "Escape") closeLb();
       if (e.key === "ArrowLeft") show(lbIdx - 1);
       if (e.key === "ArrowRight") show(lbIdx + 1);
+      if (e.key === "Tab") {
+        const btns = $$("button", lb), i = btns.indexOf(document.activeElement);
+        e.preventDefault();
+        btns[(i + (e.shiftKey ? -1 : 1) + btns.length) % btns.length].focus();
+      }
     });
+  }
+  function openLb(list, i, opener) {
+    lbList = list; lbOpener = opener; show(i);
+    lb.inert = false; lb.classList.add("open");
+    $(".lb-close", lb).focus();
+  }
+  function closeLb() {
+    lb.classList.remove("open"); lb.inert = true;
+    if (lbOpener && lbOpener.isConnected) lbOpener.focus();
+    lbOpener = null;
   }
   function show(i) {
     lbIdx = (i + lbList.length) % lbList.length;
     lbImg.src = lbList[lbIdx].src; lbImg.alt = lbList[lbIdx].caption || "";
     lbCap.textContent = lbList[lbIdx].caption || "";
   }
+  /* photos open with a click, or Enter / Space when focused. Re-binding (gallery filters) just swaps the list. */
   function bindLightbox(rootEl, list) {
     ensureLb();
+    rootEl._lbList = list;
+    if (rootEl._lbBound) return;
+    rootEl._lbBound = true;
+    const open = (f) => openLb(rootEl._lbList, Number(f.dataset.i) || 0, f);
     rootEl.addEventListener("click", (e) => {
-      const f = e.target.closest("figure"); if (!f) return;
-      lbList = list; show(Number(f.dataset.i) || 0);
-      lb.classList.add("open");
+      const f = e.target.closest("figure[data-i]"); if (f) open(f);
+    });
+    rootEl.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      const f = e.target.closest("figure[data-i]"); if (!f) return;
+      e.preventDefault(); open(f);
     });
   }
 })();

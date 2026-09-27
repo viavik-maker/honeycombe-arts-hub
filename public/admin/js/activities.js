@@ -1,5 +1,5 @@
 /* Activities (catalogue, sessions, publishing) and Booking settings. */
-import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, post, qs, table, toast, when } from "./ui.js";
+import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, pence, post, qs, table, toast, when } from "./ui.js";
 
 const A = window.HAHAdmin;
 const STATUS_CHIP = { draft: ["Draft", "muted"], scheduled: ["Scheduled", "info"], published: ["Published", "ok"],
@@ -8,21 +8,24 @@ const TABS = [["current", "Current"], ["draft", "Drafts"], ["scheduled", "Schedu
   ["unpublished", "Unpublished"], ["past", "Past"], ["archived", "Archived"], ["all", "All"]];
 const statusChip = (s) => chip(...(STATUS_CHIP[s] || [s, "muted"]));
 const pounds = (p) => p == null ? "" : (p / 100).toFixed(2);
-const toPence = (v) => v === "" || v == null ? null : Math.round(parseFloat(String(v).replace(/[£,\s]/g, "")) * 100);
 const ym = (m) => ({ y: Math.floor(m / 12), m: m % 12 });
 let META = null;
 
 async function meta() { if (!META) META = await api("/api/staff/activities/meta"); return META; }
 
-/* errors from a 422: show next to the boxes */
+/* errors from a 422: show next to the boxes. The server names some fields differently from the boxes
+   (ages are sent in months from hidden inputs, prices in pence), so point those at what staff can see. */
+const FIELD_BOX = { min_age_months: "min_y", max_age_months: "max_y", price_pence: "price",
+  adult_price_pence: "adult_price", trial_price_pence: "trial_price" };
 function fieldErrors(root, x) {
+  toast(x.message, true);
   $$(".ferr", root).forEach(e => e.remove());
   const errs = (x.data && x.data.errors) || {};
   for (const [k, m] of Object.entries(errs)) {
-    const el = $(`[name="${k}"]`, root);
-    if (el) el.closest(".fgroup").insertAdjacentHTML("beforeend", `<p class="ferr">${esc(m)}</p>`);
+    const el = $(`[name="${FIELD_BOX[k] || k}"]`, root) || $(`[name="${k}"]`, root);
+    const box = el && (el.closest(".fgroup") || (el.type !== "hidden" && el.parentElement));
+    if (box) box.insertAdjacentHTML("beforeend", `<p class="ferr">${esc(m)}</p>`);
   }
-  toast(x.message, true);
 }
 
 A.addTab({
@@ -128,6 +131,13 @@ function editor(root, act, back) {
   $("#actForm", root).onsubmit = async (e) => {
     e.preventDefault();
     const f = e.target;
+    $$(".ferr", root).forEach(x => x.remove());
+    let prices;
+    try {
+      prices = { price_pence: pence(f.price, { label: "Price per session", required: true }),
+        adult_price_pence: pence(f.adult_price, { label: "Adult price", required: true }),
+        trial_price_pence: pence(f.trial_price, { label: "Trial price" }) };
+    } catch (x) { toast(x.message, true); return; }
     const body = {
       title: f.title.value, category_id: f.category_id.value, centre_id: f.centre_id.value, summary: f.summary.value,
       description: f.description.value, image: f.image.value, event_id: f.event_id.value,
@@ -137,8 +147,7 @@ function editor(root, act, back) {
       capacity_counts: f.capacity_counts.value, booking_opens_at_local: f.booking_opens_at_local.value,
       booking_closes_hours: f.booking_closes_hours.value, capacity_default: f.capacity_default.value,
       max_party_size: f.max_party_size.value, waitlist_mode: f.waitlist_mode.value,
-      price_pence: toPence(f.price.value) || 0, adult_price_pence: toPence(f.adult_price.value) || 0,
-      trial_price_pence: f.trial_price.value.trim() === "" ? null : (Number.isNaN(toPence(f.trial_price.value)) ? f.trial_price.value : toPence(f.trial_price.value)),
+      ...prices,
     };
     for (const k of ["parent_must_stay", "requires_approval", "haf_only", "waitlist_enabled", "allow_pay_later", "allow_trial"]) body[k] = f[k].checked;
     try {
@@ -200,7 +209,7 @@ function sessionFields(s, a) {
     <div class="fgroup"><label>Staff notes</label><input type="text" name="staff_notes" value="${esc(s.staff_notes || "")}"></div>`;
 }
 const sessionBody = (f) => ({ date: f.date.value, theme: f.theme.value, start_time: f.start_time.value, end_time: f.end_time.value,
-  capacity: f.capacity.value, price_pence: toPence(f.price.value), staff_notes: f.staff_notes.value });
+  capacity: f.capacity.value, price_pence: pence(f.price, { label: "Price for this session" }), staff_notes: f.staff_notes.value });
 
 function wireActivity(root, a, back) {
   const reload = async () => { const r = await api("/api/staff/activities/" + a.id); editor(root, r.activity, back); };
@@ -276,7 +285,7 @@ async function generator(a, done) {
     <div id="genPreview"></div>`;
   let previewed = false;
   const body = (f, dry) => ({ from: f.from.value, to: f.to.value, weekdays: $$("input[name=wd]:checked", f).map(i => +i.value),
-    start_time: f.start_time.value, end_time: f.end_time.value, capacity: f.capacity.value, price_pence: toPence(f.price.value),
+    start_time: f.start_time.value, end_time: f.end_time.value, capacity: f.capacity.value, price_pence: pence(f.price, { label: "Price" }),
     skip_dates: f.skip.value.split(/\s+/).filter(Boolean), skip_bank_holidays: f.bh.checked,
     themes: f.themes.value.split("\n").map(s => s.trim()).filter(Boolean), dry_run: dry });
   const r = await modal("Add a run of sessions", html, async (f) => {

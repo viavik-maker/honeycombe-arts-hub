@@ -85,6 +85,26 @@ def subscribers_csv(h):
                    "Cache-Control": "no-store"})
 
 
+# Links the public site puts in href="" straight from the settings. Only web, email and phone links, or a page
+# on this site, may be published: never javascript:, data: or other schemes.
+LINK_SETTINGS = {"bookingUrl": "Booking link", "donateUrl": "Donate link", "volunteerUrl": "Volunteer link",
+                 "seesawUrl": "Seesaw link", "facebook": "Facebook link", "twitter": "X (Twitter) link",
+                 "instagram": "Instagram link", "youtube": "YouTube link"}
+SAFE_SCHEMES = ("http", "https", "mailto", "tel")
+
+
+def unsafe_link(value):
+    """True if a settings link would run code or leave the web (javascript:, data:, vbscript:, …).
+    Browsers ignore spaces, tabs and newlines inside a URL's scheme, so those are removed before checking."""
+    if value in (None, ""):
+        return False
+    if not isinstance(value, str):
+        return True
+    squashed = re.sub(r"[\x00-\x20\x7f]", "", value)
+    m = re.match(r"([A-Za-z][A-Za-z0-9+.-]*):", squashed)
+    return bool(m) and m.group(1).lower() not in SAFE_SCHEMES
+
+
 @route("POST", "/api/admin/content", auth="staff", perm="site.content", body_limit=4 * 1024 * 1024)
 def save_content(h):
     d = h.json_body()
@@ -95,6 +115,11 @@ def save_content(h):
             return h.json({"error": f"invalid content: {key}"}, 400)
     if "pages" in d and not isinstance(d["pages"], dict):
         return h.json({"error": "invalid content: pages"}, 400)
+    settings = d["settings"] if isinstance(d["settings"], dict) else {}
+    for key in sorted(set(LINK_SETTINGS) | {k for k in settings if k.endswith("Url")}):
+        if unsafe_link(settings.get(key)):
+            return h.json({"error": "%s must be a web address starting https:// (or mailto:, tel:, or a page on this "
+                                    "site like /contact)." % LINK_SETTINGS.get(key, key), "field": key}, 400)
     replace_json("content.json", d, backup="content.backup.json")  # keeps a rolling backup
     with db.tx() as c:
         audit.record(c, h, "site.published")

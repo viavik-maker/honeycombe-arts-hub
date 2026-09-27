@@ -90,7 +90,7 @@ function renderSettings() {
 async function loadSystem() {
   const body = $("#sysBody");
   if (!body) return;
-  const when = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }) : "never";
+  const when = (iso) => iso ? new Date(iso).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }) : "never";
   try {
     const st = await api("/api/admin/system-status");
     const backupJob = st.jobs.find(j => j.name === "nightly_backup") || {};

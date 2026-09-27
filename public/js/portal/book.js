@@ -84,7 +84,7 @@ export async function book() {
     const d = dayParts(s.date);
     const avail = s.state === "full" ? `<span class="avail avail--full">Full</span>`
       : s.state === "waitlist" ? `<span class="avail avail--full">Full · waiting list</span>`
-      : s.state === "not_open_yet" ? `<span class="avail">Opens ${esc(new Date(s.opens_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short" }))}</span>`
+      : s.state === "not_open_yet" ? `<span class="avail">Opens ${esc(new Date(s.opens_at).toLocaleString("en-GB", { dateStyle: "medium", timeStyle: "short", timeZone: "Europe/London" }))}</span>`
       : s.state === "few" ? `<span class="avail avail--few">Only ${s.places_left} left</span>`
       : `<span class="avail avail--ok">${s.places_left} places</span>`;
     const price = a.haf_only ? "Free" : s.price_pence ? money(s.price_pence) : "Free";
@@ -189,7 +189,8 @@ export async function review() {
   await requireSignIn();
   renderNav("book");
   let basket = loadBasket();
-  const idem = crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random();
+  const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : String(Date.now()) + Math.random());
+  let idem = newKey();
   const cancelled = params.get("cancelled");
   if (!basket.length) {
     root().innerHTML = `<h1>Your booking</h1>${cancelled ? notice("Payment cancelled — nothing was booked.", "warn") : ""}<p>You haven't chosen anything yet.</p><p><a class="btn btn--orange" href="/book">Book activities</a></p>`;
@@ -250,6 +251,9 @@ export async function review() {
         saveBasket([]);
         go("/book/done?c=" + encodeURIComponent(d.checkout));
       } catch (x) {
+        /* the server answered with a refusal (e.g. the card payment couldn't start): a retry is a new attempt,
+           not a replay of the failed one. No answer at all (status 0) keeps the key, so a retry can't book twice. */
+        if (x.status) idem = newKey();
         if (x.data && x.data.quote) { q = x.data.quote; draw(); }
         const e2 = $("#payErr"); e2.textContent = x.message; e2.hidden = false;
       }
@@ -280,11 +284,12 @@ export async function done() {
       root().innerHTML = `<h1>Payment still processing</h1>${notice("We haven't heard from the bank yet. We'll email you as soon as it's confirmed — there's no need to pay again.", "warn")}<p><a href="/account/bookings">My bookings</a></p>`;
       return;
     }
-    saveBasket([]);
     if (d.status === "expired" || d.status === "failed") {
-      root().innerHTML = `<h1>Payment didn't go through</h1>${notice("Nothing was charged and the places have been released.", "warn")}<p><a class="btn btn--orange" href="/book">Book activities</a></p>`;
+      /* the basket is kept so they can try again */
+      root().innerHTML = `<h1>Payment didn't go through</h1>${notice("Nothing was charged and the places have been released.", "warn")}<p><a class="btn btn--orange" href="/book/review">Try again</a> <a class="btn btn--ghost" href="/book">Book activities</a></p>`;
       return;
     }
+    saveBasket([]);
     const by = (s) => d.bookings.filter(b => b.status === s);
     root().innerHTML = `<h1>Thank you!</h1><p class="lead">We've emailed you the details.</p>
       ${groupList("Confirmed", by("confirmed"))}${groupList("Waiting for approval", by("pending_approval"), "We'll email you once we've checked these.")}
@@ -314,7 +319,7 @@ export async function myBookings() {
     d.upcoming.filter(b => b.status !== "offered").forEach(b => (byDate[b.date] = byDate[b.date] || []).push(b));
     const unpaid = d.invoices.filter(i => i.balance_pence > 0);
     const noteCard = (n) => `<div class="pcard${n.acknowledged ? "" : " pcard--todo"}"><h2>A note about ${esc(n.child || "your child")}'s session</h2>
-        <p class="pcard__intro">${esc(new Date(n.occurred_at).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit" }))} · ${esc(n.kind)}</p>
+        <p class="pcard__intro">${esc(new Date(n.occurred_at).toLocaleString("en-GB", { weekday: "long", day: "numeric", month: "long", hour: "numeric", minute: "2-digit", timeZone: "Europe/London" }))} · ${esc(n.kind)}</p>
         <p>${esc(n.description)}</p>${bodyPicture(n.body_map)}${n.action_taken ? `<p><strong>What we did:</strong> ${esc(n.action_taken)}${n.first_aid_given ? " (first aid given)" : ""}</p>` : ""}
         ${n.acknowledged ? `<p class="pcard__saved">Read ✓</p>` : `<button class="btn btn--sm btn--orange" data-ack="${esc(n.ref)}">I've read this</button>`}
         <p class="hint">Questions? Call us on 07932 772905.</p></div>`;
@@ -323,7 +328,7 @@ export async function myBookings() {
       ${d.credit_pence ? notice(`You have <strong>${money(d.credit_pence)}</strong> account credit — it's used automatically on your next booking.`, "ok") : ""}
       ${d.offers.map(b => `<div class="pcard pcard--todo"><h2>A place has come up!</h2>
         <p><strong>${esc(b.activity)}</strong>, ${esc(niceDate(b.date))} ${esc(b.start_time)}–${esc(b.end_time)}${b.who ? " for " + esc(b.who.first_name) : ""}.
-        Held for you until <strong>${esc(new Date(b.offer_expires_at).toLocaleString("en-GB", { weekday: "short", hour: "numeric", minute: "2-digit" }))}</strong>.</p>
+        Held for you until <strong>${esc(new Date(b.offer_expires_at).toLocaleString("en-GB", { weekday: "short", hour: "numeric", minute: "2-digit", timeZone: "Europe/London" }))}</strong>.</p>
         ${b.price_pence ? `<div class="pills">${[d.card_payments ? "card" : null, "voucher"].filter(Boolean).map((p, i) =>
           `<label class="pill-opt"><input type="radio" name="pm-${esc(b.ref)}" value="${p}"${i === 0 ? " checked" : ""}> ${esc(PAY[p][0])}</label>`).join("")}</div>` : ""}
         <div class="pcard__actions"><button class="btn btn--orange" data-accept="${esc(b.ref)}">Accept${b.price_pence ? " · " + money(b.price_pence) : ""}</button>

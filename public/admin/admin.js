@@ -30,8 +30,29 @@
     method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body)
   }, extra || {}));
 
+  /* Accessibility: tie each ".fgroup" label to its field (screen readers read the label; clicking it focuses the
+     field), and let keyboard users scroll wide tables. Runs whenever a tab re-renders. */
+  let labelSeq = 0;
+  function tidyA11y() {
+    $$(".fgroup > label:not([for])").forEach((l) => {
+      if (l.querySelector("input, select, textarea")) return;
+      const f = l.parentElement.querySelector("input:not([type=hidden]), select, textarea");
+      if (!f) return;
+      if (!f.id) f.id = "fld" + (++labelSeq);
+      l.htmlFor = f.id;
+    });
+    $$(".table-wrap:not([tabindex])").forEach((w) => {
+      if (w.scrollWidth > w.clientWidth) { w.tabIndex = 0; w.setAttribute("role", "region"); w.setAttribute("aria-label", "Table (scrolls sideways)"); }
+    });
+  }
+  new MutationObserver(tidyA11y).observe(document.body, { childList: true, subtree: true });
+
+  /* #toast sits inside a live region (index.html) so screen readers hear it: errors in the role="alert" one,
+     everything else in the polite role="status" one */
   function toast(msg, err) {
     const t = $("#toast");
+    const live = $(err ? "#toastAlert" : "#toastLive");
+    if (live && t.parentNode !== live) live.appendChild(t);
     t.textContent = msg; t.className = "toast" + (err ? " err" : ""); t.hidden = false;
     clearTimeout(t._h); t._h = setTimeout(() => t.hidden = true, 2600);
   }
@@ -48,6 +69,14 @@
       .catch(() => stepPassword());
   }
   function showApp() { $("#loginView").hidden = true; $("#appView").hidden = false; }
+
+  /* a real label for each sign-in box (a placeholder alone vanishes as you type and isn't read reliably) */
+  let loginSeq = 0;
+  const field = (label, input) => {
+    const id = "loginF" + (++loginSeq);
+    return `<label for="${id}" style="display:block;font-weight:800;font-size:.9rem;margin:0 0 .3em">${esc(label)}</label>` +
+      input.replace("<input", `<input id="${id}"`);
+  };
 
   function stepView(html, onSubmit) {
     const box = $("#loginStep");
@@ -77,8 +106,8 @@
   function stepPassword() {
     stepView(`<h1>Staff sign in</h1>
       <p>Sign in with your own email and password.</p>
-      <form><input type="email" name="email" placeholder="Email" autocomplete="username" required>
-        <input type="password" name="password" placeholder="Password" autocomplete="current-password" required>
+      <form>${field("Email", `<input type="email" name="email" autocomplete="username" required>`)}
+        ${field("Password", `<input type="password" name="password" autocomplete="current-password" required>`)}
         <button class="abtn abtn--primary" type="submit">Sign in</button></form>`,
       async (f) => next(await post("/api/staff/login", { email: f.email.value, password: f.password.value }, { quiet401: true })));
   }
@@ -86,7 +115,7 @@
   function stepCode() {
     stepView(`<h1>Enter your code</h1>
       <p>Open your authenticator app and type the 6-digit code for Honeycombe Arts Hub. Lost your phone? Use one of your recovery codes.</p>
-      <form><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+      <form>${field("6-digit code or recovery code", `<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>`)}
         <button class="abtn abtn--primary" type="submit">Continue</button></form>`,
       async (f) => next(await post("/api/staff/totp/verify", { code: f.code.value }, { quiet401: true })));
   }
@@ -104,7 +133,7 @@
           account <strong>Honeycombe Arts Hub</strong>, key <code class="login__key">${esc(grouped)}</code> (time-based).</li>
         <li>Type the 6-digit code the app shows:</li>
       </ol>
-      <form><input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>
+      <form>${field("6-digit code", `<input name="code" inputmode="numeric" autocomplete="one-time-code" placeholder="123 456" required>`)}
         <button class="abtn abtn--primary" type="submit">Turn on two-step sign-in</button></form>`,
       async (f) => next(await post("/api/staff/totp/enrol", { code: f.code.value }, { quiet401: true })));
   }
@@ -126,10 +155,10 @@
     stepView(`<h1>Create the owner account</h1>
       <p>Staff now sign in with their own accounts. Create yours first — you'll need the current team password.
         After this, the shared team password stops working.</p>
-      <form><input type="password" name="team" placeholder="Current team password" autocomplete="off" required>
-        <input name="name" placeholder="Your name" autocomplete="name" required>
-        <input type="email" name="email" placeholder="Your email" autocomplete="username" required>
-        <input type="password" name="password" placeholder="New password (10+ characters)" autocomplete="new-password" required minlength="10">
+      <form>${field("Current team password", `<input type="password" name="team" autocomplete="off" required>`)}
+        ${field("Your name", `<input name="name" autocomplete="name" required>`)}
+        ${field("Your email", `<input type="email" name="email" autocomplete="username" required>`)}
+        ${field("New password", `<input type="password" name="password" placeholder="10+ characters" autocomplete="new-password" required minlength="10">`)}
         <button class="abtn abtn--primary" type="submit">Create owner account</button></form>`,
       async (f) => next(await post("/api/staff/setup", { team_password: f.team.value, name: f.name.value,
         email: f.email.value, password: f.password.value }, { quiet401: true })));
@@ -145,7 +174,7 @@
     }
     stepView(`<h1>${who.purpose === "staff_reset" ? "Choose a new password" : "Welcome, " + esc(who.name) + "!"}</h1>
       <p>Choose a password for <strong>${esc(who.email)}</strong> — at least 10 characters (three random words works well).</p>
-      <form><input type="password" name="password" placeholder="New password" autocomplete="new-password" required minlength="10">
+      <form>${field("New password", `<input type="password" name="password" placeholder="10+ characters" autocomplete="new-password" required minlength="10">`)}
         <button class="abtn abtn--primary" type="submit">Continue</button></form>`,
       async (f) => next(await post("/api/staff/invite/accept", { token, password: f.password.value }, { quiet401: true })));
   }

@@ -1,5 +1,5 @@
 /* Finance (invoices, delayed payments, takings, refunds, exports) and the In-tray. */
-import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, post, qs, table, toast, when, ukNowLocal, ukToday } from "./ui.js";
+import { $, $$, api, can, chip, confirmBox, day, esc, modal, money, pence, post, qs, table, toast, when, ukNowLocal, ukToday } from "./ui.js";
 
 const A = window.HAHAdmin;
 const isoToday = ukToday;
@@ -13,7 +13,7 @@ function paymentForm(meta, balance) {
     <div class="fgroup"><label>Reference (never a card number)</label><input type="text" name="reference"></div>
     <label class="fcheck"><input type="checkbox" name="receipt" checked> Email a receipt</label>`;
 }
-const paymentBody = (f, number) => ({ invoice_number: number, method: f.method.value, amount_pence: Math.round(parseFloat(f.amount.value) * 100),
+const paymentBody = (f, number) => ({ invoice_number: number, method: f.method.value, amount_pence: pence(f.amount, { label: "Amount", required: true, positive: true }),
   voucher_provider: f.provider.value, received_on: f.on.value, reference: f.reference.value, send_receipt: f.receipt.checked });
 
 async function payoutDetail(id) {
@@ -144,7 +144,7 @@ A.addTab({
       <p class="sub">Things waiting for someone to act. You only see items your role deals with.</p>
       <div class="toolbar"><div class="segtabs">${[["open", "Open"], ["mine", "Assigned to me"], ["snoozed", "Snoozed"], ["done", "Done"]].map(([k, l]) =>
         `<button class="abtn abtn--sm ${k === st.view ? "abtn--honey" : "abtn--ghost"}" data-view="${k}">${l}</button>`).join("")}</div>
-        <select id="itType"><option value="">All types (${d.total_open} open)</option>${Object.entries(d.types).map(([k, v]) =>
+        <select id="itType" aria-label="Type of item"><option value="">All types (${d.total_open} open)</option>${Object.entries(d.types).map(([k, v]) =>
           `<option value="${esc(k)}"${k === st.type ? " selected" : ""}>${esc(v)} (${d.counts[k] || 0})</option>`).join("")}</select></div>
       <div class="item-list">${d.items.map((i, n) => `<div class="item"><div style="flex:1">
           <div class="item__title">${esc(i.title)}</div>

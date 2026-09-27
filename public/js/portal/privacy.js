@@ -12,6 +12,7 @@ export async function privacy() {
       <p class="pcard__intro">Emails about your bookings (confirmations, changes, invoices) always come — these settings are only about news of future events.</p>
       <label class="check"><input type="checkbox" name="email_news"${p.email_news ? " checked" : ""}> <span>Email me news about events and activities</span></label>
       ${p.has_mobile ? `<label class="check"><input type="checkbox" name="sms_news"${p.sms_news ? " checked" : ""}> <span>Text me news about events and activities</span></label>` : ""}
+      <p class="field__error" id="prefErr" role="alert" hidden></p>
       <div class="pcard__actions"><button class="btn btn--orange" type="submit">Save</button><span class="pcard__saved" id="prefSaved" hidden>Saved ✓</span></div></form>
     <div class="pcard"><h2>A copy of your data</h2>
       <p>Download everything we hold about you and your family: your details, health information, bookings, invoices, consents and the messages we've sent. We'll ask for your password first.</p>
@@ -26,16 +27,27 @@ export async function privacy() {
     <p><a href="/privacy">Read our privacy notice</a></p></div>`;
   $("#prefForm").onsubmit = async (e) => {
     e.preventDefault();
-    const f = e.target;
-    await busy($("button[type=submit]", f), () => api("/api/account/preferences", { email_news: f.email_news.checked, sms_news: f.sms_news ? f.sms_news.checked : false }));
-    $("#prefSaved").hidden = false;
+    const f = e.target, err = $("#prefErr");
+    err.hidden = true; $("#prefSaved").hidden = true;
+    try {
+      await busy($("button[type=submit]", f), () => api("/api/account/preferences", { email_news: f.email_news.checked, sms_news: f.sms_news ? f.sms_news.checked : false }));
+      $("#prefSaved").hidden = false;
+    } catch (x) { err.textContent = x.message; err.hidden = false; }   /* refused: say so, don't look saved */
+  };
+  /* a refusal shows under the button's card instead of nothing happening */
+  const problem = (el, x) => {
+    const card = el.closest(".pcard"), old = $("[data-problem]", card); if (old) old.remove();
+    card.insertAdjacentHTML("beforeend", `<div class="notice notice--err" role="alert" data-problem>${esc(x.message)}</div>`);
   };
   document.querySelectorAll("[data-export]").forEach(b => b.onclick = async () => {
-    await busy(b, () => api("/api/account/data-export/check", {}));
+    try { await busy(b, () => api("/api/account/data-export/check", {})); }
+    catch (x) { return problem(b, x); }
     location.assign("/api/account/data-export?format=" + b.dataset.export);
   });
   $("#dataBtn").onclick = async () => {
-    const r = await busy($("#dataBtn"), () => api("/api/account/data-request", {}));
+    let r;
+    try { r = await busy($("#dataBtn"), () => api("/api/account/data-request", {})); }
+    catch (x) { return problem($("#dataBtn"), x); }
     $("#dataBtn").insertAdjacentHTML("afterend", notice(esc(r.message), "ok"));
     $("#dataBtn").remove();
   };

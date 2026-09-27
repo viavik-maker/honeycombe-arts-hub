@@ -1,9 +1,8 @@
 /* Shop: products (price, stock, picture) and orders (ready → collected/posted, or cancelled with a refund). */
-import { $, $$, api, can, chip, confirmBox, esc, modal, money, post, table, toast, when } from "./ui.js";
+import { $, $$, api, can, chip, confirmBox, esc, modal, money, pence, post, table, toast, when } from "./ui.js";
 
 const A = window.HAHAdmin;
 const pounds = (p) => p == null ? "" : (p / 100).toFixed(2);
-const toPence = (v) => Math.round(parseFloat(String(v).replace(/[£,\s]/g, "")) * 100);
 const CHIP = { new: "warn", ready: "info", collected: "ok", posted: "ok", cancelled: "muted" };
 
 async function editProduct(p, done) {
@@ -19,7 +18,7 @@ async function editProduct(p, done) {
       <div class="fgroup"><label>Status</label><select name="status">${[["draft", "Draft (hidden)"], ["live", "On sale"], ["archived", "Archived"]].map(([k, l]) =>
         `<option value="${k}"${k === p.status ? " selected" : ""}>${l}</option>`).join("")}</select></div></div>`,
     (f) => post(p.id ? `/api/staff/shop/products/${p.id}/update` : "/api/staff/shop/products", {
-      title: f.title.value, description: f.description.value, price_pence: toPence(f.price.value || "0"), stock: f.stock.value,
+      title: f.title.value, description: f.description.value, price_pence: pence(f.price, { label: "Price", required: true }), stock: f.stock.value,
       max_per_order: f.max.value, image: f.image.value, sort: f.sort.value, status: f.status.value }), "Save");
   if (r) { toast("Saved"); done(); }
 }

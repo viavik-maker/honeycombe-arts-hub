@@ -38,8 +38,8 @@ A.addTab({
         ${st.scope === "children" ? `<div class="quicklinks">
           ${health ? FLAGS.map(f => `<label class="fcheck"><input type="checkbox" name="f_${f}"${st.filters[f] ? " checked" : ""}> ${f.toUpperCase()}</label>`).join("") : ""}
           <label class="fcheck"><input type="checkbox" name="needs_review"${st.filters.needs_review ? " checked" : ""}> Needs checking</label>
-          <select name="level"><option value="">Any form level</option>${Object.entries(LEVEL).map(([k, [l]]) => `<option value="${k}"${st.filters.level === k ? " selected" : ""}>${l}</option>`).join("")}</select>
-          ${can("bookings.manage") ? `<select name="haf"><option value="">Any HAF status</option>${["claimed_eligible", "not_sure", "verified", "not_eligible"].map(k => `<option value="${k}"${st.filters.haf === k ? " selected" : ""}>${k.replace("_", " ")}</option>`).join("")}</select>` : ""}
+          <select name="level" aria-label="Form level"><option value="">Any form level</option>${Object.entries(LEVEL).map(([k, [l]]) => `<option value="${k}"${st.filters.level === k ? " selected" : ""}>${l}</option>`).join("")}</select>
+          ${can("bookings.manage") ? `<select name="haf" aria-label="HAF status"><option value="">Any HAF status</option>${["claimed_eligible", "not_sure", "verified", "not_eligible"].map(k => `<option value="${k}"${st.filters.haf === k ? " selected" : ""}>${k.replace("_", " ")}</option>`).join("")}</select>` : ""}
           <label>Age <input type="number" name="min_age" min="0" max="25" style="width:4em" value="${esc(st.filters.min_age || "")}"> to <input type="number" name="max_age" min="0" max="25" style="width:4em" value="${esc(st.filters.max_age || "")}"></label></div>` : ""}
       </form>
       <div id="pResults">${st.results ? results(st) : ""}</div>
@@ -370,24 +370,33 @@ A.addTab({
           <div class="fgroup"><label>Reference (never a card number)</label><input type="text" name="reference"></div></div>
         <label class="fcheck"><input type="checkbox" name="sign_in" checked> Sign them in now</label>
         <div id="wiErr"></div>
-        <p><button class="abtn abtn--primary"${sessions.length ? "" : " disabled"}>Book${" "}and sign in</button></p></form>`;
+        <p><button type="submit" class="abtn abtn--primary"${sessions.length ? "" : " disabled"}>Book${" "}and sign in</button></p></form>`;
+    /* one key per filled-in form: a retry after a lost response is recognised as the same walk-in */
+    const newKey = () => (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(36) + Math.random().toString(36).slice(2));
+    let idemKey = newKey();
     $("#wiForm", root).onsubmit = async (e) => {
       e.preventDefault();
       const f = e.target;
+      const btn = $("button[type=submit]", f);
+      if (btn.disabled) return;   /* already sending: a double click must not create a second family and payment */
       const body = { session_id: f.session_id.value, parent: { first_name: f.p_first.value, last_name: f.p_last.value, mobile: f.p_mobile.value, email: f.p_email.value },
         child: { first_name: f.c_first.value, last_name: f.c_last.value, dob: f.c_dob.value }, allergies: f.allergies.value,
         contact: { full_name: f.e_name.value, relationship: f.e_rel.value, phone: f.e_phone.value },
         photo: f.photo.value, first_aid: f.first_aid.value, consent_source: f.paper.checked ? "staff_paper" : "staff_verbal",
-        payment: f.method.value ? { mode: "record", method: f.method.value, reference: f.reference.value } : { mode: "unpaid" }, sign_in: f.sign_in.checked };
+        payment: f.method.value ? { mode: "record", method: f.method.value, reference: f.reference.value } : { mode: "unpaid" }, sign_in: f.sign_in.checked,
+        idempotency_key: idemKey };
+      btn.disabled = true; f.setAttribute("aria-busy", "true");
       try {
         const r = await post("/api/staff/walkin", body);
+        idemKey = newKey();   /* done: the next family gets a fresh key */
         toast("Booked" + (f.sign_in.checked ? " and signed in" : ""));
         $("#wiErr", root).innerHTML = `<p class="ok">Done — family ${esc(r.account_ref)}${r.invoice ? ", invoice " + esc(r.invoice.number) + (r.invoice.balance_pence ? " (" + esc(money(r.invoice.balance_pence)) + " to pay)" : " (paid)") : ""}.</p>`;
         f.reset();
       } catch (x) {
+        if (x.status) idemKey = newKey();   /* the server answered, so nothing was made; a lost response keeps the key */
         const errs = (x.data && x.data.errors) || {};
         $("#wiErr", root).innerHTML = `<ul class="problems">${(Object.values(errs).length ? Object.values(errs) : [x.message]).map(m => `<li>${esc(m)}</li>`).join("")}${x.data && x.data.problems ? x.data.problems.map(m => `<li>${esc(m)}</li>`).join("") : ""}</ul>`;
-      }
+      } finally { btn.disabled = false; f.removeAttribute("aria-busy"); }
     };
   },
 });

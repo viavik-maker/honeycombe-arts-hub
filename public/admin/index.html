@@ -13,12 +13,12 @@
 <body>
 
   <!-- ============ LOGIN ============ -->
-  <div id="loginView" class="login" hidden>
+  <main id="loginView" class="login" hidden>
     <div class="login__card">
       <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="login__logo">
       <div id="loginStep"></div>
     </div>
-  </div>
+  </main>
 
   <!-- ============ APP ============ -->
   <div id="appView" class="app" hidden>
@@ -63,7 +63,9 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <!-- live regions stay in the page so screen readers announce messages; admin.js puts #toast in the right one -->
+  <div id="toastLive" role="status" aria-live="polite" aria-atomic="true"><div id="toast" class="toast" hidden></div></div>
+  <div id="toastAlert" role="alert" aria-atomic="true"></div>
 
   <script src="/admin/admin.js"></script>
   <!-- website editing (CMS) -->

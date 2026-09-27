@@ -102,7 +102,9 @@ function reauthenticate() {
         <button class="btn btn--orange" type="submit">Confirm</button></div></form>`;
     document.body.appendChild(d);
     const f = $("form", d), err = $(".field__error", d);
-    $("[value=cancel]", d).onclick = () => { d.close(); d.remove(); reject(new ApiError("Not changed.", 403)); };
+    const cancel = () => { d.close(); d.remove(); reject(new ApiError("Not changed.", 403)); };
+    $("[value=cancel]", d).onclick = cancel;
+    d.addEventListener("cancel", (e) => { e.preventDefault(); cancel(); });   /* Escape: same as Cancel, never left waiting */
     f.onsubmit = async (e) => {
       e.preventDefault();
       try { await api("/api/account/reauth", { password: $("#reauthPw", d).value }, { noReauth: true }); d.close(); d.remove(); resolve(); }
