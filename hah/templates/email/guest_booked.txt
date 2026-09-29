@@ -1,0 +1,12 @@
+Subject: You're booked!
+Hello,
+
+Thank you — your places are confirmed:
+
+{{lines}}
+
+{{invoice}}
+
+If you need to change or cancel, please call us on 07932 772905 or reply to this email.
+
+Booking with us often? [Create a free account]({{register_url}}) with this email address and you'll see these bookings there.

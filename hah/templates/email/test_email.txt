@@ -1,0 +1,4 @@
+Subject: Test email from the Honeycombe Arts Hub website
+This is a test sent by {{name}} from admin → Settings → Email & text messages.
+
+If you're reading it, the website can send email.

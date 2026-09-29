@@ -1,0 +1,8 @@
+Subject: You already have a Honeycombe Arts Hub account
+Hello {{first_name}},
+
+Someone (hopefully you) tried to create a new account with this email address, but you already have one.
+
+[Sign in]({{signin_url}}) · [Forgotten your password?]({{reset_url}}) · [Coming from our old booking system? Activate your account]({{activate_url}})
+
+If this wasn't you, you don't need to do anything.

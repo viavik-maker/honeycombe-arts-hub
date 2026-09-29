@@ -1,0 +1,10 @@
+Subject: About your own Honeycombe Arts Hub account
+Hello {{first_name}},
+
+{{parent}} asked us to give you your own Honeycombe Arts Hub account, now you're 18, using this email address. This address already signs in to an account here, so we couldn't use it for yours.
+
+Ask {{parent}} to try again with a different email address that's just yours, or get in touch and we'll help.
+
+If you weren't expecting this, you can ignore this email.
+
+Questions? Just reply to this email or call us on 07932 772905.

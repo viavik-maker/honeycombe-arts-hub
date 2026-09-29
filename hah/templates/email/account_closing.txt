@@ -1,0 +1,8 @@
+Subject: Your account will be deleted on {{when}}
+Hello {{first_name}},
+
+As you asked, we'll delete your Honeycombe Arts Hub account and your family's details on **{{when}}**. You've been signed out, and any upcoming bookings have been cancelled ({{cancelled}}). You won't receive any more news from us.
+
+Changed your mind? Call us on 07932 772905 before then and we can restore your account.
+
+A few records we have to keep by law stay for a while: invoices (six years, for our accounts) and any accident or incident records (until the child turns 25). Nothing else is kept.

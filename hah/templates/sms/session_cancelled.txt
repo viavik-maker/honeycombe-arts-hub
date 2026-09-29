@@ -1,0 +1,1 @@
+Honeycombe Arts Hub: sorry, we've had to cancel {{activity}} on {{when}}. Your booking is cancelled and refunded — details by email.

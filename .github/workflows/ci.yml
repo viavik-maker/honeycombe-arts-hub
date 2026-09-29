@@ -1,0 +1,35 @@
+# Runs the test suite on every pull request, and is reused by deploy.yml so
+# nothing reaches Render unless the tests pass.
+#
+# To make Render itself wait for these checks: Render dashboard → the service
+# → Settings → Auto-Deploy → "After CI checks pass".
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version-file: .python-version
+
+      - name: Byte-compile (syntax check)
+        run: python -m compileall -q server.py hah tests
+
+      - name: Unit and integration tests
+        run: python -m unittest -v
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: JavaScript syntax check
+        run: find public -name '*.js' -print0 | xargs -0 -n1 node --check

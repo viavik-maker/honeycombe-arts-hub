@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+  <title>{{portal_title}} — Honeycombe Arts Hub</title>
+  <meta name="robots" content="noindex, nofollow">
+  <!--#include head.html-->
+  <link rel="stylesheet" href="/css/portal.css">
+  <!--#data-->
+</head>
+<body data-page="portal" data-portal="{{portal_page}}">
+  <a class="skip-link" href="#main">Skip to content</a>
+  <!--#include header.html-->
+
+  <main id="main" class="portal">
+    <nav class="portal-nav" id="portalNav" aria-label="Your account" hidden></nav>
+    <div class="container portal__body" id="portal" aria-live="polite">
+      <p class="portal__loading">Loading…</p>
+    </div>
+  </main>
+
+  <!--#include footer.html-->
+  <script type="module" src="/js/portal/app.js"></script>
+</body>
+</html>

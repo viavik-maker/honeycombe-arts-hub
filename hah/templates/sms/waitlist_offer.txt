@@ -1,0 +1,1 @@
+Honeycombe Arts Hub: a place has come up on {{activity}}, {{when}}. We're holding it until {{until}} — accept it in My bookings on our website.

@@ -1,0 +1,6 @@
+Subject: {{child}} now has their own account
+Hello {{first_name}},
+
+{{child}} has set up their own Honeycombe Arts Hub account, so their details have moved out of yours. Any bookings you'd already made for them are still on your account.
+
+Questions? Just reply to this email or call us on 07932 772905.

@@ -1,0 +1,8 @@
+Subject: Your Honeycombe Arts Hub code
+Hello {{first_name}},
+
+Here's your code to finish creating your Honeycombe Arts Hub account:
+
+**{{SECRET}}**
+
+It works for {{minutes}} minutes. If you didn't ask for this, you can ignore this email — no account is created without the code.

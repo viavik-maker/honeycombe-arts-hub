@@ -7,3 +7,12 @@ data/content.backup.json
 data/uploads/
 .DS_Store
 .claude/
+# booking system (SQLite database, backups, private files, worker lock)
+data/booking.db
+data/booking.db-*
+data/backups/
+data/private/
+data/worker.lock
+__pycache__/
+*.pyc
+data/mail-outbox/

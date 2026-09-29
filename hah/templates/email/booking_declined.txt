@@ -1,0 +1,14 @@
+Subject: About your booking request
+Hello {{first_name}},
+
+We're sorry, but we couldn't confirm this booking:
+
+{{lines}}
+
+{{reason}}
+
+{{haf}}
+
+[Book activities]({{book_url}})
+
+If you have any questions, just reply to this email or call us on 07932 772905.

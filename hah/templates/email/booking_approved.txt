@@ -1,0 +1,10 @@
+Subject: Your booking is confirmed
+Hello {{first_name}},
+
+Good news — we've confirmed this booking:
+
+{{lines}}
+
+{{invoice}}
+
+[See your bookings]({{bookings_url}})

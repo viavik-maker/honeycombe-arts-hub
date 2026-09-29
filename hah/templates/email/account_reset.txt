@@ -1,0 +1,8 @@
+Subject: Reset your Honeycombe Arts Hub password
+Hello {{first_name}},
+
+Use this link to choose a new password (it works once, for {{minutes}} minutes):
+
+{{SECRET}}
+
+If you didn't ask for this, you can ignore this email — your password hasn't changed.

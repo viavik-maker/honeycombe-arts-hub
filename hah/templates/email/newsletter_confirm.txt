@@ -1,0 +1,8 @@
+Subject: Confirm you'd like news from Honeycombe Arts Hub
+Hello,
+
+You asked to hear about future events and activities. Please confirm with this link:
+
+{{SECRET}}
+
+If you didn't ask for this, just ignore this email and we won't add you.

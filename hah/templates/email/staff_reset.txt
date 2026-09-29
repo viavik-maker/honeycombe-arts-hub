@@ -1,0 +1,8 @@
+Subject: Reset your Honeycombe Arts Hub staff sign-in
+Hello {{name}},
+
+{{inviter}} has issued a link for you to choose a new password and set up two-step sign-in again (the link works once, for {{hours}} hours):
+
+{{SECRET}}
+
+If you didn't ask for this, please tell a manager.

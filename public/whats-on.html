@@ -24,8 +24,9 @@
         <div class="featured-strip reveal" id="featuredEvent"></div>
         <div class="cards" id="eventsGrid"></div>
         <div class="section__more">
-          <a class="btn btn--orange btn--lg" data-booking href="#" target="_blank" rel="noopener">Book via our booking portal</a>
-          <p class="form-note mt-2">Our booking portal handles memberships, payments, medical info and invoices. Need help? <a href="/contact">Contact the team</a>.</p>
+          <a class="btn btn--orange btn--lg" data-booking href="#" target="_blank" rel="noopener"><span data-when-booking="off">Book via our booking portal</span><span data-when-booking="on" hidden>Book online</span></a>
+          <p class="form-note mt-2" data-when-booking="off">Our booking portal handles memberships, payments, medical info and invoices. Need help? <a href="/contact">Contact the team</a>.</p>
+          <p class="form-note mt-2" data-when-booking="on" hidden>Create a free account to book, pay and keep your child's details up to date — no membership fee. Need help? <a href="/contact">Contact the team</a>.</p>
         </div>
       </div>
     </section>

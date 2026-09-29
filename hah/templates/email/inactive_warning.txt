@@ -1,0 +1,10 @@
+Subject: Do you still want your Honeycombe Arts Hub account?
+Hello {{first_name}},
+
+We haven't seen you for a while — your account hasn't been used for over {{years}} years. To look after your family's information, we delete accounts that are no longer used.
+
+If you'd like to keep it, just sign in before {{when}}: {{signin_url}}
+
+Otherwise we'll delete your account and your family's details then. (We keep invoices for six years, and any accident records until a child turns 25, as the law requires.)
+
+Questions? Just reply to this email or call us on 07932 772905.

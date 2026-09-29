@@ -7,24 +7,18 @@
   <meta name="robots" content="noindex">
   <title>Hub Admin — Honeycombe Arts Hub</title>
   <link rel="icon" type="image/png" href="/img/favicon.png">
-  <link rel="preconnect" href="https://fonts.googleapis.com">
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&family=Nunito:ital,wght@0,400;0,600;0,700;0,800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/css/fonts.css">
   <link rel="stylesheet" href="/admin/admin.css">
 </head>
 <body>
 
   <!-- ============ LOGIN ============ -->
-  <div id="loginView" class="login" hidden>
-    <form id="loginForm" class="login__card">
+  <main id="loginView" class="login" hidden>
+    <div class="login__card">
       <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="login__logo">
-      <h1>Staff sign in</h1>
-      <p>Welcome back! Enter the team password to manage the website.</p>
-      <input type="password" id="loginPass" placeholder="Password" autocomplete="current-password" required>
-      <button class="abtn abtn--primary" type="submit">Sign in</button>
-      <p id="loginErr" class="login__err" hidden></p>
-    </form>
-  </div>
+      <div id="loginStep"></div>
+    </div>
+  </main>
 
   <!-- ============ APP ============ -->
   <div id="appView" class="app" hidden>
@@ -32,17 +26,18 @@
       <img src="/img/logo.png" alt="Honeycombe Arts Hub" class="side__logo">
       <nav class="side__nav" id="sideNav">
         <button data-tab="dashboard" class="active"><span>🏠</span> Dashboard</button>
-        <button data-tab="events"><span>🎟️</span> What’s On</button>
-        <button data-tab="past"><span>📜</span> Past Events</button>
-        <button data-tab="gallery"><span>🖼️</span> Gallery</button>
-        <button data-tab="testimonials"><span>💬</span> Testimonials</button>
-        <button data-tab="mission"><span>🌟</span> Impact &amp; Values</button>
-        <button data-tab="pages"><span>📄</span> Page text</button>
-        <button data-tab="messages"><span>📥</span> Inbox <em id="msgBadge" hidden></em></button>
-        <button data-tab="subscribers"><span>📣</span> Newsletter</button>
-        <button data-tab="settings"><span>⚙️</span> Settings</button>
+        <button data-tab="events" data-perm="site.content"><span>🎟️</span> What’s On</button>
+        <button data-tab="past" data-perm="site.content"><span>📜</span> Past Events</button>
+        <button data-tab="gallery" data-perm="site.content"><span>🖼️</span> Gallery</button>
+        <button data-tab="testimonials" data-perm="site.content"><span>💬</span> Testimonials</button>
+        <button data-tab="mission" data-perm="site.content"><span>🌟</span> Impact &amp; Values</button>
+        <button data-tab="pages" data-perm="site.content"><span>📄</span> Page text</button>
+        <button data-tab="messages" data-perm="site.content"><span>📥</span> Inbox <em id="msgBadge" hidden></em></button>
+        <button data-tab="subscribers" data-perm="site.content"><span>📣</span> Newsletter</button>
+        <button data-tab="settings" data-perm="site.content"><span>⚙️</span> Settings</button>
       </nav>
       <div class="side__foot">
+        <span id="whoAmI" class="side__who"></span>
         <a href="/" target="_blank" rel="noopener">↗ View live site</a>
         <button id="logoutBtn">Sign out</button>
       </div>
@@ -68,8 +63,30 @@
     </div>
   </div>
 
-  <div id="toast" class="toast" hidden></div>
+  <!-- live regions stay in the page so screen readers announce messages; admin.js puts #toast in the right one -->
+  <div id="toastLive" role="status" aria-live="polite" aria-atomic="true"><div id="toast" class="toast" hidden></div></div>
+  <div id="toastAlert" role="alert" aria-atomic="true"></div>
 
   <script src="/admin/admin.js"></script>
+  <!-- website editing (CMS) -->
+  <script type="module" src="/admin/js/cms/dashboard.js"></script>
+  <script type="module" src="/admin/js/cms/events.js"></script>
+  <script type="module" src="/admin/js/cms/gallery.js"></script>
+  <script type="module" src="/admin/js/cms/testimonials.js"></script>
+  <script type="module" src="/admin/js/cms/mission.js"></script>
+  <script type="module" src="/admin/js/cms/pages.js"></script>
+  <script type="module" src="/admin/js/cms/inbox.js"></script>
+  <script type="module" src="/admin/js/cms/settings.js"></script>
+  <script type="module" src="/admin/js/account.js"></script>
+  <script type="module" src="/admin/js/activities.js"></script>
+  <script type="module" src="/admin/js/bookings.js"></script>
+  <script type="module" src="/admin/js/registers.js"></script>
+  <script type="module" src="/admin/js/people.js"></script>
+  <script type="module" src="/admin/js/finance.js"></script>
+  <script type="module" src="/admin/js/import.js"></script>
+  <script type="module" src="/admin/js/messages.js"></script>
+  <script type="module" src="/admin/js/reports.js"></script>
+  <script type="module" src="/admin/js/send.js"></script>
+  <script type="module" src="/admin/js/shop.js"></script>
 </body>
 </html>

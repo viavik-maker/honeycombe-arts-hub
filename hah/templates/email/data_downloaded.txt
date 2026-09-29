@@ -1,0 +1,6 @@
+Subject: You downloaded a copy of your data
+Hello {{first_name}},
+
+A copy of the information we hold about you and your family was just downloaded from your account.
+
+If that wasn't you, please change your password straight away and call us on 07932 772905.

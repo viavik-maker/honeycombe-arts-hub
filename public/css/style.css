@@ -14,6 +14,7 @@
   --orange: #e2702a;
   --orange-d: #a8490a;
   --orange-solid: #b35510;   /* darker orange for fills carrying white text — WCAG AA (white ~4.97:1) */
+  --orange-text: #d9661f;    /* orange for large text on cream — WCAG AA large text (3.3:1) */
   --honey: #f2b92e;
   --honey-d: #d99e0e;
   --sage: #9cb985;
@@ -21,7 +22,7 @@
   --navy: #2e3960;
   --navy-d: #232b49;
   --ink: #272a3a;
-  --muted: #6b6f85;
+  --muted: #62667c;          /* 5:1 on the pale panels, 5.2:1 on cream */
   --cream: #faf5ec;
   --paper: #fffdf8;
   --line: #ece4d4;
@@ -138,8 +139,8 @@ p { margin: 0 0 1em; }
 /* ---------- hero ---------- */
 .hero { position: relative; overflow: hidden; padding: clamp(3rem, 7vw, 6rem) 0 0; }
 .hero__grid { display: grid; grid-template-columns: 1.05fr .95fr; gap: clamp(2rem, 5vw, 4.5rem); align-items: center; padding-bottom: clamp(3rem, 6vw, 5.5rem); }
-.hero__eyebrow { font-family: var(--font-cut); font-size: 1.25rem; letter-spacing: .04em; color: var(--orange); margin-bottom: .5em; display: inline-block; transform: rotate(-1.5deg); }
-.hero h1 .swap { color: var(--orange); display: inline-block; min-width: 4.2em; }
+.hero__eyebrow { font-family: var(--font-cut); font-size: 1.25rem; letter-spacing: .04em; color: var(--orange-solid); margin-bottom: .5em; display: inline-block; transform: rotate(-1.5deg); }
+.hero h1 .swap { color: var(--orange-text); display: inline-block; min-width: 4.2em; }
 .hero h1 .swap .word { display: inline-block; animation: wordIn .5s ease; }
 @keyframes wordIn { from { opacity: 0; transform: translateY(.4em) rotate(2deg); } to { opacity: 1; transform: none; } }
 .hero__lead { font-size: 1.2rem; max-width: 34em; color: var(--muted); }
@@ -189,7 +190,7 @@ p { margin: 0 0 1em; }
 }
 .section__head { max-width: 640px; margin-bottom: 2.6rem; }
 .section__head--center { margin-inline: auto; text-align: center; }
-.eyebrow { font-family: var(--font-hand); font-size: 1.55rem; color: var(--orange); display: block; transform: rotate(-1.5deg); margin-bottom: .2em; }
+.eyebrow { font-family: var(--font-hand); font-size: 1.55rem; color: var(--orange-text); display: block; transform: rotate(-1.5deg); margin-bottom: .2em; }
 .section--navy .eyebrow { color: var(--honey); }
 .section__head p { color: var(--muted); font-size: 1.08rem; }
 .section--navy .section__head p { color: #b9c0dc; }
@@ -390,7 +391,7 @@ p { margin: 0 0 1em; }
 .footer__tag { font-size: .97rem; }
 .footer__tag .accent-hand { color: var(--honey); }
 .footer__strap { font-family: var(--font-cut); color: var(--honey); font-size: 1.1rem; letter-spacing: .04em; line-height: 1.1; margin: 0 0 .5em; transform: rotate(-1.5deg); display: inline-block; }
-.footer__col h4 { color: #fff; font-size: 1.05rem; margin-bottom: 1em; }
+.footer__col h2 { color: #fff; font-size: 1.05rem; margin: 0 0 1em; }
 .footer__col > a { display: block; padding: .28em 0; font-size: .97rem; }
 .footer__social { display: flex; gap: .7em; margin-top: 1.2em; }
 .footer__social a {
@@ -401,7 +402,7 @@ p { margin: 0 0 1em; }
 .footer__social svg { width: 19px; height: 19px; fill: #fff; }
 .footer__contact p { font-size: .95rem; }
 .footer__news { margin-top: 1.4em; }
-.footer__news h4 { margin-bottom: .3em; }
+.footer__news h2 { margin-bottom: .3em; }
 .footer__newsnote { font-size: .88rem; margin-bottom: .7em; }
 .footer__newsrow { display: flex; gap: .5em; }
 .footer__newsrow input {
@@ -432,7 +433,8 @@ p { margin: 0 0 1em; }
 .page-hero--img .container { position: relative; z-index: 1; }
 .page-hero--img h1 { color: #fff; }
 .page-hero--img p { color: #e4e8f5; max-width: 36em; font-size: 1.12rem; }
-.page-hero .eyebrow { color: var(--honey); }
+.page-hero .eyebrow { color: var(--orange-text); }
+.page-hero--img .eyebrow { color: var(--honey); }
 .breadcrumb { font-size: .9rem; font-weight: 700; margin-bottom: 1.4em; opacity: .85; }
 .breadcrumb a { color: inherit; text-decoration: none; }
 .breadcrumb a:hover { text-decoration: underline; }
@@ -506,7 +508,7 @@ p { margin: 0 0 1em; }
 .funder__inner { display: grid; grid-template-columns: auto 1fr; gap: clamp(1.6rem, 4vw, 3.2rem); align-items: center; }
 .funder__plaque { background: var(--navy); border-radius: var(--r-md); padding: 1.7rem 2.3rem; display: grid; place-items: center; box-shadow: var(--shadow-1); }
 .funder__plaque img { height: 72px; width: auto; }
-.funder__text .eyebrow { color: var(--orange); }
+.funder__text .eyebrow { color: var(--orange-text); }
 .funder__text h2 { margin: .12em 0 .35em; }
 .funder__text p { color: var(--muted); max-width: 48em; margin: 0; }
 @media (max-width: 640px) {
@@ -542,10 +544,14 @@ p { margin: 0 0 1em; }
 .contact-card:nth-child(2) .ico { background: var(--honey); }
 .contact-card:nth-child(3) .ico { background: var(--sage); }
 .contact-card:nth-child(4) .ico { background: var(--navy); }
-.contact-card h3 { margin-bottom: .15em; font-size: 1.12rem; }
+.contact-card h2 { margin-bottom: .15em; font-size: 1.12rem; }
 .contact-card p { margin: 0; color: var(--muted); font-size: .96rem; }
 .map-frame { border-radius: var(--r-lg); overflow: hidden; box-shadow: var(--shadow-1); margin-top: 2.5rem; }
 .map-frame iframe { display: block; width: 100%; height: 380px; border: 0; }
+.map-frame--consent { background: var(--paper); border: 2px dashed var(--line); box-shadow: none; min-height: 180px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center; gap: .4rem; padding: 1.6rem; text-align: center; }
+.map-frame--consent p { margin: 0; color: var(--muted); }
+.map-frame--consent .btn { margin: .3rem; }
 
 /* ---------- whats-on page list ---------- */
 .featured-strip { background: var(--navy); border-radius: var(--r-lg); overflow: hidden; display: grid; grid-template-columns: 1.1fr 1fr; margin-bottom: 3rem; color: #dfe3f3; box-shadow: var(--shadow-2); }
@@ -611,3 +617,5 @@ p { margin: 0 0 1em; }
   .hero__actions .btn { flex: 1 1 100%; justify-content: center; }
   .section__head { margin-bottom: 2rem; }
 }
+.nav__account { align-self: center; font-family: var(--font-display); font-weight: 600; color: var(--navy-d); text-decoration: none; margin-right: .3em; }
+.nav__account:hover { color: var(--orange-d); }

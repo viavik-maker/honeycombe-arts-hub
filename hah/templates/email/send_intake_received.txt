@@ -1,0 +1,8 @@
+Subject: We've got your support request for {{child}}
+Hello {{first_name}},
+
+Thank you for telling us about {{child}}. Our SEND lead will be in touch within {{days}} working days ({{how}}) to talk about how we can support them.
+
+Once you've agreed a support plan together, you can book as usual — and the staff running each session will know what helps.
+
+Anything you'd like to add or change? Just reply to this email or call us on 07932 772905.

@@ -1,0 +1,6 @@
+Subject: {{child}}'s support plan is agreed
+Hello {{first_name}},
+
+Thank you for talking with us. We've recorded {{child}}'s support plan, and the staff running their sessions will be able to see what helps.
+
+You can now [book activities]({{book_url}}). If anything changes, just let us know.

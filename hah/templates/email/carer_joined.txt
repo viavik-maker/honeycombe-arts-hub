@@ -1,0 +1,6 @@
+Subject: {{carer}} can now use your Honeycombe Arts Hub account
+Hello {{first_name}},
+
+{{carer}} has accepted your invitation. They can now sign in to your family's account to book, pay and see bookings.
+
+You can remove them at any time from "My details" in your account. If you didn't add them, please call us on 07932 772905.

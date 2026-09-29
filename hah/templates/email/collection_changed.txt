@@ -1,0 +1,6 @@
+Subject: Collection details changed for {{child}}
+Hello {{first_name}},
+
+The collection details for {{child}} were changed in your Honeycombe Arts Hub account just now ({{what}}).
+
+If this was you, there's nothing more to do. If it wasn't, please call us straight away on 07932 772905 and change your password.

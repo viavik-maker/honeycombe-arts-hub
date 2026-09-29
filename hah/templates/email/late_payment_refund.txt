@@ -1,0 +1,12 @@
+Subject: Your payment arrived after the place was released
+Hello {{first_name}},
+
+Thank you for paying. Unfortunately your payment reached us after we'd stopped holding these places, and they've since been booked by someone else:
+
+{{lines}}
+
+We're sorry. We've given back what you paid for them: {{back}}. Card refunds usually take 5–10 days to appear.
+
+If you'd still like to come, please choose another session: {{book_url}}
+
+Questions? Just reply to this email or call us on 07932 772905.
