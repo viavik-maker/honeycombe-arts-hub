@@ -158,9 +158,11 @@ _codes_used = {}
 
 def next_code(secret):
     """A valid TOTP code for SECRET that hasn't been used yet in this run
-    (the server refuses to accept the same code twice)."""
+    (the server refuses to accept the same code twice). Starts from the
+    current step so the code is still inside the server's one-step tolerance
+    if the clock ticks over a 30-second boundary before it is verified."""
     import time
-    step = max(int(time.time() // 30) - 1, _codes_used.get(secret, -1) + 1)
+    step = max(int(time.time() // 30), _codes_used.get(secret, -1) + 1)
     _codes_used[secret] = step
     return security.hotp(security._b32decode(secret), step)
 
